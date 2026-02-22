@@ -1,9 +1,12 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import { store } from './settingsHandler'
 
-function getCacheFilePath(): string {
-  return path.join(app.getPath('userData'), 'app-cache', 'app-state.json')
+function getCacheFilePath(): string | null {
+  const rootFolder = store.get('rootFolder') as string | null
+  if (!rootFolder) return null
+  return path.join(rootFolder, 'AstroSessionManagerDb.json')
 }
 
 export function registerCacheManager(): void {
@@ -14,7 +17,7 @@ export function registerCacheManager(): void {
     thumbnailPaths?: Record<string, string>
   }) => {
     const filePath = getCacheFilePath()
-    await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
+    if (!filePath) return
 
     // Merge with existing cache to avoid wiping fields not included in this save
     let existing: Record<string, unknown> = {}
@@ -26,12 +29,13 @@ export function registerCacheManager(): void {
     }
 
     const merged = { ...existing, ...data }
-    await fs.promises.writeFile(filePath, JSON.stringify(merged), 'utf-8')
+    await fs.promises.writeFile(filePath, JSON.stringify(merged, null, 2), 'utf-8')
     console.log('[cache] saved keys:', Object.keys(data).join(', '), '→', filePath)
   })
 
   ipcMain.handle('cache:load', async () => {
     const filePath = getCacheFilePath()
+    if (!filePath) return null
     try {
       const content = await fs.promises.readFile(filePath, 'utf-8')
       const parsed = JSON.parse(content)
