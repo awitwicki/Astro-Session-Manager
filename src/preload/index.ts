@@ -112,6 +112,14 @@ const electronAPI = {
       ipcRenderer.invoke('shell:showInFolder', folderPath)
   },
 
+  window: {
+    platform: process.platform,
+    onFullscreenChanged: (callback: (_event: unknown, isFullscreen: boolean) => void): (() => void) => {
+      ipcRenderer.on('window:fullscreenChanged', callback)
+      return () => ipcRenderer.removeListener('window:fullscreenChanged', callback)
+    }
+  },
+
   cache: {
     save: (data: {
       scanResult?: unknown

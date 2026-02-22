@@ -192,7 +192,7 @@ export function MastersLibrary() {
             style={{ color: 'var(--color-text-muted)', fontSize: 11, marginLeft: 4 }}
             title="Parsed from filename"
           >
-            (file)
+            (from filename)
           </span>
         )}
       </span>

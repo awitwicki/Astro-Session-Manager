@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Telescope,
@@ -11,6 +12,8 @@ import { useAppStore } from '../../store/appStore'
 import { useProjects } from '../../hooks/useProjects'
 import { projectPath } from '../../lib/constants'
 
+const isMac = window.electronAPI.window.platform === 'darwin'
+
 export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -19,15 +22,21 @@ export function Sidebar() {
   const isScanning = useAppStore((s) => s.isScanning)
   const { selectFolder, scan } = useProjects()
 
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    if (!isMac) return
+    const cleanup = window.electronAPI.window.onFullscreenChanged((_event, value) => {
+      setIsFullscreen(value)
+    })
+    return cleanup
+  }, [])
+
+  const showTrafficLightSpacer = isMac && !isFullscreen
+
   return (
     <div className="app-sidebar">
-      <div className="sidebar-header titlebar-drag">
-        <div className="sidebar-title titlebar-no-drag" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Telescope size={16} />
-          Astro Session Manager
-        </div>
-      </div>
-
+      {showTrafficLightSpacer && <div className="sidebar-traffic-light-spacer" />}
       <nav className="sidebar-nav">
         <div className="sidebar-section">
           <button
@@ -92,6 +101,8 @@ export function Sidebar() {
           <Settings size={16} />
           Settings
         </button>
+
+        <div className="sidebar-version">app version: {__APP_VERSION__}</div>
       </div>
     </div>
   )

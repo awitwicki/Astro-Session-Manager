@@ -51,6 +51,14 @@ export function createWindow(): BrowserWindow {
   mainWindow.on('resize', saveBounds)
   mainWindow.on('move', saveBounds)
 
+  // Notify renderer about fullscreen changes (for macOS traffic light padding)
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow.webContents.send('window:fullscreenChanged', true)
+  })
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow.webContents.send('window:fullscreenChanged', false)
+  })
+
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {

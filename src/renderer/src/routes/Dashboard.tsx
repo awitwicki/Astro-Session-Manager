@@ -152,7 +152,7 @@ export function Dashboard() {
           <h1 className="page-title">Dashboard</h1>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 2 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
             <button
               className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : ''}`}
               onClick={() => setViewMode('grid')}

@@ -87,6 +87,11 @@ input, select, textarea {
   overflow: hidden;
 }
 
+.sidebar-traffic-light-spacer {
+  min-height: 40px;
+  -webkit-app-region: drag;
+}
+
 .app-main {
   flex: 1;
   display: flex;
@@ -189,6 +194,13 @@ input, select, textarea {
 .sidebar-footer {
   padding: 8px;
   border-top: 1px solid var(--color-border);
+}
+
+.sidebar-version {
+  text-align: left;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  padding: 6px 8px;
 }
 
 /* Buttons */
