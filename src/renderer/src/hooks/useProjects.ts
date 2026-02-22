@@ -47,7 +47,7 @@ export function useProjects() {
         // Cache save is best-effort
       }
 
-      // Also scan masters
+      // Also scan masters (calibration matching happens automatically in store)
       try {
         const masters = await window.electronAPI.masters.scan()
         setMastersLibrary(masters as Parameters<typeof setMastersLibrary>[0])
@@ -92,6 +92,12 @@ export function useProjects() {
   }, [setRootFolder, setScanResult, setScanning, setScanError, setMastersLibrary])
 
   const init = useCallback(async () => {
+    // Load temperature tolerance setting
+    const tolerance = await window.electronAPI.settings.get('darkTempTolerance')
+    if (typeof tolerance === 'number') {
+      useAppStore.getState().setDarkTempTolerance(tolerance)
+    }
+
     const saved = await window.electronAPI.settings.get('rootFolder')
     if (typeof saved === 'string' && saved) {
       setRootFolder(saved)

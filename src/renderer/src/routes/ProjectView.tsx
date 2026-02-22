@@ -281,7 +281,6 @@ function SessionAccordion({
       darksMatched: boolean
       darkGroupName?: string
       darkCount?: number
-      biasMatched: boolean
       biasCount?: number
       flatsAvailable: boolean
       flatCount?: number
@@ -345,12 +344,7 @@ function SessionAccordion({
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             {cal.darksMatched && cal.darkGroupName && (
               <span className="badge badge-success">
-                Darks: {cal.darkGroupName} ({cal.darkCount} files)
-              </span>
-            )}
-            {cal.biasMatched && (
-              <span className="badge badge-success">
-                Biases: {cal.biasCount} files
+                Dark match from masters library: {cal.darkGroupName}
               </span>
             )}
           </div>

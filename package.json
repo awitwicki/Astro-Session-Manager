@@ -1,6 +1,6 @@
 {
   "name": "astro-session-manager",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Astrophotography session manager - manage imaging sessions, FITS files, and masters library",
   "main": "./out/main/index.js",
   "author": "awitwicki",

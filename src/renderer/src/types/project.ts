@@ -49,7 +49,6 @@ export interface CalibrationMatch {
   darksMatched: boolean
   darkGroupName?: string
   darkCount?: number
-  biasMatched: boolean
   biasCount?: number
   flatsAvailable: boolean
   flatCount?: number
