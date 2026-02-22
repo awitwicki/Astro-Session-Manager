@@ -24,7 +24,6 @@ win:
     - target: portable
       arch:
         - x64
-        - arm64
 linux:
   target:
     - target: AppImage

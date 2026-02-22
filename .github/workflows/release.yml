@@ -34,8 +34,8 @@ jobs:
           fi
 
   build-mac:
-    needs: check-version
-    if: needs.check-version.outputs.tag_created == 'true'
+    # needs: check-version
+    # if: needs.check-version.outputs.tag_created == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,8 +54,8 @@ jobs:
           path: dist/*.dmg
 
   build-windows:
-    needs: check-version
-    if: needs.check-version.outputs.tag_created == 'true'
+    # needs: check-version
+    # if: needs.check-version.outputs.tag_created == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
