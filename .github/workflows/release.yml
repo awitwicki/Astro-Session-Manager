@@ -44,9 +44,9 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm ci
+      - run: yarn install --frozen-lockfile
 
-      - run: npm run package:mac
+      - run: yarn package:mac
 
       - uses: actions/upload-artifact@v4
         with:
@@ -64,9 +64,9 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm ci
+      - run: yarn install --frozen-lockfile
 
-      - run: npm run package:win
+      - run: yarn package:win
 
       - uses: actions/upload-artifact@v4
         with:
