@@ -1,6 +1,6 @@
 {
   "name": "astro-session-manager",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Astrophotography session manager - manage imaging sessions, FITS files, and masters library",
   "main": "./out/main/index.js",
   "author": "awitwicki",
@@ -11,7 +11,7 @@
     "preview": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "package": "electron-vite build && electron-builder --config electron-builder.yml",
-    "package:mac": "electron-vite build && electron-builder --mac",
+    "package:mac": "electron-vite build && electron-builder --mac --publish never",
     "package:win": "node scripts/install-sharp-platform.js win32 x64 && electron-vite build && electron-builder --win",
     "package:linux": "node scripts/install-sharp-platform.js linux x64 && electron-vite build && electron-builder --linux",
     "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
