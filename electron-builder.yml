@@ -1,5 +1,6 @@
 appId: com.awitwicki.astro-session-manager
 productName: Astro Session Manager
+icon: resources/icon.png
 directories:
   buildResources: resources
   output: dist
