@@ -17,7 +17,6 @@ export function useProjects() {
   const saveCache = useCallback(async () => {
     const state = useAppStore.getState()
     try {
-      // Find the raw scan result to save - we need to get the latest from scanner
       await window.electronAPI.cache.save({
         fwhmData: state.fwhmData,
         thumbnailPaths: state.thumbnailPaths
@@ -35,24 +34,27 @@ export function useProjects() {
       const scanResult = result as Parameters<typeof setScanResult>[0]
       setScanResult(scanResult)
 
-      // Save scan result to cache
+      // Scan masters (calibration matching happens automatically in store)
+      let mastersLibrary: unknown = null
+      try {
+        const masters = await window.electronAPI.masters.scan()
+        setMastersLibrary(masters as Parameters<typeof setMastersLibrary>[0])
+        mastersLibrary = masters
+      } catch {
+        // Masters might not exist
+      }
+
+      // Save everything to cache
       try {
         const state = useAppStore.getState()
         await window.electronAPI.cache.save({
           scanResult,
+          mastersLibrary,
           fwhmData: state.fwhmData,
           thumbnailPaths: state.thumbnailPaths
         })
       } catch {
         // Cache save is best-effort
-      }
-
-      // Also scan masters (calibration matching happens automatically in store)
-      try {
-        const masters = await window.electronAPI.masters.scan()
-        setMastersLibrary(masters as Parameters<typeof setMastersLibrary>[0])
-      } catch {
-        // Masters might not exist
       }
     } catch (err) {
       setScanError(String(err))
@@ -72,17 +74,19 @@ export function useProjects() {
         const scanResult = result as Parameters<typeof setScanResult>[0]
         setScanResult(scanResult)
 
-        // Save to cache
-        try {
-          await window.electronAPI.cache.save({ scanResult })
-        } catch { /* best-effort */ }
-
+        let mastersLibrary: unknown = null
         try {
           const masters = await window.electronAPI.masters.scan()
           setMastersLibrary(masters as Parameters<typeof setMastersLibrary>[0])
+          mastersLibrary = masters
         } catch {
           // OK
         }
+
+        // Save to cache
+        try {
+          await window.electronAPI.cache.save({ scanResult, mastersLibrary })
+        } catch { /* best-effort */ }
       } catch (err) {
         setScanError(String(err))
       } finally {
@@ -102,12 +106,15 @@ export function useProjects() {
     if (typeof saved === 'string' && saved) {
       setRootFolder(saved)
 
-      // Try loading cache first for instant display
+      // Load cache for instant display
       try {
         const cached = await window.electronAPI.cache.load()
         if (cached) {
           if (cached.scanResult) {
             setScanResult(cached.scanResult as Parameters<typeof setScanResult>[0])
+          }
+          if (cached.mastersLibrary) {
+            setMastersLibrary(cached.mastersLibrary as Parameters<typeof setMastersLibrary>[0])
           }
           if (cached.fwhmData) {
             setFwhmBatch(cached.fwhmData)
@@ -117,12 +124,16 @@ export function useProjects() {
           }
         }
       } catch {
-        // Cache load failed, will do full scan
+        // Cache load failed
       }
 
-      // Don't auto-scan; user can trigger rescan manually from sidebar
+      // Auto-scan if setting is enabled
+      const autoScan = await window.electronAPI.settings.get('autoScanOnStartup')
+      if (autoScan !== false) {
+        await scan()
+      }
     }
-  }, [setRootFolder, setScanResult, setFwhmBatch, setThumbnailPathBatch])
+  }, [setRootFolder, setScanResult, setMastersLibrary, setFwhmBatch, setThumbnailPathBatch, scan])
 
   return {
     projects,

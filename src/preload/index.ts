@@ -123,12 +123,14 @@ const electronAPI = {
   cache: {
     save: (data: {
       scanResult?: unknown
+      mastersLibrary?: unknown
       fwhmData?: Record<string, number>
       thumbnailPaths?: Record<string, string>
     }): Promise<void> =>
       ipcRenderer.invoke('cache:save', data),
     load: (): Promise<{
       scanResult?: unknown
+      mastersLibrary?: unknown
       fwhmData?: Record<string, number>
       thumbnailPaths?: Record<string, string>
     } | null> =>
