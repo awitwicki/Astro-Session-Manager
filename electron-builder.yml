@@ -11,6 +11,7 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - 'node_modules/sharp/**/*'
+  - 'node_modules/@img/**/*'
 mac:
   category: public.app-category.photography
   target:
