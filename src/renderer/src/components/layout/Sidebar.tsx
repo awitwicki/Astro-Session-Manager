@@ -59,20 +59,19 @@ export function Sidebar() {
         {projects.length > 0 && (
           <div className="sidebar-section">
             <div className="sidebar-section-title">Projects</div>
-            {projects.map((p) => (
+            {projects.map((p) => {
+              const prefix = `/project/${encodeURIComponent(p.name)}`
+              const isActive = location.pathname === prefix || location.pathname.startsWith(`${prefix}/`)
+              return (
               <button
                 key={p.name}
-                className={`sidebar-item sidebar-tree-item ${
-                  location.pathname.startsWith(`/project/${encodeURIComponent(p.name)}`)
-                    ? 'active'
-                    : ''
-                }`}
+                className={`sidebar-item ${isActive ? 'active' : ''}`}
                 onClick={() => navigate(projectPath(p.name))}
               >
-                <ChevronRight size={14} />
                 {p.name}
               </button>
-            ))}
+              )
+            })}
           </div>
         )}
       </nav>
