@@ -300,7 +300,7 @@ function SessionAccordion({
         className={`accordion-header ${open ? 'open' : ''}`}
         onClick={() => setOpen(!open)}
       >
-        <ChevronRight size={16} />
+        <ChevronRight size={16} className="rotatable" />
         <span style={{ fontWeight: 600 }}>{session.date}</span>
         <span style={{ color: 'var(--color-text-muted)', fontSize: 12, marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
           <span>{session.lights.length} lights</span>

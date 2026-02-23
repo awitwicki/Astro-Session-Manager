@@ -450,7 +450,7 @@ input, select, textarea {
   transition: transform var(--transition-fast);
 }
 
-.accordion-header.open svg {
+.accordion-header.open svg.rotatable {
   transform: rotate(90deg);
 }
 
