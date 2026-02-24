@@ -50,7 +50,7 @@ pub struct FitsHeader {
 #[serde(rename_all = "camelCase")]
 pub struct PixelDataResult {
     pub header: FitsHeader,
-    pub pixels: Vec<f64>,
+    pub pixels: Vec<f32>,
     pub width: i32,
     pub height: i32,
 }
@@ -165,6 +165,22 @@ pub struct CacheSizeInfo {
     pub total_size: u64,
     pub file_count: usize,
     pub path: String,
+}
+
+// ─── FITS Preview Types ─────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FitsPreviewResult {
+    pub image_path: String,
+    pub width: u32,
+    pub height: u32,
+    pub original_width: u32,
+    pub original_height: u32,
+    pub shadows: f64,
+    pub midtones: f64,
+    pub highlights: f64,
+    pub header: FitsHeader,
 }
 
 // ─── File Operation Types ───────────────────────────────────────────────────

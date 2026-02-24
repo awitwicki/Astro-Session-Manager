@@ -1,6 +1,7 @@
 mod cache;
 mod commands;
 mod fits_parser;
+mod fits_preview;
 mod masters;
 mod scanner;
 mod settings;
@@ -38,6 +39,9 @@ pub fn run() {
             commands::get_cached_thumbnail,
             commands::get_cache_size,
             commands::clear_thumbnail_cache,
+            // FITS Preview
+            commands::get_fits_preview,
+            commands::render_fits_preview,
             // Masters
             commands::scan_masters,
             commands::find_master_match,
