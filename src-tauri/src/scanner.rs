@@ -1,0 +1,276 @@
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+use std::time::Instant;
+
+use crate::fits_parser;
+use crate::types::{
+    FilterScanNode, FitsFileRef, FitsHeader, ProjectScanNode, ScanResult, SessionScanNode,
+};
+use crate::xisf_parser;
+
+const FITS_EXTENSIONS: &[&str] = &[".fits", ".fit", ".fts", ".xisf"];
+
+/// Check if a filename has a supported FITS/XISF extension
+fn is_fits_file(filename: &str) -> bool {
+    let lower = filename.to_lowercase();
+    FITS_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
+}
+
+/// Safely list directory entries, returning empty vec on error
+fn list_dir_safe(dir_path: &Path) -> Vec<fs::DirEntry> {
+    match fs::read_dir(dir_path) {
+        Ok(entries) => entries.filter_map(|e| e.ok()).collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Scan a directory for FITS/XISF files, returning sorted FitsFileRef list
+fn scan_fits_files(dir_path: &Path) -> Vec<FitsFileRef> {
+    let entries = list_dir_safe(dir_path);
+    let mut refs: Vec<FitsFileRef> = Vec::new();
+
+    for entry in entries {
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if !file_type.is_file() {
+            continue;
+        }
+
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !is_fits_file(&name) {
+            continue;
+        }
+
+        let full_path = dir_path.join(&name);
+        if let Ok(metadata) = fs::metadata(&full_path) {
+            let modified_at = metadata
+                .modified()
+                .ok()
+                .and_then(|t| {
+                    let datetime: chrono::DateTime<chrono::Utc> = t.into();
+                    Some(datetime.to_rfc3339())
+                })
+                .unwrap_or_default();
+
+            refs.push(FitsFileRef {
+                filename: name,
+                path: full_path.to_string_lossy().to_string(),
+                size_bytes: metadata.len(),
+                modified_at,
+            });
+        }
+    }
+
+    refs.sort_by(|a, b| a.filename.cmp(&b.filename));
+    refs
+}
+
+/// Find a subdirectory by name, case-insensitive, from a list of DirEntry
+fn find_dir_case_insensitive<'a>(
+    entries: &'a [fs::DirEntry],
+    names: &[&str],
+) -> Option<&'a fs::DirEntry> {
+    let lower_names: Vec<String> = names.iter().map(|n| n.to_lowercase()).collect();
+    entries.iter().find(|e| {
+        if let Ok(ft) = e.file_type() {
+            if ft.is_dir() {
+                let entry_name = e.file_name().to_string_lossy().to_lowercase();
+                return lower_names.contains(&entry_name);
+            }
+        }
+        false
+    })
+}
+
+/// Scan a single session directory for lights and flats
+fn scan_session(session_path: &Path, date_name: &str) -> SessionScanNode {
+    let entries = list_dir_safe(session_path);
+
+    // Look for lights/flats subdirectories (case-insensitive)
+    let lights_dir = find_dir_case_insensitive(&entries, &["lights", "light"]);
+    let flats_dir = find_dir_case_insensitive(&entries, &["flats", "flat"]);
+
+    let mut lights: Vec<FitsFileRef> = Vec::new();
+    let mut flats: Vec<FitsFileRef> = Vec::new();
+
+    if let Some(ld) = lights_dir {
+        lights = scan_fits_files(&session_path.join(ld.file_name()));
+    }
+
+    if let Some(fd) = flats_dir {
+        flats = scan_fits_files(&session_path.join(fd.file_name()));
+    }
+
+    // If no lights subdirectory found, scan FITS files directly in session folder
+    if lights.is_empty() {
+        let direct_fits = scan_fits_files(session_path);
+        if !direct_fits.is_empty() {
+            lights = direct_fits;
+        }
+    }
+
+    let total_size_bytes: u64 = lights.iter().map(|l| l.size_bytes).sum::<u64>()
+        + flats.iter().map(|f| f.size_bytes).sum::<u64>();
+
+    SessionScanNode {
+        date: date_name.to_string(),
+        path: session_path.to_string_lossy().to_string(),
+        lights,
+        flats,
+        total_size_bytes,
+    }
+}
+
+/// Scan a filter directory for session subdirectories
+fn scan_filter(filter_path: &Path, filter_name: &str) -> FilterScanNode {
+    let entries = list_dir_safe(filter_path);
+    let mut sessions: Vec<SessionScanNode> = Vec::new();
+
+    // Each subdirectory is a date/session
+    let dir_entries: Vec<&fs::DirEntry> = entries
+        .iter()
+        .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+        .collect();
+
+    for entry in &dir_entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let session = scan_session(&filter_path.join(&name), &name);
+        sessions.push(session);
+    }
+
+    // Check if FITS files are directly in the filter folder
+    // (some structures: project/filter/files.fits without date subfolder)
+    if sessions
+        .iter()
+        .all(|s| s.lights.is_empty() && s.flats.is_empty())
+    {
+        let direct_fits = scan_fits_files(filter_path);
+        if !direct_fits.is_empty() {
+            let total: u64 = direct_fits.iter().map(|f| f.size_bytes).sum();
+            sessions.push(SessionScanNode {
+                date: "unsorted".to_string(),
+                path: filter_path.to_string_lossy().to_string(),
+                lights: direct_fits,
+                flats: Vec::new(),
+                total_size_bytes: total,
+            });
+        }
+    }
+
+    sessions.sort_by(|a, b| a.date.cmp(&b.date));
+    let total_size_bytes: u64 = sessions.iter().map(|s| s.total_size_bytes).sum();
+
+    FilterScanNode {
+        name: filter_name.to_string(),
+        path: filter_path.to_string_lossy().to_string(),
+        sessions,
+        total_size_bytes,
+    }
+}
+
+/// Scan a project directory for filter subdirectories
+fn scan_project(project_path: &Path, project_name: &str) -> ProjectScanNode {
+    let entries = list_dir_safe(project_path);
+    let mut filters: Vec<FilterScanNode> = Vec::new();
+
+    let dir_entries: Vec<&fs::DirEntry> = entries
+        .iter()
+        .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+        .collect();
+
+    for entry in &dir_entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let filter = scan_filter(&project_path.join(&name), &name);
+        filters.push(filter);
+    }
+
+    filters.sort_by(|a, b| a.name.cmp(&b.name));
+    let total_size_bytes: u64 = filters.iter().map(|f| f.total_size_bytes).sum();
+
+    ProjectScanNode {
+        name: project_name.to_string(),
+        path: project_path.to_string_lossy().to_string(),
+        filters,
+        total_size_bytes,
+    }
+}
+
+/// Enrich scan results with FITS headers by reading the first light of each session
+fn enrich_with_headers(scan_result: &ScanResult) -> HashMap<String, FitsHeader> {
+    let mut project_headers: HashMap<String, FitsHeader> = HashMap::new();
+
+    for project in &scan_result.projects {
+        for filter in &project.filters {
+            for session in &filter.sessions {
+                if let Some(first_light) = session.lights.first() {
+                    let header_result = if first_light
+                        .filename
+                        .to_lowercase()
+                        .ends_with(".xisf")
+                    {
+                        xisf_parser::read_xisf_header(&first_light.path)
+                    } else {
+                        fits_parser::read_fits_header(&first_light.path)
+                    };
+
+                    if let Ok(header) = header_result {
+                        project_headers.insert(first_light.path.clone(), header);
+                    }
+                }
+            }
+        }
+    }
+
+    project_headers
+}
+
+/// Main scan function: scan a root directory for projects, filters, sessions
+pub fn scan_root_directory(root_path: &str) -> Result<ScanResult, String> {
+    let start = Instant::now();
+    let root = Path::new(root_path);
+
+    if !root.exists() || !root.is_dir() {
+        return Err(format!("Root path does not exist or is not a directory: {}", root_path));
+    }
+
+    let entries = list_dir_safe(root);
+    let mut projects: Vec<ProjectScanNode> = Vec::new();
+
+    // Filter out "masters" directory and dot-directories
+    let dir_entries: Vec<&fs::DirEntry> = entries
+        .iter()
+        .filter(|e| {
+            if let Ok(ft) = e.file_type() {
+                if ft.is_dir() {
+                    let name = e.file_name().to_string_lossy().to_string();
+                    return name != "masters" && !name.starts_with('.');
+                }
+            }
+            false
+        })
+        .collect();
+
+    for entry in &dir_entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let project = scan_project(&root.join(&name), &name);
+        projects.push(project);
+    }
+
+    projects.sort_by(|a, b| a.name.cmp(&b.name));
+
+    let duration = start.elapsed();
+    let mut result = ScanResult {
+        root_path: root_path.to_string(),
+        projects,
+        scan_duration_ms: duration.as_millis() as u64,
+        project_headers: HashMap::new(),
+    };
+
+    // Enrich with headers from first light of each session
+    result.project_headers = enrich_with_headers(&result);
+
+    Ok(result)
+}
