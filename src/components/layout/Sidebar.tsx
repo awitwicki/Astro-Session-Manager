@@ -8,6 +8,7 @@ import {
 import { useAppStore } from '../../store/appStore'
 import { useProjects } from '../../hooks/useProjects'
 import { projectPath } from '../../lib/constants'
+import { version } from '../../../package.json'
 
 export function Sidebar() {
   const navigate = useNavigate()
@@ -83,7 +84,7 @@ export function Sidebar() {
           Settings
         </button>
 
-        <div className="sidebar-version">Astro Session Manager</div>
+        <div className="sidebar-version">Astro Session Manager v{version}</div>
       </div>
     </div>
   )
