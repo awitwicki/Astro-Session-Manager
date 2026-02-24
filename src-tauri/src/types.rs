@@ -157,6 +157,8 @@ pub struct ThumbnailProgress {
     pub current: usize,
     pub total: usize,
     pub file_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

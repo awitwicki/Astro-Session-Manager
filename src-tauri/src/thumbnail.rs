@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use image::imageops::FilterType;
 use image::{ImageBuffer, Luma, Rgb, RgbImage};
 use sha2::{Digest, Sha256};
 use tauri::Emitter;
@@ -116,77 +115,43 @@ fn apply_scnr(r: &[f32], g: &mut [f32], b: &[f32]) {
     }
 }
 
-// ─── Debayer (Bayer CFA demosaicing) ────────────────────────────────────────
+// ─── Fast Bayer super-pixel extraction ───────────────────────────────────────
 
-/// Debayer a single-channel Bayer-pattern image to RGB using bilinear interpolation.
-/// Pattern must be one of: RGGB, BGGR, GRBG, GBRG
-fn debayer(mono: &[f32], width: usize, height: usize, pattern: &str) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
-    let pixel_count = width * height;
-    let mut r = vec![0.0f32; pixel_count];
-    let mut g = vec![0.0f32; pixel_count];
-    let mut b = vec![0.0f32; pixel_count];
+/// Extract RGB from a 2x2 Bayer super-pixel at the given (even-aligned) position.
+/// Much faster than full bilinear debayer — only 4 pixel lookups per output pixel.
+#[inline]
+fn bayer_super_pixel(
+    pixels: &[f32],
+    row: usize,
+    col: usize,
+    width: usize,
+    pattern: &str,
+) -> (f32, f32, f32) {
+    let p00 = pixels[row * width + col];
+    let p01 = pixels[row * width + col + 1];
+    let p10 = pixels[(row + 1) * width + col];
+    let p11 = pixels[(row + 1) * width + col + 1];
 
-    let pat_bytes = pattern.as_bytes();
-
-    // Get pixel with boundary clamping
-    let px = |row: isize, col: isize| -> f32 {
-        let cr = row.clamp(0, height as isize - 1) as usize;
-        let cc = col.clamp(0, width as isize - 1) as usize;
-        mono[cr * width + cc]
-    };
-
-    // Color at (row, col) in the Bayer pattern
-    let color_at = |row: usize, col: usize| -> u8 {
-        pat_bytes[(row % 2) * 2 + (col % 2)]
-    };
-
-    for row in 0..height {
-        for col in 0..width {
-            let i = row * width + col;
-            let ir = row as isize;
-            let ic = col as isize;
-            let color = color_at(row, col);
-            let val = mono[i];
-
-            match color {
-                b'R' => {
-                    r[i] = val;
-                    g[i] = (px(ir - 1, ic) + px(ir + 1, ic) + px(ir, ic - 1) + px(ir, ic + 1)) / 4.0;
-                    b[i] = (px(ir - 1, ic - 1) + px(ir - 1, ic + 1) + px(ir + 1, ic - 1) + px(ir + 1, ic + 1)) / 4.0;
-                }
-                b'B' => {
-                    b[i] = val;
-                    g[i] = (px(ir - 1, ic) + px(ir + 1, ic) + px(ir, ic - 1) + px(ir, ic + 1)) / 4.0;
-                    r[i] = (px(ir - 1, ic - 1) + px(ir - 1, ic + 1) + px(ir + 1, ic - 1) + px(ir + 1, ic + 1)) / 4.0;
-                }
-                b'G' => {
-                    g[i] = val;
-                    // Determine if R neighbors are horizontal or vertical
-                    let row_color0 = pat_bytes[(row % 2) * 2]; // color at col=0 on this row
-                    if row_color0 == b'R' {
-                        // R on this row: horizontal neighbors are R, vertical are B
-                        r[i] = (px(ir, ic - 1) + px(ir, ic + 1)) / 2.0;
-                        b[i] = (px(ir - 1, ic) + px(ir + 1, ic)) / 2.0;
-                    } else {
-                        // B on this row: horizontal neighbors are B, vertical are R
-                        b[i] = (px(ir, ic - 1) + px(ir, ic + 1)) / 2.0;
-                        r[i] = (px(ir - 1, ic) + px(ir + 1, ic)) / 2.0;
-                    }
-                }
-                _ => {
-                    // Treat unknown as green
-                    g[i] = val;
-                }
-            }
-        }
+    match pattern {
+        "RGGB" => (p00, (p01 + p10) * 0.5, p11),
+        "BGGR" => (p11, (p01 + p10) * 0.5, p00),
+        "GRBG" => (p01, (p00 + p11) * 0.5, p10),
+        "GBRG" => (p10, (p00 + p11) * 0.5, p01),
+        _ => (p00, p00, p00),
     }
+}
 
-    (r, g, b)
+/// Compute the subsample stride so the output fits within target×target.
+fn compute_subsample_stride(width: usize, height: usize, target: usize) -> usize {
+    let max_dim = width.max(height);
+    (max_dim / target).max(1)
 }
 
 // ─── Thumbnail generation ───────────────────────────────────────────────────
 
-/// Generate a thumbnail for a FITS file with auto-stretch and optional debayering.
+/// Generate a thumbnail for a FITS file using fast stride-based subsampling.
+/// Instead of full-resolution debayer + Lanczos3 resize, this directly subsamples
+/// the pixel data to thumbnail size, making it ~100x faster for large images.
 pub fn generate_thumbnail(
     file_path: &str,
     app_handle: &tauri::AppHandle,
@@ -232,55 +197,114 @@ pub fn generate_thumbnail(
     let has_bayer = channels == 1 && bayerpat.is_some();
 
     if has_bayer {
-        // ── Bayer image: debayer → per-channel stretch → RGB ──
+        // ── Bayer: fast super-pixel subsampling (no full debayer) ──
         let pattern = bayerpat.as_ref().unwrap();
-        let (r_chan, mut g_chan, b_chan) = debayer(pixels, width, height, pattern);
+        let stride = compute_subsample_stride(width, height, THUMBNAIL_SIZE as usize);
+        // Must be even and at least 2 for Bayer pattern alignment
+        let stride = if stride < 2 { 2 } else { stride + (stride % 2) };
 
-        // Remove green excess from Bayer pattern (2x green pixels)
-        apply_scnr(&r_chan, &mut g_chan, &b_chan);
+        let out_w = (width / stride).max(1);
+        let out_h = (height / stride).max(1);
 
-        let stretch_r = auto_stretch(&r_chan);
-        let stretch_g = auto_stretch(&g_chan);
-        let stretch_b = auto_stretch(&b_chan);
+        let mut r_sub = Vec::with_capacity(out_w * out_h);
+        let mut g_sub = Vec::with_capacity(out_w * out_h);
+        let mut b_sub = Vec::with_capacity(out_w * out_h);
 
-        let img: RgbImage = ImageBuffer::from_fn(width as u32, height as u32, |x, y| {
-            let i = y as usize * width + x as usize;
+        for oy in 0..out_h {
+            for ox in 0..out_w {
+                let sy = (oy * stride).min(height.saturating_sub(2));
+                let sx = (ox * stride).min(width.saturating_sub(2));
+                // Align to even for Bayer pattern
+                let sy = sy - (sy % 2);
+                let sx = sx - (sx % 2);
+
+                let (r, g, b) = bayer_super_pixel(pixels, sy, sx, width, pattern);
+                r_sub.push(r);
+                g_sub.push(g);
+                b_sub.push(b);
+            }
+        }
+
+        apply_scnr(&r_sub, &mut g_sub, &b_sub);
+
+        let stretch_r = auto_stretch(&r_sub);
+        let stretch_g = auto_stretch(&g_sub);
+        let stretch_b = auto_stretch(&b_sub);
+
+        let img: RgbImage = ImageBuffer::from_fn(out_w as u32, out_h as u32, |x, y| {
+            let i = y as usize * out_w + x as usize;
             Rgb([
-                apply_stretch(r_chan[i], &stretch_r),
-                apply_stretch(g_chan[i], &stretch_g),
-                apply_stretch(b_chan[i], &stretch_b),
+                apply_stretch(r_sub[i], &stretch_r),
+                apply_stretch(g_sub[i], &stretch_g),
+                apply_stretch(b_sub[i], &stretch_b),
             ])
         });
 
-        save_resized_rgb(&img, &output_path)?;
+        if out_w as u32 > THUMBNAIL_SIZE || out_h as u32 > THUMBNAIL_SIZE {
+            save_resized_rgb(&img, &output_path)?;
+        } else {
+            img.save(&output_path)
+                .map_err(|e| format!("Failed to save thumbnail PNG: {}", e))?;
+        }
     } else if channels == 1 {
-        // ── Mono image: single-channel stretch → grayscale ──
-        let stretch = auto_stretch(pixels);
+        // ── Mono: stride-based nearest-neighbor subsampling ──
+        let stride = compute_subsample_stride(width, height, THUMBNAIL_SIZE as usize);
+        let out_w = (width / stride).max(1);
+        let out_h = (height / stride).max(1);
+
+        let mut sub = Vec::with_capacity(out_w * out_h);
+        for oy in 0..out_h {
+            let sy = (oy * stride).min(height - 1);
+            let row_off = sy * width;
+            for ox in 0..out_w {
+                let sx = (ox * stride).min(width - 1);
+                sub.push(pixels[row_off + sx]);
+            }
+        }
+
+        let stretch = auto_stretch(&sub);
 
         let img: ImageBuffer<Luma<u8>, Vec<u8>> =
-            ImageBuffer::from_fn(width as u32, height as u32, |x, y| {
-                let i = y as usize * width + x as usize;
-                Luma([apply_stretch(pixels[i], &stretch)])
+            ImageBuffer::from_fn(out_w as u32, out_h as u32, |x, y| {
+                let i = y as usize * out_w + x as usize;
+                Luma([apply_stretch(sub[i], &stretch)])
             });
 
-        save_resized_gray(&img, &output_path)?;
+        if out_w as u32 > THUMBNAIL_SIZE || out_h as u32 > THUMBNAIL_SIZE {
+            save_resized_gray(&img, &output_path)?;
+        } else {
+            img.save(&output_path)
+                .map_err(|e| format!("Failed to save thumbnail PNG: {}", e))?;
+        }
     } else {
-        // ── Multi-channel color image (NAXIS3 planes) ──
+        // ── Multi-channel: subsample each plane ──
+        let stride = compute_subsample_stride(width, height, THUMBNAIL_SIZE as usize);
+        let out_w = (width / stride).max(1);
+        let out_h = (height / stride).max(1);
+
         let mut stretched_channels: Vec<Vec<u8>> = Vec::new();
         for c in 0..channels.min(3) {
             let plane = &pixels[c * pixel_count..(c + 1) * pixel_count];
-            let stretch = auto_stretch(plane);
-            let stretched: Vec<u8> = plane.iter().map(|&v| apply_stretch(v, &stretch)).collect();
+            let mut sub = Vec::with_capacity(out_w * out_h);
+            for oy in 0..out_h {
+                let sy = (oy * stride).min(height - 1);
+                let row_off = sy * width;
+                for ox in 0..out_w {
+                    let sx = (ox * stride).min(width - 1);
+                    sub.push(plane[row_off + sx]);
+                }
+            }
+            let stretch = auto_stretch(&sub);
+            let stretched: Vec<u8> = sub.iter().map(|&v| apply_stretch(v, &stretch)).collect();
             stretched_channels.push(stretched);
         }
 
-        // Pad to 3 channels if needed
         while stretched_channels.len() < 3 {
-            stretched_channels.push(vec![0u8; pixel_count]);
+            stretched_channels.push(vec![0u8; out_w * out_h]);
         }
 
-        let img: RgbImage = ImageBuffer::from_fn(width as u32, height as u32, |x, y| {
-            let i = y as usize * width + x as usize;
+        let img: RgbImage = ImageBuffer::from_fn(out_w as u32, out_h as u32, |x, y| {
+            let i = y as usize * out_w + x as usize;
             Rgb([
                 stretched_channels[0][i],
                 stretched_channels[1][i],
@@ -288,7 +312,12 @@ pub fn generate_thumbnail(
             ])
         });
 
-        save_resized_rgb(&img, &output_path)?;
+        if out_w as u32 > THUMBNAIL_SIZE || out_h as u32 > THUMBNAIL_SIZE {
+            save_resized_rgb(&img, &output_path)?;
+        } else {
+            img.save(&output_path)
+                .map_err(|e| format!("Failed to save thumbnail PNG: {}", e))?;
+        }
     }
 
     Ok(ThumbnailResult {
@@ -298,22 +327,24 @@ pub fn generate_thumbnail(
 }
 
 /// Resize an RGB image to fit within THUMBNAIL_SIZE×THUMBNAIL_SIZE and save as PNG.
+/// Uses Triangle (bilinear) filter for speed — image is already near target size.
 fn save_resized_rgb(img: &RgbImage, output_path: &Path) -> Result<(), String> {
     let (w, h) = img.dimensions();
     let (new_w, new_h) = fit_inside(w, h, THUMBNAIL_SIZE);
 
-    let resized = image::imageops::resize(img, new_w, new_h, FilterType::Lanczos3);
+    let resized = image::imageops::resize(img, new_w, new_h, image::imageops::FilterType::Triangle);
     resized
         .save(output_path)
         .map_err(|e| format!("Failed to save thumbnail PNG: {}", e))
 }
 
 /// Resize a grayscale image to fit within THUMBNAIL_SIZE×THUMBNAIL_SIZE and save as PNG.
+/// Uses Triangle (bilinear) filter for speed — image is already near target size.
 fn save_resized_gray(img: &ImageBuffer<Luma<u8>, Vec<u8>>, output_path: &Path) -> Result<(), String> {
     let (w, h) = img.dimensions();
     let (new_w, new_h) = fit_inside(w, h, THUMBNAIL_SIZE);
 
-    let resized = image::imageops::resize(img, new_w, new_h, FilterType::Lanczos3);
+    let resized = image::imageops::resize(img, new_w, new_h, image::imageops::FilterType::Triangle);
     resized
         .save(output_path)
         .map_err(|e| format!("Failed to save thumbnail PNG: {}", e))
@@ -371,9 +402,11 @@ pub fn batch_generate_thumbnails(
     let mut results: HashMap<String, ThumbnailResult> = HashMap::new();
 
     for (i, file_path) in file_paths.iter().enumerate() {
-        match generate_thumbnail(file_path, app_handle) {
+        let thumb_path = match generate_thumbnail(file_path, app_handle) {
             Ok(result) => {
+                let path = result.thumbnail_path.clone();
                 results.insert(file_path.clone(), result);
+                Some(path)
             }
             Err(_) => {
                 results.insert(
@@ -383,13 +416,15 @@ pub fn batch_generate_thumbnails(
                         fwhm: None,
                     },
                 );
+                None
             }
-        }
+        };
 
         let progress = ThumbnailProgress {
             current: i + 1,
             total: file_paths.len(),
             file_path: file_path.clone(),
+            thumbnail_path: thumb_path,
         };
         let _ = window.emit("thumbnail:progress", &progress);
     }

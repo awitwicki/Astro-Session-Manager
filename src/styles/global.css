@@ -730,3 +730,29 @@ input, select, textarea {
   background: var(--color-bg-primary);
   color: var(--color-text-muted);
 }
+
+/* Global progress bar (bottom of app) */
+.global-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  min-height: 28px;
+}
+
+.global-progress-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.global-progress-queued {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  white-space: nowrap;
+}

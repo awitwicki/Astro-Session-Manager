@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trash2, Eye, Loader, Plus, FolderOpen, LayoutGrid, List, Image } from 'lucide-react'
+import { Trash2, Eye, Plus, FolderOpen, LayoutGrid, List, Image } from 'lucide-react'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
-import { listen } from '@tauri-apps/api/event'
 import { useProjects } from '../hooks/useProjects'
 import { useAppStore } from '../store/appStore'
 import { formatIntegrationTime, formatFileSize, formatTemperature, formatExposure } from '../lib/formatters'
@@ -21,14 +20,12 @@ export function SessionView() {
   const navigate = useNavigate()
   const projects = useAppStore((s) => s.projects)
   const thumbnailPaths = useAppStore((s) => s.thumbnailPaths)
-  const setThumbnailPath = useAppStore((s) => s.setThumbnailPath)
   const fwhmData = useAppStore((s) => s.fwhmData)
-  const setFwhm = useAppStore((s) => s.setFwhm)
   const removeLight = useAppStore((s) => s.removeLight)
+  const enqueueThumbnails = useAppStore((s) => s.enqueueThumbnails)
+  const thumbnailProcessing = useAppStore((s) => s.thumbnailProcessing)
   const { scan } = useProjects()
 
-  const [generating, setGenerating] = useState(false)
-  const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table')
@@ -41,9 +38,9 @@ export function SessionView() {
   const filter = project?.filters.find((f) => f.name === decodeURIComponent(filterName || ''))
   const session = filter?.sessions.find((s) => s.date === decodeURIComponent(date || ''))
 
-  // Generate thumbnails for all lights
-  const generateThumbnails = useCallback(async () => {
-    if (!session || generating) return
+  // Enqueue thumbnail generation for missing thumbnails
+  const generateThumbnails = useCallback(() => {
+    if (!session || !project || !filter) return
 
     const missingPaths = session.lights
       .filter((l) => !thumbnailPaths[l.path])
@@ -51,42 +48,9 @@ export function SessionView() {
 
     if (missingPaths.length === 0) return
 
-    setGenerating(true)
-    setProgress({ current: 0, total: missingPaths.length })
-
-    const unlisten = await listen<{ current: number; total: number }>('thumbnail:progress', (event) => {
-      setProgress({ current: event.payload.current, total: event.payload.total })
-    })
-
-    try {
-      const results = await invoke<Record<string, { thumbnailPath: string; fwhm?: number }>>('batch_generate_thumbnails', { filePaths: missingPaths })
-      for (const [filePath, result] of Object.entries(results)) {
-        if (result.thumbnailPath) {
-          setThumbnailPath(filePath, result.thumbnailPath)
-        }
-        if (result.fwhm != null) {
-          setFwhm(filePath, result.fwhm)
-        }
-      }
-      // Save updated cache
-      try {
-        const state = useAppStore.getState()
-        const rootFolder = state.rootFolder
-        if (rootFolder) {
-          await invoke('save_cache', {
-            rootFolder,
-            data: {
-              fwhmData: state.fwhmData,
-              thumbnailPaths: state.thumbnailPaths
-            }
-          })
-        }
-      } catch { /* best-effort */ }
-    } finally {
-      setGenerating(false)
-      unlisten()
-    }
-  }, [session, generating, thumbnailPaths, setThumbnailPath, setFwhm])
+    const label = `${project.name} / ${filter.name} / ${session.date}`
+    enqueueThumbnails(label, missingPaths)
+  }, [session, project, filter, thumbnailPaths, enqueueThumbnails])
 
   // Lazy-load FITS headers when switching to table view
   useEffect(() => {
@@ -165,21 +129,6 @@ export function SessionView() {
 
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        {generating && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--color-text-muted)' }}>
-            <Loader size={14} className="spinning" />
-            Generating thumbnails ({progress.current}/{progress.total})
-            <div className="progress-bar" style={{ width: 120 }}>
-              <div
-                className="progress-bar-fill"
-                style={{
-                  width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%`
-                }}
-              />
-            </div>
-          </div>
-        )}
-
         <div style={{ display: 'flex', gap: 2 }}>
           <button
             className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : ''}`}
@@ -200,7 +149,7 @@ export function SessionView() {
         <button
           className="btn btn-sm"
           onClick={generateThumbnails}
-          disabled={generating}
+          disabled={thumbnailProcessing}
           title="Generate thumbnails and compute FWHM"
         >
           <Image size={14} />
@@ -316,7 +265,7 @@ export function SessionView() {
                   />
                 ) : (
                   <div className="thumbnail-placeholder">
-                    {generating ? <Loader size={24} className="spinning" /> : <Eye size={24} />}
+                    <Eye size={24} />
                   </div>
                 )}
 

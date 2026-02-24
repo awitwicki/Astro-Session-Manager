@@ -172,6 +172,11 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
   return applyCalibration(projects, mastersLibrary, tempTolerance)
 }
 
+interface ThumbnailQueueItem {
+  label: string
+  files: string[]
+}
+
 interface AppState {
   rootFolder: string | null
   projects: Project[]
@@ -182,6 +187,11 @@ interface AppState {
   darkTempTolerance: number
   thumbnailPaths: Record<string, string>
   fwhmData: Record<string, number>
+
+  // Thumbnail queue
+  thumbnailQueue: ThumbnailQueueItem[]
+  thumbnailProcessing: boolean
+  thumbnailProgress: { current: number; total: number; label: string } | null
 
   setRootFolder: (path: string | null) => void
   setDarkTempTolerance: (val: number) => void
@@ -196,6 +206,12 @@ interface AppState {
   setFwhmBatch: (data: Record<string, number>) => void
   updateCalibration: (projectName: string, filterName: string, date: string, calibration: Project['filters'][0]['sessions'][0]['calibration']) => void
   removeLight: (filePath: string) => void
+
+  // Thumbnail queue actions
+  enqueueThumbnails: (label: string, files: string[]) => void
+  startThumbnailProcessing: (label: string) => void
+  setThumbnailQueueProgress: (current: number, total: number) => void
+  completeThumbnailBatch: () => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -207,6 +223,9 @@ export const useAppStore = create<AppState>((set) => ({
   theme: 'dark',
   thumbnailPaths: {},
   fwhmData: {},
+  thumbnailQueue: [],
+  thumbnailProcessing: false,
+  thumbnailProgress: null,
 
   darkTempTolerance: 2,
 
@@ -286,5 +305,30 @@ export const useAppStore = create<AppState>((set) => ({
           }))
         }))
       }))
+    })),
+
+  enqueueThumbnails: (label, files) =>
+    set((state) => ({
+      thumbnailQueue: [...state.thumbnailQueue, { label, files }]
+    })),
+
+  startThumbnailProcessing: (label) =>
+    set({
+      thumbnailProcessing: true,
+      thumbnailProgress: { current: 0, total: 0, label }
+    }),
+
+  setThumbnailQueueProgress: (current, total) =>
+    set((state) => ({
+      thumbnailProgress: state.thumbnailProgress
+        ? { ...state.thumbnailProgress, current, total }
+        : null
+    })),
+
+  completeThumbnailBatch: () =>
+    set((state) => ({
+      thumbnailQueue: state.thumbnailQueue.slice(1),
+      thumbnailProcessing: false,
+      thumbnailProgress: state.thumbnailQueue.length <= 1 ? null : state.thumbnailProgress
     }))
 }))
