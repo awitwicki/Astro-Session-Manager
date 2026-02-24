@@ -1,46 +1,32 @@
 {
   "name": "astro-session-manager",
-  "version": "1.1.1",
-  "description": "Astrophotography session manager - manage imaging sessions, FITS files, and masters library",
-  "main": "./out/main/index.js",
-  "author": "awitwicki",
-  "license": "GNU GENERAL PUBLIC LICENSE",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
-    "postinstall": "electron-builder install-app-deps",
-    "package": "electron-vite build && electron-builder --config electron-builder.yml",
-    "package:mac": "electron-vite build && electron-builder --mac --publish never",
-    "package:win": "node scripts/install-sharp-platform.js win32 x64 && electron-vite build && electron-builder --win",
-    "package:linux": "node scripts/install-sharp-platform.js linux x64 && electron-vite build && electron-builder --linux",
-    "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
-    "typecheck:renderer": "tsc --noEmit -p tsconfig.web.json"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "sharp": "^0.33.5"
-  },
-  "optionalDependencies": {
-    "@img/sharp-darwin-arm64": "^0.33.5",
-    "@img/sharp-linux-x64": "^0.33.5",
-    "@img/sharp-win32-x64": "^0.33.5"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@electron-toolkit/preload": "^3.0.2",
-    "@electron-toolkit/utils": "^4.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
-    "electron-store": "^10.0.0",
-    "electron-vite": "^5.0.0",
-    "lucide-react": "^0.468.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-router-dom": "^7.1.1",
-    "typescript": "~5.7.3",
-    "vite": "^6.0.7",
-    "zustand": "^5.0.3"
+    "@eslint/js": "^9.39.1",
+    "@tauri-apps/cli": "^2.10.0",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.48.0",
+    "vite": "^7.3.1"
   }
 }

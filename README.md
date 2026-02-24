@@ -1,99 +1,75 @@
-<p align="center">
-  <img src="resources/icon.png" width="256" alt="Astro Session Manager" />
-</p>
+# React + TypeScript + Vite
 
-<h1 align="center">Astro Session Manager</h1>
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-<p align="center">
-  A desktop app for managing astrophotography imaging sessions and masters library.<br/>
-  Built with Electron, React, and TypeScript.
-</p>
+Currently, two official plugins are available:
 
----
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## Features
+## React Compiler
 
-- **Session overview** — see total integration time, subframe count, and gallery size at a glance for every project and filter
-- **Masters library** — browse and manage your dark, bias, and flat master frames with automatic calibration matching by temperature, exposure, and resolution
-- **Filesystem-based** — no database, no lock-in. Works with a simple structured folder tree (`project/filter/date/lights/`) that you fully control
-- **Project scaffolding** — quickly create new project folders with the right directory structure
-- **FITS/XISF header parsing** — reads CCD temperature, exposure time, gain, resolution, and more directly from your files
-- **Thumbnail previews** — generates and caches thumbnails for quick visual browsing (experimental feature)
-- **FWHM tracking** — track seeing quality across your sessions (experimental feature)
-- **Cross-platform** — runs on macOS, Windows, and Linux
+The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
 
-## Folder Structure
+Note: This will impact Vite dev & build performances.
 
-The app expects your astrophotography data to follow this directory layout:
+## Expanding the ESLint configuration
 
-```
-root_folder/
-├── ic1805/
-│   ├── ha/
-│   │   ├── 2024-01-15/
-│   │   │   ├── lights/
-│   │   │   │   ├── ic1805_ha_300s_001.fits
-│   │   │   │   ├── ic1805_ha_300s_002.fits
-│   │   │   │   └── ...
-│   │   │   └── flats/
-│   │   │       └── flat_ha_001.fits
-│   │   └── 2024-01-20/
-│   │       └── lights/
-│   │           └── ...
-│   ├── oiii/
-│   │   └── 2024-01-16/
-│   │       └── lights/
-│   │           └── ...
-│   └── sii/
-│       └── ...
-├── m42/
-│   └── dualband/
-│       └── 2024-02-10/
-│           └── lights/
-│               └── ...
-└── masters/
-    ├── darks/
-    │   └── dark_300s_-10C.fits
-    └── biases/
-        └── bias_-10C.fits
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
 
-Each level maps to: **Project → Filter → Night → Subframes (lights/flats)**
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-## Contributing
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
 
-Pull requests and issues are welcome! If you have ideas, bug reports, or feature requests, feel free to [open an issue](../../issues) or submit a PR.
-
-## Development
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v18+)
-- [Yarn](https://yarnpkg.com/)
-
-### Getting started
-
-```bash
-# Install dependencies
-yarn
-
-# Run in development mode
-yarn dev
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
-
-### Building
-
-```bash
-# macOS
-yarn package:mac
-
-# Windows
-yarn package:win
-
-# Linux
-yarn package:linux
-```
-
-## License
-
-[GNU General Public License](LICENSE)
