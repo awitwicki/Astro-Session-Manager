@@ -35,7 +35,6 @@ export interface LightFrame {
   path: string
   sizeBytes: number
   header?: FitsHeader
-  thumbnailPath?: string
 }
 
 export interface FlatFrame {

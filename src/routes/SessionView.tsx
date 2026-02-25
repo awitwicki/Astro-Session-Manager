@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trash2, Eye, Plus, FolderOpen, LayoutGrid, List, Image } from 'lucide-react'
-import { invoke, convertFileSrc } from '@tauri-apps/api/core'
+import { Trash2, Eye, Plus, FolderOpen } from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useProjects } from '../hooks/useProjects'
 import { useAppStore } from '../store/appStore'
 import { formatIntegrationTime, formatFileSize, formatTemperature, formatExposure } from '../lib/formatters'
-import { fitsDetailPath } from '../lib/constants'
+import { fitsGalleryPath } from '../lib/constants'
 
 type SortColumn = 'filename' | 'fwhm' | 'ccdTemp' | 'exptime' | 'size'
 type SortDirection = 'asc' | 'desc'
@@ -19,16 +19,12 @@ export function SessionView() {
   }>()
   const navigate = useNavigate()
   const projects = useAppStore((s) => s.projects)
-  const thumbnailPaths = useAppStore((s) => s.thumbnailPaths)
   const fwhmData = useAppStore((s) => s.fwhmData)
   const removeLight = useAppStore((s) => s.removeLight)
-  const enqueueThumbnails = useAppStore((s) => s.enqueueThumbnails)
-  const thumbnailProcessing = useAppStore((s) => s.thumbnailProcessing)
   const { scan } = useProjects()
 
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table')
   const [sortColumn, setSortColumn] = useState<SortColumn>('filename')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [headersLoaded, setHeadersLoaded] = useState(false)
@@ -38,23 +34,9 @@ export function SessionView() {
   const filter = project?.filters.find((f) => f.name === decodeURIComponent(filterName || ''))
   const session = filter?.sessions.find((s) => s.date === decodeURIComponent(date || ''))
 
-  // Enqueue thumbnail generation for missing thumbnails
-  const generateThumbnails = useCallback(() => {
-    if (!session || !project || !filter) return
-
-    const missingPaths = session.lights
-      .filter((l) => !thumbnailPaths[l.path])
-      .map((l) => l.path)
-
-    if (missingPaths.length === 0) return
-
-    const label = `${project.name} / ${filter.name} / ${session.date}`
-    enqueueThumbnails(label, missingPaths)
-  }, [session, project, filter, thumbnailPaths, enqueueThumbnails])
-
-  // Lazy-load FITS headers when switching to table view
+  // Load FITS headers for table view
   useEffect(() => {
-    if (viewMode !== 'table' || headersLoaded || !session) return
+    if (headersLoaded || !session) return
 
     const paths = session.lights.map((l) => l.path)
     if (paths.length === 0) return
@@ -69,7 +51,7 @@ export function SessionView() {
       setLightHeaders(headerMap)
       setHeadersLoaded(true)
     }).catch(() => {})
-  }, [viewMode, headersLoaded, session])
+  }, [headersLoaded, session])
 
   if (!session || !project || !filter) {
     return (
@@ -129,33 +111,6 @@ export function SessionView() {
 
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 2 }}>
-          <button
-            className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : ''}`}
-            onClick={() => setViewMode('grid')}
-            title="Grid view"
-          >
-            <LayoutGrid size={14} />
-          </button>
-          <button
-            className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : ''}`}
-            onClick={() => setViewMode('table')}
-            title="Table view"
-          >
-            <List size={14} />
-          </button>
-        </div>
-
-        <button
-          className="btn btn-sm"
-          onClick={generateThumbnails}
-          disabled={thumbnailProcessing}
-          title="Generate thumbnails and compute FWHM"
-        >
-          <Image size={14} />
-          Generate Thumbnails
-        </button>
-
         <button
           className="btn btn-sm"
           onClick={async () => {
@@ -227,75 +182,18 @@ export function SessionView() {
         )}
       </div>
 
-      {viewMode === 'table' ? (
-        <TableView
-          lights={session.lights}
-          fwhmData={fwhmData}
-          lightHeaders={lightHeaders}
-          sortColumn={sortColumn}
-          sortDirection={sortDirection}
-          selectedFrames={selectedFrames}
-          onSort={handleSort}
-          onToggleSelection={toggleSelection}
-          onNavigate={(path) => navigate(fitsDetailPath(path))}
-          getHeader={getHeader}
-        />
-      ) : (
-        <div className="grid-thumbnails">
-          {session.lights.map((light) => {
-            const thumbPath = thumbnailPaths[light.path]
-            const selected = selectedFrames.has(light.path)
-            const fwhm = fwhmData[light.path]
-
-            return (
-              <div
-                key={light.path}
-                className="thumbnail-card"
-                style={{
-                  outline: selected ? '2px solid var(--color-accent)' : undefined,
-                  outlineOffset: -2
-                }}
-                onClick={() => toggleSelection(light.path)}
-              >
-                {thumbPath ? (
-                  <img
-                    src={convertFileSrc(thumbPath)}
-                    alt={light.filename}
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="thumbnail-placeholder">
-                    <Eye size={24} />
-                  </div>
-                )}
-
-                <div className="thumbnail-card-info">
-                  <div className="thumbnail-card-filename">{light.filename}</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <span>{formatFileSize(light.sizeBytes)}</span>
-                    {fwhm != null && (
-                      <span style={{ color: 'var(--color-accent)' }}>FWHM: {fwhm.toFixed(1)} px</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="thumbnail-card-actions">
-                  <button
-                    className="btn btn-sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(fitsDetailPath(light.path))
-                    }}
-                    title="View details"
-                  >
-                    <Eye size={12} />
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <TableView
+        lights={session.lights}
+        fwhmData={fwhmData}
+        lightHeaders={lightHeaders}
+        sortColumn={sortColumn}
+        sortDirection={sortDirection}
+        selectedFrames={selectedFrames}
+        onSort={handleSort}
+        onToggleSelection={toggleSelection}
+        onNavigate={(path) => navigate(fitsGalleryPath(path, 'session', project.name, filter.name, session.date))}
+        getHeader={getHeader}
+      />
 
       {/* Delete confirmation modal */}
       {deleteConfirm && (

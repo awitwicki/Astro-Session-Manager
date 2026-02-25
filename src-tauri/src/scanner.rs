@@ -1,13 +1,32 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
+
+use tauri::Emitter;
 
 use crate::fits_parser;
 use crate::types::{
-    FilterScanNode, FitsFileRef, FitsHeader, ProjectScanNode, ScanResult, SessionScanNode,
+    FilterScanNode, FitsFileRef, FitsHeader, ProjectScanNode, ScanResult, ScanProgress,
+    SessionScanNode,
 };
 use crate::xisf_parser;
+
+fn header_cache() -> &'static Mutex<HashMap<String, FitsHeader>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, FitsHeader>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Seed the header cache with previously known headers (e.g. loaded from disk cache).
+/// Existing entries are NOT overwritten so in-memory results from the current session win.
+pub fn seed_header_cache(headers: HashMap<String, FitsHeader>) {
+    if let Ok(mut cache) = header_cache().lock() {
+        for (k, v) in headers {
+            cache.entry(k).or_insert(v);
+        }
+    }
+}
 
 const FITS_EXTENSIONS: &[&str] = &[".fits", ".fit", ".fts", ".xisf"];
 
@@ -198,42 +217,87 @@ fn scan_project(project_path: &Path, project_name: &str) -> ProjectScanNode {
     }
 }
 
-/// Enrich scan results with FITS headers by reading the first light of each session
-fn enrich_with_headers(scan_result: &ScanResult) -> HashMap<String, FitsHeader> {
+/// Enrich scan results with FITS headers by reading the first light of each session.
+/// Re-uses cached headers for files that have already been parsed; only reads new ones.
+fn enrich_with_headers(
+    scan_result: &ScanResult,
+    window: Option<&tauri::Window>,
+) -> HashMap<String, FitsHeader> {
     let mut project_headers: HashMap<String, FitsHeader> = HashMap::new();
 
-    for project in &scan_result.projects {
-        for filter in &project.filters {
-            for session in &filter.sessions {
-                if let Some(first_light) = session.lights.first() {
-                    let header_result = if first_light
-                        .filename
-                        .to_lowercase()
-                        .ends_with(".xisf")
-                    {
-                        xisf_parser::read_xisf_header(&first_light.path)
-                    } else {
-                        fits_parser::read_fits_header(&first_light.path)
-                    };
+    // Snapshot the current cache so we only lock briefly
+    let cached: HashMap<String, FitsHeader> = header_cache()
+        .lock()
+        .map(|c| c.clone())
+        .unwrap_or_default();
 
-                    if let Ok(header) = header_result {
-                        project_headers.insert(first_light.path.clone(), header);
-                    }
-                }
-            }
+    // Collect all first-light paths for progress tracking
+    let first_lights: Vec<&FitsFileRef> = scan_result
+        .projects
+        .iter()
+        .flat_map(|p| &p.filters)
+        .flat_map(|f| &f.sessions)
+        .filter_map(|s| s.lights.first())
+        .collect();
+
+    let total = first_lights.len();
+
+    for (i, first_light) in first_lights.iter().enumerate() {
+        // Emit progress
+        if let Some(win) = window {
+            let _ = win.emit(
+                "scan:progress",
+                ScanProgress {
+                    phase: "headers".to_string(),
+                    current: i + 1,
+                    total,
+                    file_path: first_light.path.clone(),
+                },
+            );
         }
+
+        // Re-use cached header if available
+        if let Some(existing) = cached.get(&first_light.path) {
+            project_headers.insert(first_light.path.clone(), existing.clone());
+            continue;
+        }
+
+        let header_result = if first_light
+            .filename
+            .to_lowercase()
+            .ends_with(".xisf")
+        {
+            xisf_parser::read_xisf_header(&first_light.path)
+        } else {
+            fits_parser::read_fits_header(&first_light.path)
+        };
+
+        if let Ok(header) = header_result {
+            project_headers.insert(first_light.path.clone(), header);
+        }
+    }
+
+    // Update the cache: replace with current set (removed files are dropped automatically)
+    if let Ok(mut cache) = header_cache().lock() {
+        *cache = project_headers.clone();
     }
 
     project_headers
 }
 
 /// Main scan function: scan a root directory for projects, filters, sessions
-pub fn scan_root_directory(root_path: &str) -> Result<ScanResult, String> {
+pub fn scan_root_directory(
+    root_path: &str,
+    window: Option<&tauri::Window>,
+) -> Result<ScanResult, String> {
     let start = Instant::now();
     let root = Path::new(root_path);
 
     if !root.exists() || !root.is_dir() {
-        return Err(format!("Root path does not exist or is not a directory: {}", root_path));
+        return Err(format!(
+            "Root path does not exist or is not a directory: {}",
+            root_path
+        ));
     }
 
     let entries = list_dir_safe(root);
@@ -253,8 +317,24 @@ pub fn scan_root_directory(root_path: &str) -> Result<ScanResult, String> {
         })
         .collect();
 
-    for entry in &dir_entries {
+    let total_projects = dir_entries.len();
+
+    for (i, entry) in dir_entries.iter().enumerate() {
         let name = entry.file_name().to_string_lossy().to_string();
+
+        // Emit directory-scan progress
+        if let Some(win) = window {
+            let _ = win.emit(
+                "scan:progress",
+                ScanProgress {
+                    phase: "scanning".to_string(),
+                    current: i + 1,
+                    total: total_projects,
+                    file_path: name.clone(),
+                },
+            );
+        }
+
         let project = scan_project(&root.join(&name), &name);
         projects.push(project);
     }
@@ -270,7 +350,7 @@ pub fn scan_root_directory(root_path: &str) -> Result<ScanResult, String> {
     };
 
     // Enrich with headers from first light of each session
-    result.project_headers = enrich_with_headers(&result);
+    result.project_headers = enrich_with_headers(&result, window);
 
     Ok(result)
 }

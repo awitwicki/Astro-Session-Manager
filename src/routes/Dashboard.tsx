@@ -14,13 +14,20 @@ export function Dashboard() {
   const { projects, isScanning, scanError, rootFolder, selectFolder, scan, init } = useProjects()
   const navigate = useNavigate()
 
+  const viewMode = useAppStore((s) => s.dashboardViewMode)
+  const setDashboardViewMode = useAppStore((s) => s.setDashboardViewMode)
+
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectFilters, setNewProjectFilters] = useState('')
   const [creating, setCreating] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [sortColumn, setSortColumn] = useState<ProjectSortColumn>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  const setViewMode = (mode: 'grid' | 'table') => {
+    setDashboardViewMode(mode)
+    invoke('set_setting', { key: 'dashboardViewMode', value: mode }).catch(() => {})
+  }
 
   useEffect(() => {
     init()

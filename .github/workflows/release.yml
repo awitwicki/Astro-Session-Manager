@@ -44,14 +44,21 @@ jobs:
         with:
           node-version: 20
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
       - run: yarn install --frozen-lockfile
 
-      - run: yarn electron-vite build && yarn electron-builder --mac --publish never
+      - run: yarn tauri build
 
       - uses: actions/upload-artifact@v4
         with:
           name: mac-builds
-          path: dist/*.dmg
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
 
   build-windows:
     needs: check-version
@@ -64,17 +71,64 @@ jobs:
         with:
           node-version: 20
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
       - run: yarn install --frozen-lockfile
 
-      - run: yarn package:win
+      - run: yarn tauri build
 
       - uses: actions/upload-artifact@v4
         with:
           name: win-builds
-          path: dist/*.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+
+  build-linux:
+    needs: check-version
+    if: needs.check-version.outputs.tag_created == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev
+
+      - run: yarn install --frozen-lockfile
+
+      - run: yarn tauri build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-builds
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
 
   release:
-    needs: [check-version, build-mac, build-windows]
+    needs: [check-version, build-mac, build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -90,3 +144,5 @@ jobs:
           files: |
             *.dmg
             *.exe
+            *.deb
+            *.AppImage

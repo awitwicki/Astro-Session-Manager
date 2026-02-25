@@ -10,18 +10,26 @@ use crate::fits_preview;
 use crate::masters;
 use crate::scanner;
 use crate::settings;
-use crate::thumbnail;
 use crate::types::*;
 use crate::xisf_parser;
 
 // ─── Scanner Commands ───────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn scan_root(root_folder: String, app_handle: AppHandle) -> Result<ScanResult, String> {
-    let _ = &app_handle;
-    tauri::async_runtime::spawn_blocking(move || scanner::scan_root_directory(&root_folder))
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
+pub async fn scan_root(
+    root_folder: String,
+    window: tauri::Window,
+) -> Result<ScanResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        scanner::scan_root_directory(&root_folder, Some(&window))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+}
+
+#[tauri::command]
+pub fn seed_header_cache(headers: HashMap<String, FitsHeader>) {
+    scanner::seed_header_cache(headers);
 }
 
 // ─── FITS Commands ──────────────────────────────────────────────────────────
@@ -29,13 +37,6 @@ pub async fn scan_root(root_folder: String, app_handle: AppHandle) -> Result<Sca
 #[tauri::command]
 pub fn read_fits_header(file_path: String) -> Result<FitsHeader, String> {
     fits_parser::read_fits_header(&file_path)
-}
-
-#[tauri::command]
-pub async fn read_fits_pixel_data(file_path: String) -> Result<PixelDataResult, String> {
-    tauri::async_runtime::spawn_blocking(move || fits_parser::read_fits_pixel_data(&file_path))
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 #[tauri::command]
@@ -48,49 +49,6 @@ pub fn batch_read_fits_headers(file_paths: Vec<String>) -> Result<Vec<Option<Fit
 #[tauri::command]
 pub fn read_xisf_header(file_path: String) -> Result<FitsHeader, String> {
     xisf_parser::read_xisf_header(&file_path)
-}
-
-// ─── Thumbnail Commands ─────────────────────────────────────────────────────
-
-#[tauri::command]
-pub async fn generate_thumbnail(
-    file_path: String,
-    app_handle: AppHandle,
-) -> Result<ThumbnailResult, String> {
-    tauri::async_runtime::spawn_blocking(move || thumbnail::generate_thumbnail(&file_path, &app_handle))
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
-}
-
-#[tauri::command]
-pub async fn batch_generate_thumbnails(
-    window: tauri::Window,
-    file_paths: Vec<String>,
-    app_handle: AppHandle,
-) -> Result<HashMap<String, ThumbnailResult>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        thumbnail::batch_generate_thumbnails(&window, &file_paths, &app_handle)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
-}
-
-#[tauri::command]
-pub fn get_cached_thumbnail(
-    file_path: String,
-    app_handle: AppHandle,
-) -> Result<Option<ThumbnailResult>, String> {
-    thumbnail::get_cached_thumbnail(&file_path, &app_handle)
-}
-
-#[tauri::command]
-pub fn get_cache_size(app_handle: AppHandle) -> Result<CacheSizeInfo, String> {
-    thumbnail::get_cache_size(&app_handle)
-}
-
-#[tauri::command]
-pub fn clear_thumbnail_cache(app_handle: AppHandle) -> Result<bool, String> {
-    thumbnail::clear_thumbnail_cache(&app_handle)
 }
 
 // ─── FITS Preview Commands ──────────────────────────────────────────────────
@@ -106,24 +64,21 @@ pub async fn get_fits_preview(
 }
 
 #[tauri::command]
-pub async fn render_fits_preview(
-    file_path: String,
-    shadows: f64,
-    midtones: f64,
-    highlights: f64,
+pub async fn batch_generate_previews(
+    window: tauri::Window,
+    file_paths: Vec<String>,
     app_handle: AppHandle,
-) -> Result<FitsPreviewResult, String> {
+) -> Result<HashMap<String, FitsPreviewResult>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        fits_preview::render_fits_preview(
-            &file_path,
-            shadows as f32,
-            midtones as f32,
-            highlights as f32,
-            &app_handle,
-        )
+        fits_preview::batch_generate_previews(&window, &file_paths, &app_handle)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
+}
+
+#[tauri::command]
+pub fn clear_preview_cache() {
+    fits_preview::clear_preview_cache();
 }
 
 // ─── Masters Commands ───────────────────────────────────────────────────────

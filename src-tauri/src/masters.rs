@@ -5,7 +5,7 @@ use regex::Regex;
 use walkdir::WalkDir;
 
 use crate::fits_parser;
-use crate::types::{FitsHeader, ImportResult, MasterFileEntry, MasterMatch, MastersLibrary};
+use crate::types::{FitsHeader, ImportResult, MasterFileEntry, MasterMatch, MastersLibrary, OtherEntry};
 use crate::xisf_parser;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &[".fits", ".fit", ".fts", ".xisf"];
@@ -240,6 +240,53 @@ fn generate_filename(
     format!("{}.{}", name, ext)
 }
 
+/// Collect "other" entries (non-master files and subdirectories) from a directory
+fn collect_other_entries(dir_path: &Path, master_prefix: &str) -> Vec<OtherEntry> {
+    let mut others: Vec<OtherEntry> = Vec::new();
+    if !dir_path.exists() {
+        return others;
+    }
+
+    let entries = match fs::read_dir(dir_path) {
+        Ok(e) => e,
+        Err(_) => return others,
+    };
+
+    for entry in entries.filter_map(|e| e.ok()) {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+
+        // Skip proper master files (they are in the main list)
+        if !is_dir && name.starts_with(master_prefix) && is_supported_file(&name) {
+            continue;
+        }
+
+        // Skip PixInsight project bundles (they look like folders but aren't)
+        if name.contains(".pxiproject") {
+            continue;
+        }
+
+        let path = entry.path().to_string_lossy().to_string();
+        let size_bytes = if is_dir {
+            0
+        } else {
+            entry.metadata().map(|m| m.len()).unwrap_or(0)
+        };
+
+        others.push(OtherEntry {
+            name,
+            path,
+            size_bytes,
+            is_dir,
+        });
+    }
+
+    others.sort_by(|a, b| {
+        b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name))
+    });
+    others
+}
+
 /// Scan the masters library (darks and biases) from root_folder/masters/
 pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
     let masters_path = PathBuf::from(root_folder).join("masters");
@@ -250,6 +297,10 @@ pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
 
     let mut darks: Vec<MasterFileEntry> = Vec::new();
     for file in &dark_files {
+        // Only files starting with "masterDark" are proper darks
+        if !file.filename.starts_with("masterDark") {
+            continue;
+        }
         let header = parse_file_header(file);
         let meta = extract_meta(&header, &file.filename);
         darks.push(MasterFileEntry {
@@ -277,12 +328,18 @@ pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
             )
     });
 
+    let other_darks = collect_other_entries(&darks_path, "masterDark");
+
     // Scan biases
     let biases_path = masters_path.join("biases");
     let bias_files = scan_files_recursive(&biases_path);
 
     let mut biases: Vec<MasterFileEntry> = Vec::new();
     for file in &bias_files {
+        // Only files starting with "masterBias" are proper biases
+        if !file.filename.starts_with("masterBias") {
+            continue;
+        }
         let header = parse_file_header(file);
         let meta = extract_meta(&header, &file.filename);
         biases.push(MasterFileEntry {
@@ -305,9 +362,13 @@ pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    let other_biases = collect_other_entries(&biases_path, "masterBias");
+
     Ok(MastersLibrary {
         darks,
         biases,
+        other_darks,
+        other_biases,
         root_path: masters_path.to_string_lossy().to_string(),
     })
 }

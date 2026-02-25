@@ -14,7 +14,6 @@ export function useProjects() {
   const setScanError = useAppStore((s) => s.setScanError)
   const setMastersLibrary = useAppStore((s) => s.setMastersLibrary)
   const setFwhmBatch = useAppStore((s) => s.setFwhmBatch)
-  const setThumbnailPathBatch = useAppStore((s) => s.setThumbnailPathBatch)
 
   const saveCache = useCallback(async () => {
     const state = useAppStore.getState()
@@ -24,8 +23,7 @@ export function useProjects() {
       await invoke('save_cache', {
         rootFolder: currentRootFolder,
         data: {
-          fwhmData: state.fwhmData,
-          thumbnailPaths: state.thumbnailPaths
+          fwhmData: state.fwhmData
         }
       })
     } catch {
@@ -62,8 +60,7 @@ export function useProjects() {
           data: {
             scanResult,
             mastersLibrary,
-            fwhmData: state.fwhmData,
-            thumbnailPaths: state.thumbnailPaths
+            fwhmData: state.fwhmData
           }
         })
       } catch {
@@ -119,6 +116,12 @@ export function useProjects() {
       useAppStore.getState().setDarkTempTolerance(tolerance)
     }
 
+    // Load dashboard view mode
+    const viewMode = await invoke<unknown>('get_setting', { key: 'dashboardViewMode' })
+    if (viewMode === 'grid' || viewMode === 'table') {
+      useAppStore.getState().setDashboardViewMode(viewMode)
+    }
+
     const saved = await invoke<unknown>('get_setting', { key: 'rootFolder' })
     if (typeof saved === 'string' && saved) {
       setRootFolder(saved)
@@ -128,16 +131,19 @@ export function useProjects() {
         const cached = await invoke<Record<string, unknown> | null>('load_cache', { rootFolder: saved })
         if (cached) {
           if (cached.scanResult) {
-            setScanResult(cached.scanResult as Parameters<typeof setScanResult>[0])
+            const scanResult = cached.scanResult as Parameters<typeof setScanResult>[0]
+            setScanResult(scanResult)
+
+            // Seed the Rust-side header cache so re-scans skip already-parsed files
+            if (scanResult.projectHeaders && Object.keys(scanResult.projectHeaders).length > 0) {
+              invoke('seed_header_cache', { headers: scanResult.projectHeaders }).catch(() => {})
+            }
           }
           if (cached.mastersLibrary) {
             setMastersLibrary(cached.mastersLibrary as Parameters<typeof setMastersLibrary>[0])
           }
           if (cached.fwhmData) {
             setFwhmBatch(cached.fwhmData as Record<string, number>)
-          }
-          if (cached.thumbnailPaths) {
-            setThumbnailPathBatch(cached.thumbnailPaths as Record<string, string>)
           }
         }
       } catch {
@@ -150,7 +156,7 @@ export function useProjects() {
         await scan()
       }
     }
-  }, [setRootFolder, setScanResult, setMastersLibrary, setFwhmBatch, setThumbnailPathBatch, scan])
+  }, [setRootFolder, setScanResult, setMastersLibrary, setFwhmBatch, scan])
 
   return {
     projects,

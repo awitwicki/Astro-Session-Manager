@@ -44,17 +44,6 @@ pub struct FitsHeader {
     pub raw: HashMap<String, serde_json::Value>,
 }
 
-// ─── Pixel Data Result (dummy for now) ──────────────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PixelDataResult {
-    pub header: FitsHeader,
-    pub pixels: Vec<f32>,
-    pub width: i32,
-    pub height: i32,
-}
-
 // ─── Scanner Types ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,9 +111,20 @@ pub struct MasterFileEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OtherEntry {
+    pub name: String,
+    pub path: String,
+    pub size_bytes: u64,
+    pub is_dir: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MastersLibrary {
     pub darks: Vec<MasterFileEntry>,
     pub biases: Vec<MasterFileEntry>,
+    pub other_darks: Vec<OtherEntry>,
+    pub other_biases: Vec<OtherEntry>,
     pub root_path: String,
 }
 
@@ -142,31 +142,25 @@ pub struct ImportResult {
     pub files: Vec<String>,
 }
 
-// ─── Thumbnail Types ────────────────────────────────────────────────────────
+// ─── Scan Progress ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ThumbnailResult {
-    pub thumbnail_path: String,
-    pub fwhm: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ThumbnailProgress {
+pub struct ScanProgress {
+    pub phase: String,
     pub current: usize,
     pub total: usize,
     pub file_path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbnail_path: Option<String>,
 }
+
+// ─── Preview Types ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CacheSizeInfo {
-    pub total_size: u64,
-    pub file_count: usize,
-    pub path: String,
+pub struct PreviewProgress {
+    pub current: usize,
+    pub total: usize,
+    pub file_path: String,
 }
 
 // ─── FITS Preview Types ─────────────────────────────────────────────────────
@@ -179,9 +173,6 @@ pub struct FitsPreviewResult {
     pub height: u32,
     pub original_width: u32,
     pub original_height: u32,
-    pub shadows: f64,
-    pub midtones: f64,
-    pub highlights: f64,
     pub header: FitsHeader,
 }
 
@@ -210,7 +201,6 @@ pub struct AppSettings {
     pub root_folder: Option<String>,
     pub theme: String,
     pub cache_path: String,
-    pub thumbnail_size: u32,
     pub dark_temp_tolerance: f64,
     pub auto_scan_on_startup: bool,
 }
@@ -221,7 +211,6 @@ impl Default for AppSettings {
             root_folder: None,
             theme: "dark".to_string(),
             cache_path: String::new(),
-            thumbnail_size: 400,
             dark_temp_tolerance: 2.0,
             auto_scan_on_startup: true,
         }

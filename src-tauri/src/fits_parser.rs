@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 
-use byteorder::{BigEndian, ReadBytesExt};
-
 use crate::types::FitsHeader;
 
 const BLOCK_SIZE: usize = 2880;
@@ -86,7 +84,6 @@ fn parse_value_field(field: &str) -> serde_json::Value {
 /// Parsed raw FITS header
 pub struct ParsedFitsHeader {
     pub keywords: HashMap<String, serde_json::Value>,
-    pub header_byte_length: usize,
 }
 
 /// Parse the FITS header from a file, reading 2880-byte blocks until END keyword
@@ -137,10 +134,7 @@ pub fn parse_fits_header(file_path: &str) -> Result<ParsedFitsHeader, String> {
         }
     }
 
-    Ok(ParsedFitsHeader {
-        keywords,
-        header_byte_length: total_header_bytes,
-    })
+    Ok(ParsedFitsHeader { keywords })
 }
 
 /// Helper to extract an optional f64 from a serde_json::Value
@@ -263,82 +257,6 @@ pub fn map_to_fits_header(raw: &HashMap<String, serde_json::Value>) -> FitsHeade
 pub fn read_fits_header(file_path: &str) -> Result<FitsHeader, String> {
     let parsed = parse_fits_header(file_path)?;
     Ok(map_to_fits_header(&parsed.keywords))
-}
-
-/// Read FITS pixel data with real binary extraction.
-/// Reads all channels (NAXIS3), applies BSCALE/BZERO, normalizes to [0,1].
-/// Returns f32 pixels in row-major order, all channels concatenated.
-pub fn read_fits_pixel_data(file_path: &str) -> Result<crate::types::PixelDataResult, String> {
-    let parsed = parse_fits_header(file_path)?;
-    let header = map_to_fits_header(&parsed.keywords);
-
-    let width = header.naxis1;
-    let height = header.naxis2;
-    let channels = header.naxis3.unwrap_or(1).max(1);
-    let bitpix = header.bitpix;
-    let bscale = header.bscale;
-    let bzero = header.bzero;
-
-    if width == 0 || height == 0 {
-        return Err("Invalid FITS dimensions".to_string());
-    }
-
-    let pixel_count = width as usize * height as usize;
-    let total_pixels = pixel_count * channels as usize;
-    let bytes_per_pixel = (bitpix.unsigned_abs() / 8) as usize;
-    let data_size = total_pixels * bytes_per_pixel;
-
-    let mut file =
-        File::open(file_path).map_err(|e| format!("Failed to open FITS file: {}", e))?;
-    file.seek(SeekFrom::Start(parsed.header_byte_length as u64))
-        .map_err(|e| format!("Failed to seek to pixel data: {}", e))?;
-
-    // Read raw bytes
-    let mut data_buf = vec![0u8; data_size];
-    file.read_exact(&mut data_buf)
-        .map_err(|e| format!("Failed to read pixel data: {}", e))?;
-
-    // Convert to f32 with BSCALE/BZERO
-    let mut raw_floats = Vec::with_capacity(total_pixels);
-    let mut cursor = std::io::Cursor::new(&data_buf);
-
-    for _ in 0..total_pixels {
-        let value: f64 = match bitpix {
-            8 => cursor.read_u8().map_err(|e| e.to_string())? as f64,
-            16 => cursor.read_i16::<BigEndian>().map_err(|e| e.to_string())? as f64,
-            32 => cursor.read_i32::<BigEndian>().map_err(|e| e.to_string())? as f64,
-            -32 => cursor.read_f32::<BigEndian>().map_err(|e| e.to_string())? as f64,
-            -64 => cursor.read_f64::<BigEndian>().map_err(|e| e.to_string())?,
-            _ => return Err(format!("Unsupported BITPIX: {}", bitpix)),
-        };
-        raw_floats.push((value * bscale + bzero) as f32);
-    }
-
-    // Normalize to [0, 1]
-    let mut min_val = f32::INFINITY;
-    let mut max_val = f32::NEG_INFINITY;
-    for &v in &raw_floats {
-        if v < min_val {
-            min_val = v;
-        }
-        if v > max_val {
-            max_val = v;
-        }
-    }
-    let range = if (max_val - min_val).abs() < f32::EPSILON {
-        1.0
-    } else {
-        max_val - min_val
-    };
-
-    let pixels: Vec<f32> = raw_floats.iter().map(|&v| (v - min_val) / range).collect();
-
-    Ok(crate::types::PixelDataResult {
-        header,
-        pixels,
-        width,
-        height,
-    })
 }
 
 /// Batch read FITS headers from multiple files sequentially

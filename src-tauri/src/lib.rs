@@ -5,7 +5,6 @@ mod fits_preview;
 mod masters;
 mod scanner;
 mod settings;
-mod thumbnail;
 mod types;
 mod xisf_parser;
 
@@ -27,21 +26,16 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Scanner
             commands::scan_root,
+            commands::seed_header_cache,
             // FITS
             commands::read_fits_header,
-            commands::read_fits_pixel_data,
             commands::batch_read_fits_headers,
             // XISF
             commands::read_xisf_header,
-            // Thumbnails
-            commands::generate_thumbnail,
-            commands::batch_generate_thumbnails,
-            commands::get_cached_thumbnail,
-            commands::get_cache_size,
-            commands::clear_thumbnail_cache,
             // FITS Preview
             commands::get_fits_preview,
-            commands::render_fits_preview,
+            commands::batch_generate_previews,
+            commands::clear_preview_cache,
             // Masters
             commands::scan_masters,
             commands::find_master_match,

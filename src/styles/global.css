@@ -117,6 +117,47 @@ input, select, textarea {
   padding: 24px;
 }
 
+.app-statusbar {
+  height: 24px;
+  min-height: 24px;
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.statusbar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.statusbar-label {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.statusbar-path {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+  min-width: 0;
+}
+
+.statusbar-progress {
+  width: 120px;
+  flex-shrink: 0;
+}
+
 /* Sidebar elements */
 .sidebar-header {
   padding: 16px;
@@ -341,12 +382,6 @@ input, select, textarea {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
-}
-
-.grid-thumbnails {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
 }
 
 /* Page headers */
@@ -671,88 +706,35 @@ input, select, textarea {
   transform: translateX(18px);
 }
 
-/* Thumbnail card */
-.thumbnail-card {
-  position: relative;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.thumbnail-card:hover {
-  border-color: var(--color-accent);
-  box-shadow: var(--shadow-md);
-}
-
-.thumbnail-card img {
-  width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-  display: block;
-  background: var(--color-bg-primary);
-}
-
-.thumbnail-card-info {
-  padding: 8px;
-  font-size: 11px;
-  color: var(--color-text-muted);
-}
-
-.thumbnail-card-filename {
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.thumbnail-card-actions {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.thumbnail-card:hover .thumbnail-card-actions {
-  opacity: 1;
-}
-
-.thumbnail-placeholder {
-  width: 100%;
-  aspect-ratio: 1;
+/* Gallery toolbar */
+.gallery-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-bg-primary);
-  color: var(--color-text-muted);
-}
-
-/* Global progress bar (bottom of app) */
-.global-progress-bar {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  padding: 4px 16px;
-  background: var(--color-bg-secondary);
-  border-top: 1px solid var(--color-border);
+  margin-bottom: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.gallery-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gallery-toolbar-group + .gallery-toolbar-group {
+  padding-left: 8px;
+  border-left: 1px solid var(--color-border);
+}
+
+.gallery-counter {
   font-size: 12px;
-  color: var(--color-text-muted);
-  min-height: 28px;
+  color: var(--color-text-secondary);
+  min-width: 60px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-.global-progress-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 400px;
-}
-
-.global-progress-queued {
-  color: var(--color-text-muted);
-  opacity: 0.7;
-  white-space: nowrap;
+.gallery-scope-selector .btn-sm {
+  font-size: 11px;
+  padding: 2px 8px;
 }

@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { FolderOpen, Trash2 } from 'lucide-react'
+import { FolderOpen } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { useTheme } from '../context/ThemeContext'
 import { useAppStore } from '../store/appStore'
 import { useProjects } from '../hooks/useProjects'
-import { formatFileSize } from '../lib/formatters'
 
 export function Settings() {
   const { theme, toggleTheme } = useTheme()
@@ -12,44 +11,21 @@ export function Settings() {
   const { selectFolder } = useProjects()
 
   const [darkTempTolerance, setDarkTempTolerance] = useState(2)
-  const [thumbnailSize, setThumbnailSize] = useState(400)
   const [autoScan, setAutoScan] = useState(true)
-  const [cacheSize, setCacheSize] = useState<{ totalSize: number; fileCount: number; path: string } | null>(null)
-  const [clearing, setClearing] = useState(false)
 
   useEffect(() => {
     invoke<Record<string, unknown>>('get_all_settings').then((settings) => {
       if (typeof settings.darkTempTolerance === 'number') {
         setDarkTempTolerance(settings.darkTempTolerance)
       }
-      if (typeof settings.thumbnailSize === 'number') {
-        setThumbnailSize(settings.thumbnailSize)
-      }
       if (typeof settings.autoScanOnStartup === 'boolean') {
         setAutoScan(settings.autoScanOnStartup)
       }
     })
-    loadCacheSize()
   }, [])
-
-  const loadCacheSize = async (): Promise<void> => {
-    const size = await invoke<{ totalSize: number; fileCount: number; path: string }>('get_cache_size')
-    setCacheSize(size)
-  }
 
   const saveSetting = (key: string, value: unknown): void => {
     invoke('set_setting', { key, value })
-  }
-
-  const clearCache = async (): Promise<void> => {
-    setClearing(true)
-    try {
-      await invoke('clear_thumbnail_cache')
-      useAppStore.setState({ thumbnailPaths: {} })
-      await loadCacheSize()
-    } finally {
-      setClearing(false)
-    }
   }
 
   return (
@@ -123,30 +99,6 @@ export function Settings() {
         </div>
       </div>
 
-      {/* Thumbnail Size */}
-      <div className="settings-group">
-        <label className="settings-label">Thumbnail Size</label>
-        <p className="settings-description">
-          Maximum dimension for generated thumbnails in pixels.
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <input
-            type="range"
-            min="200"
-            max="800"
-            step="100"
-            value={thumbnailSize}
-            onChange={(e) => {
-              const val = Number(e.target.value)
-              setThumbnailSize(val)
-              saveSetting('thumbnailSize', val)
-            }}
-            style={{ width: 200 }}
-          />
-          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 50 }}>{thumbnailSize}px</span>
-        </div>
-      </div>
-
       {/* Auto Scan */}
       <div className="settings-group">
         <label className="settings-label">Auto Scan on Startup</label>
@@ -169,26 +121,6 @@ export function Settings() {
             {autoScan ? 'Enabled' : 'Disabled'}
           </span>
         </div>
-      </div>
-
-      {/* Cache */}
-      <div className="settings-group">
-        <label className="settings-label">Thumbnail Cache</label>
-        <p className="settings-description">
-          Generated thumbnail images cached on disk.
-        </p>
-        {cacheSize && (
-          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
-            <div>{formatFileSize(cacheSize.totalSize)} used ({cacheSize.fileCount} files)</div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-              {cacheSize.path}
-            </div>
-          </div>
-        )}
-        <button className="btn" onClick={clearCache} disabled={clearing}>
-          <Trash2 size={14} />
-          {clearing ? 'Clearing...' : 'Clear Thumbnail Cache'}
-        </button>
       </div>
     </div>
   )

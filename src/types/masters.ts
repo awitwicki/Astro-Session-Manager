@@ -11,8 +11,17 @@ export interface MasterFileEntry {
   tempSource: 'header' | 'filename' | 'unknown'
 }
 
+export interface OtherEntry {
+  name: string
+  path: string
+  sizeBytes: number
+  isDir: boolean
+}
+
 export interface MastersLibrary {
   darks: MasterFileEntry[]
   biases: MasterFileEntry[]
+  otherDarks: OtherEntry[]
+  otherBiases: OtherEntry[]
   rootPath: string
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Database, Plus, FolderOpen, Pencil, AlertTriangle, X } from 'lucide-react'
+import { Database, Plus, FolderOpen, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, File, Folder } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -32,6 +32,8 @@ export function MastersLibrary() {
 
   const [importing, setImporting] = useState(false)
   const [scanning, setScanning] = useState(false)
+  const [otherDarksOpen, setOtherDarksOpen] = useState(false)
+  const [otherBiasesOpen, setOtherBiasesOpen] = useState(false)
 
   // Import modal state
   const [importModal, setImportModal] = useState<{
@@ -304,6 +306,61 @@ export function MastersLibrary() {
         </table>
       )}
 
+      {/* Other Darks */}
+      {mastersLibrary.otherDarks.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <button
+            onClick={() => setOtherDarksOpen(!otherDarksOpen)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '4px 0',
+              fontSize: 13,
+            }}
+          >
+            {otherDarksOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            Other files ({mastersLibrary.otherDarks.length})
+          </button>
+          {otherDarksOpen && (
+            <table className="table" style={{ marginTop: 8 }}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Size</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {mastersLibrary.otherDarks.map((f, i) => (
+                  <tr key={i}>
+                    <td style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {f.isDir ? <Folder size={14} /> : <File size={14} />}
+                      {f.name}
+                    </td>
+                    <td>{f.isDir ? '-' : formatFileSize(f.sizeBytes)}</td>
+                    <td>
+                      <button
+                        className="btn btn-sm"
+                        style={{ padding: '2px 6px' }}
+                        onClick={() => invoke('show_in_folder', { path: f.path })}
+                        title="Show in Explorer"
+                      >
+                        <FolderOpen size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* Biases */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600 }}>Biases</h2>
@@ -365,6 +422,61 @@ export function MastersLibrary() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* Other Biases */}
+      {mastersLibrary.otherBiases.length > 0 && (
+        <div style={{ marginTop: 12, marginBottom: 24 }}>
+          <button
+            onClick={() => setOtherBiasesOpen(!otherBiasesOpen)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '4px 0',
+              fontSize: 13,
+            }}
+          >
+            {otherBiasesOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            Other files ({mastersLibrary.otherBiases.length})
+          </button>
+          {otherBiasesOpen && (
+            <table className="table" style={{ marginTop: 8 }}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Size</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {mastersLibrary.otherBiases.map((f, i) => (
+                  <tr key={i}>
+                    <td style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {f.isDir ? <Folder size={14} /> : <File size={14} />}
+                      {f.name}
+                    </td>
+                    <td>{f.isDir ? '-' : formatFileSize(f.sizeBytes)}</td>
+                    <td>
+                      <button
+                        className="btn btn-sm"
+                        style={{ padding: '2px 6px' }}
+                        onClick={() => invoke('show_in_folder', { path: f.path })}
+                        title="Show in Explorer"
+                      >
+                        <FolderOpen size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
 
       {/* Import Modal */}
