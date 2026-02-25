@@ -102,8 +102,8 @@ fn load_and_cache_preview(file_path: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Render the cached preview data to a PNG.
-fn render_cached_to_png(
+/// Render the cached preview data to a JPEG.
+fn render_cached_to_jpeg(
     file_path: &str,
     app_handle: &tauri::AppHandle,
 ) -> Result<FitsPreviewResult, String> {
@@ -115,7 +115,6 @@ fn render_cached_to_png(
 
     let preview_dir = get_preview_dir(app_handle)?;
     let key = preview_cache_key(file_path);
-    let output_path = preview_dir.join(format!("{}.png", key));
 
     let w = data.width;
     let h = data.height;
@@ -139,21 +138,21 @@ fn render_cached_to_png(
     })
 }
 
-/// Check if a preview PNG already exists on disk (without needing RAM cache).
-/// Returns header + path if the PNG is present.
+/// Check if a preview JPEG already exists on disk (without needing RAM cache).
+/// Returns header + path if the JPEG is present.
 fn try_disk_cache(
     file_path: &str,
     app_handle: &tauri::AppHandle,
 ) -> Option<FitsPreviewResult> {
     let preview_dir = get_preview_dir(app_handle).ok()?;
     let key = preview_cache_key(file_path);
-    let output_path = preview_dir.join(format!("{}.png", key));
+    let output_path = preview_dir.join(format!("{}.jpg", key));
 
     if !output_path.exists() {
         return None;
     }
 
-    // Read PNG dimensions
+    // Read JPEG dimensions
     let img = image::open(&output_path).ok()?;
     let w = img.width();
     let h = img.height();
@@ -179,7 +178,7 @@ fn try_disk_cache(
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-/// Load a FITS/XISF file, process with rustafits, return PNG path.
+/// Load a FITS/XISF file, process with rustafits, return JPEG path.
 pub fn get_fits_preview(
     file_path: &str,
     app_handle: &tauri::AppHandle,
@@ -191,18 +190,18 @@ pub fn get_fits_preview(
         let map = cache.as_ref().unwrap();
         if map.contains_key(file_path) {
             drop(cache);
-            return render_cached_to_png(file_path, app_handle);
+            return render_cached_to_jpeg(file_path, app_handle);
         }
     }
 
-    // Check if PNG already exists on disk (survives RAM cache clears)
+    // Check if JPEG already exists on disk (survives RAM cache clears)
     if let Some(result) = try_disk_cache(file_path, app_handle) {
         return Ok(result);
     }
 
     // Load fresh
     load_and_cache_preview(file_path)?;
-    render_cached_to_png(file_path, app_handle)
+    render_cached_to_jpeg(file_path, app_handle)
 }
 
 /// Batch generate previews for multiple files.
@@ -223,7 +222,7 @@ pub fn batch_generate_previews(
             let map = cache.as_ref().unwrap();
             if map.contains_key(file_path.as_str()) {
                 drop(cache);
-                if let Ok(result) = render_cached_to_png(file_path, app_handle) {
+                if let Ok(result) = render_cached_to_jpeg(file_path, app_handle) {
                     results.insert(file_path.clone(), result);
                 }
                 let _ = window.emit(
@@ -238,7 +237,7 @@ pub fn batch_generate_previews(
             }
         }
 
-        // Check if PNG already exists on disk
+        // Check if JPEG already exists on disk
         if let Some(result) = try_disk_cache(file_path, app_handle) {
             results.insert(file_path.clone(), result);
             let _ = window.emit(
@@ -255,7 +254,7 @@ pub fn batch_generate_previews(
         // Generate fresh
         match load_and_cache_preview(file_path) {
             Ok(()) => {
-                if let Ok(result) = render_cached_to_png(file_path, app_handle) {
+                if let Ok(result) = render_cached_to_jpeg(file_path, app_handle) {
                     results.insert(file_path.clone(), result);
                 }
             }
