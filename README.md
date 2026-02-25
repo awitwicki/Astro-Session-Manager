@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/icon.png" width="256" alt="Astro Session Manager" />
+  <img src="app-icon.png" width="256" alt="Astro Session Manager" />
 </p>
 
 <h1 align="center">Astro Session Manager</h1>
