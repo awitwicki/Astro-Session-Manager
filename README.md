@@ -6,7 +6,7 @@
 
 <p align="center">
   A desktop app for managing astrophotography imaging sessions and masters library.<br/>
-  Built with Electron, React, and TypeScript.
+  Built with Tauri 2, Rust, React, and TypeScript.
 </p>
 
 ---
@@ -15,11 +15,10 @@
 
 - **Session overview** — see total integration time, subframe count, and gallery size at a glance for every project and filter
 - **Masters library** — browse and manage your dark, bias, and flat master frames with automatic calibration matching by temperature, exposure, and resolution
-- **Filesystem-based** — no database, no lock-in. Works with a simple structured folder tree (`project/filter/date/lights/`) that you fully control
-- **Project scaffolding** — quickly create new project folders with the right directory structure
+- **Filesystem-based** — simple cached database, no lock-in. Works with a simple structured folder tree (`project/filter/date/lights/`) that you fully control
+- **Project scaffolding** — quickly create new project folders with the unified directory structure
 - **FITS/XISF header parsing** — reads CCD temperature, exposure time, gain, resolution, and more directly from your files
-- **Thumbnail previews** — generates and caches thumbnails for quick visual browsing (experimental feature)
-- **FWHM tracking** — track seeing quality across your sessions (experimental feature)
+- **Image previews** — generates and caches thumbnails for quick visual browsing
 - **Cross-platform** — runs on macOS, Windows, and Linux
 
 ## Folder Structure
@@ -30,32 +29,32 @@ The app expects your astrophotography data to follow this directory layout:
 root_folder/
 ├── ic1805/
 │   ├── ha/
-│   │   ├── 2024-01-15/
+│   │   ├── night 1/
 │   │   │   ├── lights/
 │   │   │   │   ├── ic1805_ha_300s_001.fits
 │   │   │   │   ├── ic1805_ha_300s_002.fits
 │   │   │   │   └── ...
 │   │   │   └── flats/
 │   │   │       └── flat_ha_001.fits
-│   │   └── 2024-01-20/
+│   │   └── night 2/
 │   │       └── lights/
 │   │           └── ...
 │   ├── oiii/
-│   │   └── 2024-01-16/
+│   │   └── night 1/
 │   │       └── lights/
 │   │           └── ...
 │   └── sii/
 │       └── ...
 ├── m42/
 │   └── dualband/
-│       └── 2024-02-10/
+│       └── night 2/
 │           └── lights/
 │               └── ...
 └── masters/
     ├── darks/
-    │   └── dark_300s_-10C.fits
+    │   └── MasterDark_300s_-10C.fits
     └── biases/
-        └── bias_-10C.fits
+        └── MasterBias_-10C.fits
 ```
 
 Each level maps to: **Project → Filter → Night → Subframes (lights/flats)**
@@ -68,8 +67,9 @@ Pull requests and issues are welcome! If you have ideas, bug reports, or feature
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) (v24+)
 - [Yarn](https://yarnpkg.com/)
+- [Rust](https://www.rust-lang.org/tools/install)
 
 ### Getting started
 
@@ -78,21 +78,16 @@ Pull requests and issues are welcome! If you have ideas, bug reports, or feature
 yarn
 
 # Run in development mode
-yarn dev
+yarn tauri dev
 ```
 
 ### Building
 
 ```bash
-# macOS
-yarn package:mac
-
-# Windows
-yarn package:win
-
-# Linux
-yarn package:linux
+yarn tauri build
 ```
+
+Builds for the current platform. Cross-platform builds are handled via GitHub Actions CI.
 
 ## License
 
