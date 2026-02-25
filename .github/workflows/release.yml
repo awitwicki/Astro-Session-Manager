@@ -33,7 +33,7 @@ jobs:
             echo "created=true" >> $GITHUB_OUTPUT
           fi
 
-  build-mac:
+  build-mac-arm:
     needs: check-version
     if: needs.check-version.outputs.tag_created == 'true'
     runs-on: macos-latest
@@ -45,6 +45,8 @@ jobs:
           node-version: 20
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -52,13 +54,40 @@ jobs:
 
       - run: yarn install --frozen-lockfile
 
-      - run: yarn tauri build
+      - run: yarn tauri build --target aarch64-apple-darwin
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mac-builds
-          path: |
-            src-tauri/target/release/bundle/dmg/*.dmg
+          name: mac-arm-builds
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+
+  build-mac-intel:
+    needs: check-version
+    if: needs.check-version.outputs.tag_created == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: yarn install --frozen-lockfile
+
+      - run: yarn tauri build --target x86_64-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-intel-builds
+          path: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
 
   build-windows:
     needs: check-version
@@ -84,8 +113,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: win-builds
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
+          path: src-tauri/target/release/bundle/nsis/*.exe
 
   build-linux:
     needs: check-version
@@ -128,7 +156,7 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
 
   release:
-    needs: [check-version, build-mac, build-windows, build-linux]
+    needs: [check-version, build-mac-arm, build-mac-intel, build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
