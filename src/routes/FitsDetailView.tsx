@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, FolderOpen } from 'lucide-react'
-import { invoke, convertFileSrc } from '@tauri-apps/api/core'
+import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, FolderOpen, Eye } from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
-import { fitsGalleryPath, type GalleryScope } from '../lib/constants'
+import { fitsGalleryPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
 
 interface FitsHeader {
   bayerpat?: string
@@ -25,7 +25,7 @@ interface FitsHeader {
 }
 
 interface FitsPreviewResult {
-  imagePath: string
+  imageData: string
   width: number
   height: number
   originalWidth: number
@@ -41,37 +41,52 @@ export function FitsDetailView() {
   const projectParam = searchParams.get('project') || ''
   const filterParam = searchParams.get('filter') || ''
   const dateParam = searchParams.get('date') || ''
+  const viewTypeParam = (searchParams.get('viewType') as GalleryViewType) || 'lights'
 
   const projects = useAppStore((s) => s.projects)
+
+  const project = useMemo(() => projects.find((p) => p.name === projectParam), [projects, projectParam])
+
+  // Helper to get frames for a given scope and viewType
+  const getFrames = useCallback(
+    (s: GalleryScope, vt: GalleryViewType, proj: string, flt: string, dt: string) => {
+      const p = projects.find((pr) => pr.name === proj)
+      if (!p) return []
+
+      const collectFrames = (sessions: typeof p.filters[0]['sessions']) => {
+        const lights = vt !== 'flats' ? sessions.flatMap((ses) => ses.lights.map((l) => l.path)) : []
+        const flats = vt !== 'lights' ? sessions.flatMap((ses) => ses.flats.map((f) => f.path)) : []
+        return [...lights, ...flats]
+      }
+
+      if (s === 'session') {
+        const filter = p.filters.find((f) => f.name === flt)
+        if (!filter) return []
+        const session = filter.sessions.find((ses) => ses.date === dt)
+        if (!session) return []
+        return collectFrames([session])
+      }
+
+      if (s === 'filter') {
+        const filter = p.filters.find((f) => f.name === flt)
+        if (!filter) return []
+        return collectFrames(filter.sessions)
+      }
+
+      if (s === 'project') {
+        return p.filters.flatMap((f) => collectFrames(f.sessions))
+      }
+
+      return []
+    },
+    [projects]
+  )
 
   // Derive gallery frame list from store based on scope
   const frames = useMemo(() => {
     if (!scope || !projectParam) return []
-    const project = projects.find((p) => p.name === projectParam)
-    if (!project) return []
-
-    if (scope === 'session') {
-      const filter = project.filters.find((f) => f.name === filterParam)
-      if (!filter) return []
-      const session = filter.sessions.find((s) => s.date === dateParam)
-      if (!session) return []
-      return session.lights.map((l) => l.path)
-    }
-
-    if (scope === 'filter') {
-      const filter = project.filters.find((f) => f.name === filterParam)
-      if (!filter) return []
-      return filter.sessions.flatMap((s) => s.lights.map((l) => l.path))
-    }
-
-    if (scope === 'project') {
-      return project.filters.flatMap((f) =>
-        f.sessions.flatMap((s) => s.lights.map((l) => l.path))
-      )
-    }
-
-    return []
-  }, [scope, projectParam, filterParam, dateParam, projects])
+    return getFrames(scope, viewTypeParam, projectParam, filterParam, dateParam)
+  }, [scope, projectParam, filterParam, dateParam, viewTypeParam, getFrames])
 
   const currentIndex = useMemo(() => {
     if (frames.length === 0) return -1
@@ -82,12 +97,19 @@ export function FitsDetailView() {
   const hasPrev = currentIndex > 0
   const hasNext = currentIndex < frames.length - 1
 
+  const buildUrl = useCallback(
+    (path: string, s: GalleryScope, proj: string, flt?: string, dt?: string, vt?: GalleryViewType) => {
+      return fitsGalleryPath(path, s, proj, flt, dt, vt)
+    },
+    []
+  )
+
   const navigateToFrame = useCallback(
     (index: number) => {
       if (index < 0 || index >= frames.length || !scope) return
-      navigate(fitsGalleryPath(frames[index], scope, projectParam, filterParam || undefined, dateParam || undefined))
+      navigate(buildUrl(frames[index], scope, projectParam, filterParam || undefined, dateParam || undefined, viewTypeParam))
     },
-    [frames, scope, projectParam, filterParam, dateParam, navigate]
+    [frames, scope, projectParam, filterParam, dateParam, viewTypeParam, navigate, buildUrl]
   )
 
   const goPrev = useCallback(() => {
@@ -113,24 +135,34 @@ export function FitsDetailView() {
     return () => window.removeEventListener('keydown', handler)
   }, [goPrev, goNext])
 
-  // Build scope switch URL
-  const scopeUrl = useCallback(
-    (newScope: GalleryScope) => {
-      return fitsGalleryPath(
-        filePath,
-        newScope,
-        projectParam,
-        filterParam || undefined,
-        dateParam || undefined
-      )
+  // Navigate to a tree node — pick first frame in that scope
+  const navigateToTreeNode = useCallback(
+    (newScope: GalleryScope, flt?: string, dt?: string, vt?: GalleryViewType) => {
+      const effectiveVt = vt ?? viewTypeParam
+      const newFrames = getFrames(newScope, effectiveVt, projectParam, flt || '', dt || '')
+      if (newFrames.length === 0) return
+      // If current file is in the new frames, keep it; otherwise pick first
+      const target = newFrames.includes(filePath) ? filePath : newFrames[0]
+      navigate(buildUrl(target, newScope, projectParam, flt, dt, effectiveVt))
     },
-    [filePath, projectParam, filterParam, dateParam]
+    [projectParam, filePath, viewTypeParam, getFrames, navigate, buildUrl]
   )
 
-  // Check which scopes are available
-  const canShowSessionScope = !!(projectParam && filterParam && dateParam)
-  const canShowFilterScope = !!(projectParam && filterParam)
-  const canShowProjectScope = !!projectParam
+  // Handle view type change
+  const handleViewTypeChange = useCallback(
+    (newVt: GalleryViewType) => {
+      if (!scope) return
+      const newFrames = getFrames(scope, newVt, projectParam, filterParam, dateParam)
+      if (newFrames.length === 0) {
+        // Navigate anyway to show empty state
+        navigate(buildUrl(filePath, scope, projectParam, filterParam || undefined, dateParam || undefined, newVt))
+        return
+      }
+      const target = newFrames.includes(filePath) ? filePath : newFrames[0]
+      navigate(buildUrl(target, scope, projectParam, filterParam || undefined, dateParam || undefined, newVt))
+    },
+    [scope, projectParam, filterParam, dateParam, filePath, getFrames, navigate, buildUrl]
+  )
 
   const [keywordsExpanded, setKeywordsExpanded] = useState(() => {
     return localStorage.getItem('fitsDetail.keywordsExpanded') === 'true'
@@ -160,8 +192,7 @@ export function FitsDetailView() {
   const lastPreviewSizeRef = useRef<{ w: number; h: number } | null>(null)
   const batchFramesKeyRef = useRef<string>('')
 
-  // Batch preview generation: start from current image, generate all in background
-  // Only depends on `frames` — navigating between images should NOT restart the batch.
+  // Batch preview generation
   useEffect(() => {
     if (frames.length === 0) return
     const framesKey = frames.join('|')
@@ -171,7 +202,6 @@ export function FitsDetailView() {
     let cancelled = false
     let unlisten: (() => void) | null = null
 
-    // Use current filePath for ordering without adding it as a dependency
     const idx = frames.indexOf(filePath)
     const startIdx = idx >= 0 ? idx : 0
     const reordered = [...frames.slice(startIdx), ...frames.slice(0, startIdx)]
@@ -204,7 +234,7 @@ export function FitsDetailView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frames])
 
-  // Clear preview cache from RAM only when unmounting (leaving the detail view entirely)
+  // Clear preview cache from RAM only when unmounting
   useEffect(() => {
     return () => {
       invoke('clear_preview_cache').catch(() => {})
@@ -212,7 +242,7 @@ export function FitsDetailView() {
     }
   }, [])
 
-  // Reset error when file changes; zoom/pan are preserved if resolution matches
+  // Reset error when file changes
   useEffect(() => {
     setError(null)
   }, [filePath])
@@ -262,8 +292,6 @@ export function FitsDetailView() {
   }, [filePath])
 
   // Phase 2: Load preview
-  // Keep the old image visible while loading; only show spinner after a delay
-  // so cached images swap instantly without a flash.
   useEffect(() => {
     if (!filePath) return
     let cancelled = false
@@ -285,7 +313,7 @@ export function FitsDetailView() {
             initialFitDoneRef.current = false
           }
           setPreview(result)
-          setImageUrl(convertFileSrc(result.imagePath) + '?t=' + Date.now())
+          setImageUrl('data:image/jpeg;base64,' + result.imageData)
           setImageLoading(false)
         }
       })
@@ -322,6 +350,26 @@ export function FitsDetailView() {
   }
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Draw image onto canvas when imageUrl changes
+  useEffect(() => {
+    if (!imageUrl || !preview) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const img = new Image()
+    img.onload = () => {
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(img, 0, 0)
+      }
+      handleImageLoad()
+    }
+    img.src = imageUrl
+  }, [imageUrl, preview, handleImageLoad])
 
   const handleWheel = (e: React.WheelEvent): void => {
     e.preventDefault()
@@ -376,9 +424,55 @@ export function FitsDetailView() {
     : []
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: '100%' }}>
-      {/* Image area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+    <div style={{ display: 'flex', gap: 0, height: '100%' }}>
+      {/* Left sidebar: Folder tree */}
+      {project && (
+        <div
+          style={{
+            width: 260,
+            minWidth: 260,
+            overflow: 'auto',
+            background: 'var(--color-bg-secondary)',
+            borderRight: '1px solid var(--color-border)',
+            padding: '12px 0',
+            marginRight: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div style={{ padding: '0 12px 8px', fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Scope
+          </div>
+
+          {/* View type selector */}
+          <div style={{ padding: '0 12px 10px', display: 'flex', gap: 2 }}>
+            {(['lights', 'flats', 'both'] as GalleryViewType[]).map((vt) => (
+              <button
+                key={vt}
+                className={`btn btn-sm ${viewTypeParam === vt ? 'btn-primary' : ''}`}
+                style={{ flex: 1, fontSize: 11, padding: '3px 6px', textTransform: 'capitalize' }}
+                onClick={() => handleViewTypeChange(vt)}
+              >
+                {vt}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ padding: '0 8px', fontSize: 12 }}>
+            <FolderTree
+              project={project}
+              scope={scope}
+              filterParam={filterParam}
+              dateParam={dateParam}
+              viewTypeParam={viewTypeParam}
+              onNavigate={navigateToTreeNode}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Main content: Image + header below */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, padding: '0 0 0 0' }}>
         {/* Gallery toolbar */}
         <div className="gallery-toolbar">
           <div className="gallery-toolbar-group">
@@ -408,38 +502,6 @@ export function FitsDetailView() {
               >
                 <ChevronRight size={14} />
               </button>
-            </div>
-          )}
-
-          {hasGallery && (
-            <div className="gallery-toolbar-group gallery-scope-selector">
-              {canShowSessionScope && (
-                <button
-                  className={`btn btn-sm ${scope === 'session' ? 'btn-primary' : ''}`}
-                  onClick={() => navigate(scopeUrl('session'))}
-                  title="Show frames from this night only"
-                >
-                  Night
-                </button>
-              )}
-              {canShowFilterScope && (
-                <button
-                  className={`btn btn-sm ${scope === 'filter' ? 'btn-primary' : ''}`}
-                  onClick={() => navigate(scopeUrl('filter'))}
-                  title="Show frames from all nights of this filter"
-                >
-                  Filter
-                </button>
-              )}
-              {canShowProjectScope && (
-                <button
-                  className={`btn btn-sm ${scope === 'project' ? 'btn-primary' : ''}`}
-                  onClick={() => navigate(scopeUrl('project'))}
-                  title="Show all frames in this project"
-                >
-                  Project
-                </button>
-              )}
             </div>
           )}
 
@@ -519,13 +581,13 @@ export function FitsDetailView() {
         </div>
 
         {/* Filename display */}
-        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)' }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', padding: '0 8px' }}>
           {filename}
         </div>
 
         {/* Preview generation progress */}
         {previewProgress && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 12, color: 'var(--color-text-muted)', padding: '0 8px' }}>
             <div className="spinner" style={{ width: 12, height: 12 }} />
             <span>Generating previews: {previewProgress.current}/{previewProgress.total}</span>
             <div className="progress-bar" style={{ flex: 1, height: 3 }}>
@@ -537,6 +599,7 @@ export function FitsDetailView() {
           </div>
         )}
 
+        {/* Image area */}
         {imageLoading ? (
           <div
             style={{
@@ -549,6 +612,7 @@ export function FitsDetailView() {
               border: '1px solid var(--color-border)',
               flexDirection: 'column',
               gap: 16,
+              margin: '0 8px',
             }}
           >
             <div className="spinner" />
@@ -563,10 +627,10 @@ export function FitsDetailView() {
               flex: 1,
               overflow: 'hidden',
               background: 'var(--color-bg-primary)',
-              borderRadius: 'var(--radius-md)',
               border: '1px solid var(--color-border)',
               cursor: dragging ? 'grabbing' : 'grab',
               position: 'relative',
+              margin: '0 8px',
             }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -574,150 +638,222 @@ export function FitsDetailView() {
             onMouseLeave={handleMouseUp}
             onWheel={handleWheel}
           >
-            {imageUrl && (
-              <img
-                src={imageUrl}
-                alt="FITS preview"
-                draggable={false}
-                onLoad={handleImageLoad}
-                style={{
-                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                  transformOrigin: '0 0',
-                  imageRendering: zoom > 2 ? 'pixelated' : 'auto',
-                  display: 'block',
-                }}
-              />
-            )}
+            <canvas
+              ref={canvasRef}
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                transformOrigin: '0 0',
+                imageRendering: zoom > 2 ? 'pixelated' : 'auto',
+                display: 'block',
+              }}
+            />
           </div>
         )}
 
-      </div>
-
-      {/* Header sidebar */}
-      <div
-        style={{
-          width: 320,
-          minWidth: 320,
-          overflow: 'auto',
-          background: 'var(--color-bg-secondary)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--color-border)',
-          padding: 16,
-        }}
-      >
-        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>FITS Header</h3>
-
-        {headerLoading ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              color: 'var(--color-text-muted)',
-              fontSize: 13,
-            }}
-          >
-            <div className="spinner" style={{ width: 16, height: 16 }} />
-            Loading header...
-          </div>
-        ) : displayHeader ? (
-          <>
-            <div style={{ marginBottom: 16 }}>
-              {displayHeader.object != null && (
-                <HeaderRow label="Object" value={String(displayHeader.object)} />
-              )}
-              {displayHeader.exptime != null && (
-                <HeaderRow label="Exposure" value={`${String(displayHeader.exptime)}s`} />
-              )}
-              {displayHeader.ccdTemp != null && (
-                <HeaderRow
-                  label="Temperature"
-                  value={`${String(displayHeader.ccdTemp)}\u00B0C`}
-                />
-              )}
-              {displayHeader.filter != null && (
-                <HeaderRow label="Filter" value={String(displayHeader.filter)} />
-              )}
-              {displayHeader.dateObs != null && (
-                <HeaderRow label="Date" value={String(displayHeader.dateObs)} />
-              )}
-              {displayHeader.instrume != null && (
-                <HeaderRow label="Camera" value={String(displayHeader.instrume)} />
-              )}
-              {displayHeader.telescop != null && (
-                <HeaderRow label="Telescope" value={String(displayHeader.telescop)} />
-              )}
-              {displayHeader.gain != null && (
-                <HeaderRow label="Gain" value={String(displayHeader.gain)} />
-              )}
-              {displayHeader.bayerpat != null && (
-                <HeaderRow label="Bayer Pattern" value={String(displayHeader.bayerpat)} />
-              )}
-              <HeaderRow
-                label="Dimensions"
-                value={`${String(displayHeader.naxis1)} x ${String(displayHeader.naxis2)}`}
-              />
-              <HeaderRow label="Bit Depth" value={`${String(displayHeader.bitpix)}-bit`} />
+        {/* FITS Header below image */}
+        <div
+          style={{
+            maxHeight: 220,
+            overflow: 'auto',
+            background: 'var(--color-bg-secondary)',
+            borderTop: '1px solid var(--color-border)',
+            padding: '8px 12px',
+            margin: '0 8px 0 8px',
+            fontSize: 12,
+          }}
+        >
+          {headerLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-text-muted)' }}>
+              <div className="spinner" style={{ width: 14, height: 14 }} />
+              Loading header...
             </div>
+          ) : displayHeader ? (
+            <div>
+              {/* Compact header row */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', marginBottom: 4 }}>
+                {displayHeader.object != null && <HeaderChip label="Object" value={String(displayHeader.object)} />}
+                {displayHeader.exptime != null && <HeaderChip label="Exp" value={`${String(displayHeader.exptime)}s`} />}
+                {displayHeader.ccdTemp != null && <HeaderChip label="Temp" value={`${String(displayHeader.ccdTemp)}\u00B0C`} />}
+                {displayHeader.filter != null && <HeaderChip label="Filter" value={String(displayHeader.filter)} />}
+                {displayHeader.dateObs != null && <HeaderChip label="Date" value={String(displayHeader.dateObs)} />}
+                {displayHeader.instrume != null && <HeaderChip label="Camera" value={String(displayHeader.instrume)} />}
+                {displayHeader.telescop != null && <HeaderChip label="Telescope" value={String(displayHeader.telescop)} />}
+                {displayHeader.gain != null && <HeaderChip label="Gain" value={String(displayHeader.gain)} />}
+                {displayHeader.bayerpat != null && <HeaderChip label="Bayer" value={String(displayHeader.bayerpat)} />}
+                <HeaderChip label="Size" value={`${String(displayHeader.naxis1)}x${String(displayHeader.naxis2)}`} />
+                <HeaderChip label="Bits" value={`${String(displayHeader.bitpix)}`} />
+              </div>
 
-            <h4
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'var(--color-text-muted)',
-                marginBottom: 8,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                userSelect: 'none',
-              }}
-              onClick={toggleKeywords}
-            >
-              {keywordsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              All Keywords ({headerEntries.length})
-            </h4>
+              {/* Expandable raw keywords */}
+              <div
+                style={{
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  color: 'var(--color-text-muted)',
+                  fontSize: 11,
+                  userSelect: 'none',
+                  marginTop: 4,
+                }}
+                onClick={toggleKeywords}
+              >
+                {keywordsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                All Keywords ({headerEntries.length})
+              </div>
 
-            {keywordsExpanded && (
-              <table className="table" style={{ fontSize: 11 }}>
-                <thead>
-                  <tr>
-                    <th>Keyword</th>
-                    <th>Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {headerEntries.map(([key, val]) => (
-                    <tr key={key}>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{key}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
-                        {String(val)}
-                      </td>
+              {keywordsExpanded && (
+                <table className="table" style={{ fontSize: 11, marginTop: 4 }}>
+                  <thead>
+                    <tr>
+                      <th>Keyword</th>
+                      <th>Value</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </>
-        ) : null}
+                  </thead>
+                  <tbody>
+                    {headerEntries.map(([key, val]) => (
+                      <tr key={key}>
+                        <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{key}</td>
+                        <td style={{ fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
+                          {String(val)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )
 }
 
-function HeaderRow({ label, value }: { label: string; value: string }) {
+// Compact header chip for the bottom panel
+function HeaderChip({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '4px 0',
-        borderBottom: '1px solid var(--color-border)',
-        fontSize: 12,
-      }}
-    >
-      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+      <span style={{ color: 'var(--color-text-muted)' }}>{label}:</span>
       <span style={{ fontWeight: 500, fontFamily: 'var(--font-mono)' }}>{value}</span>
+    </span>
+  )
+}
+
+// Folder tree component showing project -> filter -> session hierarchy
+function FolderTree({
+  project,
+  scope,
+  filterParam,
+  dateParam,
+  viewTypeParam,
+  onNavigate,
+}: {
+  project: { name: string; filters: { name: string; sessions: { date: string; lights: { path: string }[]; flats: { path: string }[] }[] }[] }
+  scope: GalleryScope | null
+  filterParam: string
+  dateParam: string
+  viewTypeParam: GalleryViewType
+  onNavigate: (scope: GalleryScope, filter?: string, date?: string) => void
+}) {
+  const isProjectSelected = scope === 'project'
+
+  const getFrameCount = (sessions: typeof project.filters[0]['sessions']) => {
+    let count = 0
+    if (viewTypeParam !== 'flats') count += sessions.reduce((s, ses) => s + ses.lights.length, 0)
+    if (viewTypeParam !== 'lights') count += sessions.reduce((s, ses) => s + ses.flats.length, 0)
+    return count
+  }
+
+  const totalFrames = getFrameCount(project.filters.flatMap((f) => f.sessions))
+
+  return (
+    <div>
+      {/* Project node */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '5px 8px',
+          borderRadius: 4,
+          cursor: 'pointer',
+          fontWeight: 600,
+          fontSize: 12,
+          background: isProjectSelected ? 'var(--color-bg-active)' : 'transparent',
+          color: isProjectSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+        }}
+        onClick={() => onNavigate('project')}
+        title={`View all ${totalFrames} frames`}
+      >
+        <Eye size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0 }}>{totalFrames}</span>
+      </div>
+
+      {/* Filter nodes */}
+      {project.filters.map((filter) => {
+        const isFilterSelected = scope === 'filter' && filterParam === filter.name
+        const isFilterParent = scope === 'session' && filterParam === filter.name
+        const filterFrames = getFrameCount(filter.sessions)
+
+        return (
+          <div key={filter.name} style={{ marginLeft: 12 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 8px',
+                borderRadius: 4,
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: isFilterSelected ? 600 : 400,
+                background: isFilterSelected ? 'var(--color-bg-active)' : 'transparent',
+                color: isFilterSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              }}
+              onClick={() => onNavigate('filter', filter.name)}
+              title={`View ${filterFrames} frames in ${filter.name}`}
+            >
+              <Eye size={11} style={{ opacity: 0.5, flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filter.name}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0 }}>{filterFrames}</span>
+            </div>
+
+            {/* Session (night) nodes — show if this filter is selected or is parent */}
+            {(isFilterSelected || isFilterParent) &&
+              filter.sessions.map((session) => {
+                const isSessionSelected = scope === 'session' && dateParam === session.date && filterParam === filter.name
+                const sessionFrames = getFrameCount([session])
+
+                return (
+                  <div
+                    key={session.date}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '3px 8px',
+                      marginLeft: 14,
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontWeight: isSessionSelected ? 600 : 400,
+                      background: isSessionSelected ? 'var(--color-bg-active)' : 'transparent',
+                      color: isSessionSelected ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    }}
+                    onClick={() => onNavigate('session', filter.name, session.date)}
+                    title={`View ${sessionFrames} frames from ${session.date}`}
+                  >
+                    <Eye size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
+                    <span>{session.date}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0 }}>{sessionFrames}</span>
+                  </div>
+                )
+              })}
+          </div>
+        )
+      })}
     </div>
   )
 }

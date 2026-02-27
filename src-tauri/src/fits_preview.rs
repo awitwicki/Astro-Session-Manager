@@ -1,284 +1,156 @@
 use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::io::Cursor;
+use std::sync::{Arc, Mutex, OnceLock};
 
-use astroimage::ImageConverter;
-use image::{ImageBuffer, Rgb, RgbImage};
-use sha2::{Digest, Sha256};
-use tauri::{Emitter, Manager};
+use astroimage::{ImageConverter, ProcessedImage, ThreadPoolBuilder};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use image::codecs::jpeg::JpegEncoder;
+use image::{ImageBuffer, Rgb};
 
 use crate::fits_parser;
-use crate::types::{FitsHeader, FitsPreviewResult, PreviewProgress};
+use crate::types::FitsPreviewResult;
 use crate::xisf_parser;
 
 const MAX_PREVIEW_WIDTH: u32 = 1920;
 const MAX_PREVIEW_HEIGHT: u32 = 1080;
+const JPEG_QUALITY: u8 = 90;
 
-// ─── In-memory cache for processed preview data ─────────────────────────────
+// ─── Shared rayon thread pool for concurrent image processing ───────────────
 
-struct CachedPreviewData {
-    header: FitsHeader,
-    /// Processed u8 pixels from rustafits — interleaved RGB.
-    pixels: Vec<u8>,
-    width: u32,
-    height: u32,
-    original_width: u32,
-    original_height: u32,
+static THREAD_POOL: OnceLock<Arc<astroimage::ThreadPool>> = OnceLock::new();
+
+fn cpu_count() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
 }
 
-static PREVIEW_CACHE: Mutex<Option<HashMap<String, CachedPreviewData>>> = Mutex::new(None);
+fn get_thread_pool() -> Arc<astroimage::ThreadPool> {
+    Arc::clone(THREAD_POOL.get_or_init(|| {
+        Arc::new(
+            ThreadPoolBuilder::new()
+                .num_threads(cpu_count())
+                .build()
+                .unwrap(),
+        )
+    }))
+}
+
+/// Max concurrent image processing operations (semaphore permits).
+pub fn concurrent_limit() -> usize {
+    cpu_count().min(8)
+}
+
+// ─── In-memory cache for preview results ─────────────────────────────────
+
+static RESULT_CACHE: Mutex<Option<HashMap<String, FitsPreviewResult>>> = Mutex::new(None);
 
 fn ensure_cache() {
-    let mut cache = PREVIEW_CACHE.lock().unwrap();
+    let mut cache = RESULT_CACHE.lock().unwrap();
     if cache.is_none() {
         *cache = Some(HashMap::new());
     }
 }
 
-// ─── Preview cache directory ────────────────────────────────────────────────
+// ─── Header reader ──────────────────────────────────────────────────────────
 
-fn get_preview_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let cache_dir = app_handle
-        .path()
-        .app_cache_dir()
-        .map_err(|e| format!("Failed to get cache dir: {}", e))?;
-
-    let preview_dir = cache_dir.join("previews");
-    fs::create_dir_all(&preview_dir)
-        .map_err(|e| format!("Failed to create preview cache dir: {}", e))?;
-
-    Ok(preview_dir)
-}
-
-fn preview_cache_key(file_path: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(format!("preview|{}", file_path));
-    let result = hasher.finalize();
-    hex::encode(&result[..12])
-}
-
-// ─── Load and cache intermediate data ───────────────────────────────────────
-
-fn load_and_cache_preview(file_path: &str) -> Result<(), String> {
-    // Read header for metadata (FITS or XISF)
-    let header = if file_path.to_lowercase().ends_with(".xisf") {
-        xisf_parser::read_xisf_header(file_path)?
+fn read_header(file_path: &str) -> Result<crate::types::FitsHeader, String> {
+    if file_path.to_lowercase().ends_with(".xisf") {
+        xisf_parser::read_xisf_header(file_path)
     } else {
-        fits_parser::read_fits_header(file_path)?
-    };
-    let orig_w = header.naxis1 as u32;
-    let orig_h = header.naxis2 as u32;
-
-    // Compute downscale factor to fit within preview bounds
-    let downscale_w = (orig_w + MAX_PREVIEW_WIDTH - 1) / MAX_PREVIEW_WIDTH;
-    let downscale_h = (orig_h + MAX_PREVIEW_HEIGHT - 1) / MAX_PREVIEW_HEIGHT;
-    let downscale = downscale_w.max(downscale_h).max(1) as usize;
-
-    // Process with rustafits
-    let processed = ImageConverter::new()
-        .with_downscale(downscale)
-        .process(file_path)
-        .map_err(|e| format!("Failed to process image: {}", e))?;
-
-    let w = processed.width as u32;
-    let h = processed.height as u32;
-
-    ensure_cache();
-    let mut cache = PREVIEW_CACHE.lock().unwrap();
-    let map = cache.as_mut().unwrap();
-    map.insert(
-        file_path.to_string(),
-        CachedPreviewData {
-            header,
-            pixels: processed.data,
-            width: w,
-            height: h,
-            original_width: orig_w,
-            original_height: orig_h,
-        },
-    );
-
-    Ok(())
+        fits_parser::read_fits_header(file_path)
+    }
 }
 
-/// Render the cached preview data to a JPEG.
-fn render_cached_to_jpeg(
-    file_path: &str,
-    app_handle: &tauri::AppHandle,
-) -> Result<FitsPreviewResult, String> {
-    let cache = PREVIEW_CACHE.lock().unwrap();
-    let map = cache.as_ref().ok_or("Preview cache not initialized")?;
-    let data = map
-        .get(file_path)
-        .ok_or("No preview data cached for this file")?;
+/// Encode a ProcessedImage as JPEG in memory and return base64 string.
+fn encode_jpeg_base64(processed: ProcessedImage) -> Result<(String, u32, u32), String> {
+    let width = processed.width as u32;
+    let height = processed.height as u32;
 
-    let preview_dir = get_preview_dir(app_handle)?;
-    let key = preview_cache_key(file_path);
+    let img: ImageBuffer<Rgb<u8>, Vec<u8>> =
+        ImageBuffer::from_raw(width, height, processed.data)
+            .ok_or("Failed to create image buffer from processed data")?;
 
-    let w = data.width;
-    let h = data.height;
+    let mut buf = Cursor::new(Vec::new());
+    let encoder = JpegEncoder::new_with_quality(&mut buf, JPEG_QUALITY);
+    img.write_with_encoder(encoder)
+        .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
 
-    if !output_path.exists() {
-        let img: RgbImage = ImageBuffer::from_fn(w, h, |x, y| {
-            let i = (y as usize * data.width as usize + x as usize) * 3;
-            Rgb([data.pixels[i], data.pixels[i + 1], data.pixels[i + 2]])
-        });
-        img.save(&output_path)
-            .map_err(|e| format!("Failed to save preview: {}", e))?;
-    }
-
-    Ok(FitsPreviewResult {
-        image_path: output_path.to_string_lossy().to_string(),
-        width: w,
-        height: h,
-        original_width: data.original_width,
-        original_height: data.original_height,
-        header: data.header.clone(),
-    })
-}
-
-/// Check if a preview JPEG already exists on disk (without needing RAM cache).
-/// Returns header + path if the JPEG is present.
-fn try_disk_cache(
-    file_path: &str,
-    app_handle: &tauri::AppHandle,
-) -> Option<FitsPreviewResult> {
-    let preview_dir = get_preview_dir(app_handle).ok()?;
-    let key = preview_cache_key(file_path);
-    let output_path = preview_dir.join(format!("{}.jpg", key));
-
-    if !output_path.exists() {
-        return None;
-    }
-
-    // Read JPEG dimensions
-    let img = image::open(&output_path).ok()?;
-    let w = img.width();
-    let h = img.height();
-
-    // Read header for metadata
-    let header = if file_path.to_lowercase().ends_with(".xisf") {
-        xisf_parser::read_xisf_header(file_path).ok()?
-    } else {
-        fits_parser::read_fits_header(file_path).ok()?
-    };
-    let orig_w = header.naxis1 as u32;
-    let orig_h = header.naxis2 as u32;
-
-    Some(FitsPreviewResult {
-        image_path: output_path.to_string_lossy().to_string(),
-        width: w,
-        height: h,
-        original_width: orig_w,
-        original_height: orig_h,
-        header,
-    })
+    let base64_str = STANDARD.encode(buf.into_inner());
+    Ok((base64_str, width, height))
 }
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-/// Load a FITS/XISF file, process with rustafits, return JPEG path.
-pub fn get_fits_preview(
-    file_path: &str,
-    app_handle: &tauri::AppHandle,
-) -> Result<FitsPreviewResult, String> {
-    // Check if already cached in RAM
-    {
-        ensure_cache();
-        let cache = PREVIEW_CACHE.lock().unwrap();
-        let map = cache.as_ref().unwrap();
-        if map.contains_key(file_path) {
-            drop(cache);
-            return render_cached_to_jpeg(file_path, app_handle);
-        }
-    }
-
-    // Check if JPEG already exists on disk (survives RAM cache clears)
-    if let Some(result) = try_disk_cache(file_path, app_handle) {
-        return Ok(result);
-    }
-
-    // Load fresh
-    load_and_cache_preview(file_path)?;
-    render_cached_to_jpeg(file_path, app_handle)
+/// Fast path: check RAM cache without any processing.
+/// Returns instantly — no semaphore needed.
+pub fn try_cache(file_path: &str) -> Option<FitsPreviewResult> {
+    ensure_cache();
+    let cache = RESULT_CACHE.lock().unwrap();
+    cache.as_ref().unwrap().get(file_path).cloned()
 }
 
-/// Batch generate previews for multiple files.
-/// Emits `preview:progress` events for each file processed.
-pub fn batch_generate_previews(
-    window: &tauri::Window,
-    file_paths: &[String],
-    app_handle: &tauri::AppHandle,
-) -> Result<HashMap<String, FitsPreviewResult>, String> {
-    let total = file_paths.len();
-    let mut results: HashMap<String, FitsPreviewResult> = HashMap::new();
+/// Slow path: process FITS/XISF → JPEG base64, insert into cache.
+/// Caller is responsible for concurrency control (semaphore).
+pub fn generate_preview(file_path: &str) -> Result<FitsPreviewResult, String> {
+    let pool = get_thread_pool();
+    let header = read_header(file_path)?;
+    let original_width = header.naxis1 as u32;
+    let original_height = header.naxis2 as u32;
 
-    for (i, file_path) in file_paths.iter().enumerate() {
-        // Check if already in RAM cache
-        {
-            ensure_cache();
-            let cache = PREVIEW_CACHE.lock().unwrap();
-            let map = cache.as_ref().unwrap();
-            if map.contains_key(file_path.as_str()) {
-                drop(cache);
-                if let Ok(result) = render_cached_to_jpeg(file_path, app_handle) {
-                    results.insert(file_path.clone(), result);
-                }
-                let _ = window.emit(
-                    "preview:progress",
-                    PreviewProgress {
-                        current: i + 1,
-                        total,
-                        file_path: file_path.clone(),
-                    },
-                );
-                continue;
-            }
-        }
+    // Compute downscale factor to fit within preview bounds
+    let downscale_w = (original_width + MAX_PREVIEW_WIDTH - 1) / MAX_PREVIEW_WIDTH;
+    let downscale_h = (original_height + MAX_PREVIEW_HEIGHT - 1) / MAX_PREVIEW_HEIGHT;
+    let downscale = downscale_w.max(downscale_h).max(1) as usize;
 
-        // Check if JPEG already exists on disk
-        if let Some(result) = try_disk_cache(file_path, app_handle) {
-            results.insert(file_path.clone(), result);
-            let _ = window.emit(
-                "preview:progress",
-                PreviewProgress {
-                    current: i + 1,
-                    total,
-                    file_path: file_path.clone(),
-                },
-            );
-            continue;
-        }
+    // Build converter with shared thread pool
+    let mut converter = ImageConverter::new()
+        .with_thread_pool(pool)
+        .with_downscale(downscale);
 
-        // Generate fresh
-        match load_and_cache_preview(file_path) {
-            Ok(()) => {
-                if let Ok(result) = render_cached_to_jpeg(file_path, app_handle) {
-                    results.insert(file_path.clone(), result);
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to generate preview for {}: {}", file_path, e);
-            }
-        }
-
-        let _ = window.emit(
-            "preview:progress",
-            PreviewProgress {
-                current: i + 1,
-                total,
-                file_path: file_path.clone(),
-            },
-        );
+    // Use preview mode (2x2 binning during read) when downscale is small —
+    // processes 4x less data from the start, major speed win.
+    if downscale <= 2 {
+        converter = converter.with_preview_mode();
     }
 
-    Ok(results)
+    let processed = converter
+        .process(file_path)
+        .map_err(|e| format!("Failed to process image: {}", e))?;
+
+    let (image_data, width, height) = encode_jpeg_base64(processed)?;
+
+    let result = FitsPreviewResult {
+        image_data,
+        width,
+        height,
+        original_width,
+        original_height,
+        header,
+    };
+
+    // Insert into RAM cache
+    ensure_cache();
+    let mut cache = RESULT_CACHE.lock().unwrap();
+    cache
+        .as_mut()
+        .unwrap()
+        .insert(file_path.to_string(), result.clone());
+
+    Ok(result)
+}
+
+/// Single-file preview: cache check → generate.
+pub fn get_fits_preview(file_path: &str) -> Result<FitsPreviewResult, String> {
+    if let Some(cached) = try_cache(file_path) {
+        return Ok(cached);
+    }
+    generate_preview(file_path)
 }
 
 /// Clear all preview data from RAM.
 pub fn clear_preview_cache() {
-    let mut cache = PREVIEW_CACHE.lock().unwrap();
+    let mut cache = RESULT_CACHE.lock().unwrap();
     if let Some(map) = cache.as_mut() {
         map.clear();
     }

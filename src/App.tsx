@@ -3,7 +3,6 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AppShell } from './components/layout/AppShell'
 import { Dashboard } from './routes/Dashboard'
 import { ProjectView } from './routes/ProjectView'
-import { SessionView } from './routes/SessionView'
 import { FitsDetailView } from './routes/FitsDetailView'
 import { MastersLibrary } from './routes/MastersLibrary'
 import { Settings } from './routes/Settings'
@@ -16,7 +15,6 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/project/:projectName" element={<ProjectView />} />
-            <Route path="/project/:projectName/:filterName/:date" element={<SessionView />} />
             <Route path="/fits" element={<FitsDetailView />} />
             <Route path="/masters" element={<MastersLibrary />} />
             <Route path="/settings" element={<Settings />} />

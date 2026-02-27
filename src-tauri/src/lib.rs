@@ -26,6 +26,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Scanner
             commands::scan_root,
+            commands::scan_single_project,
             commands::seed_header_cache,
             // FITS
             commands::read_fits_header,

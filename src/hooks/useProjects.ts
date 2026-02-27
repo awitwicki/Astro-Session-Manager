@@ -13,7 +13,7 @@ export function useProjects() {
   const setScanning = useAppStore((s) => s.setScanning)
   const setScanError = useAppStore((s) => s.setScanError)
   const setMastersLibrary = useAppStore((s) => s.setMastersLibrary)
-  const setFwhmBatch = useAppStore((s) => s.setFwhmBatch)
+  const mergeProjectScan = useAppStore((s) => s.mergeProjectScan)
 
   const saveCache = useCallback(async () => {
     const state = useAppStore.getState()
@@ -22,9 +22,7 @@ export function useProjects() {
     try {
       await invoke('save_cache', {
         rootFolder: currentRootFolder,
-        data: {
-          fwhmData: state.fwhmData
-        }
+        data: {}
       })
     } catch {
       // Cache save is best-effort
@@ -59,8 +57,7 @@ export function useProjects() {
           rootFolder: currentRootFolder,
           data: {
             scanResult,
-            mastersLibrary,
-            fwhmData: state.fwhmData
+            mastersLibrary
           }
         })
       } catch {
@@ -72,6 +69,19 @@ export function useProjects() {
       setScanning(false)
     }
   }, [setScanResult, setScanning, setScanError, setMastersLibrary, saveCache])
+
+  const scanProject = useCallback(async (projectPath: string) => {
+    setScanning(true)
+    try {
+      const result = await invoke('scan_single_project', { projectPath })
+      mergeProjectScan(result as Parameters<typeof mergeProjectScan>[0])
+    } catch {
+      // Fall back to full scan on error
+      await scan()
+    } finally {
+      setScanning(false)
+    }
+  }, [mergeProjectScan, scan, setScanning])
 
   const selectFolder = useCallback(async () => {
     const folder = await open({ directory: true, title: 'Select Root Folder' })
@@ -142,9 +152,6 @@ export function useProjects() {
           if (cached.mastersLibrary) {
             setMastersLibrary(cached.mastersLibrary as Parameters<typeof setMastersLibrary>[0])
           }
-          if (cached.fwhmData) {
-            setFwhmBatch(cached.fwhmData as Record<string, number>)
-          }
         }
       } catch {
         // Cache load failed
@@ -156,7 +163,7 @@ export function useProjects() {
         await scan()
       }
     }
-  }, [setRootFolder, setScanResult, setMastersLibrary, setFwhmBatch, scan])
+  }, [setRootFolder, setScanResult, setMastersLibrary, scan])
 
   return {
     projects,
@@ -164,6 +171,7 @@ export function useProjects() {
     scanError,
     rootFolder,
     scan,
+    scanProject,
     selectFolder,
     init,
     saveCache

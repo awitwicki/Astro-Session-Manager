@@ -285,6 +285,111 @@ fn enrich_with_headers(
     project_headers
 }
 
+/// Like enrich_with_headers but merges results into existing cache instead of replacing it.
+/// Used for single-project rescans where we don't want to evict headers for other projects.
+fn enrich_with_headers_merge(
+    scan_result: &ScanResult,
+    window: Option<&tauri::Window>,
+) -> HashMap<String, FitsHeader> {
+    let mut project_headers: HashMap<String, FitsHeader> = HashMap::new();
+
+    let cached: HashMap<String, FitsHeader> = header_cache()
+        .lock()
+        .map(|c| c.clone())
+        .unwrap_or_default();
+
+    let first_lights: Vec<&FitsFileRef> = scan_result
+        .projects
+        .iter()
+        .flat_map(|p| &p.filters)
+        .flat_map(|f| &f.sessions)
+        .filter_map(|s| s.lights.first())
+        .collect();
+
+    let total = first_lights.len();
+
+    for (i, first_light) in first_lights.iter().enumerate() {
+        if let Some(win) = window {
+            let _ = win.emit(
+                "scan:progress",
+                ScanProgress {
+                    phase: "headers".to_string(),
+                    current: i + 1,
+                    total,
+                    file_path: first_light.path.clone(),
+                },
+            );
+        }
+
+        if let Some(existing) = cached.get(&first_light.path) {
+            project_headers.insert(first_light.path.clone(), existing.clone());
+            continue;
+        }
+
+        let header_result = if first_light
+            .filename
+            .to_lowercase()
+            .ends_with(".xisf")
+        {
+            xisf_parser::read_xisf_header(&first_light.path)
+        } else {
+            fits_parser::read_fits_header(&first_light.path)
+        };
+
+        if let Ok(header) = header_result {
+            project_headers.insert(first_light.path.clone(), header);
+        }
+    }
+
+    // Merge into cache (don't replace — preserve headers from other projects)
+    if let Ok(mut cache) = header_cache().lock() {
+        for (k, v) in &project_headers {
+            cache.insert(k.clone(), v.clone());
+        }
+    }
+
+    project_headers
+}
+
+/// Scan a single project directory and enrich with headers.
+/// Merges new headers into the cache instead of replacing it.
+pub fn scan_single_project_directory(
+    project_path: &str,
+    window: Option<&tauri::Window>,
+) -> Result<ScanResult, String> {
+    let path = Path::new(project_path);
+    if !path.exists() || !path.is_dir() {
+        return Err(format!(
+            "Project path does not exist or is not a directory: {}",
+            project_path
+        ));
+    }
+
+    let project_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let start = Instant::now();
+    let project = scan_project(path, &project_name);
+    let duration = start.elapsed();
+
+    let mut result = ScanResult {
+        root_path: path
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        projects: vec![project],
+        scan_duration_ms: duration.as_millis() as u64,
+        project_headers: HashMap::new(),
+    };
+
+    // Enrich with headers, merging into existing cache
+    result.project_headers = enrich_with_headers_merge(&result, window);
+
+    Ok(result)
+}
+
 /// Main scan function: scan a root directory for projects, filters, sessions
 pub fn scan_root_directory(
     root_path: &str,

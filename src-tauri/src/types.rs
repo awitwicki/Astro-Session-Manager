@@ -168,7 +168,7 @@ pub struct PreviewProgress {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FitsPreviewResult {
-    pub image_path: String,
+    pub image_data: String,
     pub width: u32,
     pub height: u32,
     pub original_width: u32,

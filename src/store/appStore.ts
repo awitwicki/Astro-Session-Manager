@@ -178,6 +178,12 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
   return applyCalibration(projects, mastersLibrary, tempTolerance)
 }
 
+export interface ImportProgress {
+  current: number
+  total: number
+  filename: string
+}
+
 interface AppState {
   rootFolder: string | null
   projects: Project[]
@@ -186,8 +192,8 @@ interface AppState {
   scanError: string | null
   theme: 'dark' | 'light'
   darkTempTolerance: number
-  fwhmData: Record<string, number>
   dashboardViewMode: 'grid' | 'table'
+  importProgress: ImportProgress | null
 
   setRootFolder: (path: string | null) => void
   setDashboardViewMode: (mode: 'grid' | 'table') => void
@@ -197,10 +203,11 @@ interface AppState {
   setScanError: (err: string | null) => void
   setMastersLibrary: (lib: MastersLibrary) => void
   setTheme: (theme: 'dark' | 'light') => void
-  setFwhm: (filePath: string, fwhm: number) => void
-  setFwhmBatch: (data: Record<string, number>) => void
   updateCalibration: (projectName: string, filterName: string, date: string, calibration: Project['filters'][0]['sessions'][0]['calibration']) => void
   removeLight: (filePath: string) => void
+  removeProject: (projectPath: string) => void
+  setImportProgress: (progress: ImportProgress | null) => void
+  mergeProjectScan: (raw: ScanResultRaw) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -210,10 +217,10 @@ export const useAppStore = create<AppState>((set) => ({
   isScanning: false,
   scanError: null,
   theme: 'dark',
-  fwhmData: {},
 
   dashboardViewMode: 'grid',
   darkTempTolerance: 2,
+  importProgress: null,
 
   setRootFolder: (path) => set({ rootFolder: path }),
 
@@ -240,16 +247,6 @@ export const useAppStore = create<AppState>((set) => ({
     set({ theme })
   },
 
-  setFwhm: (filePath, fwhm) =>
-    set((state) => ({
-      fwhmData: { ...state.fwhmData, [filePath]: fwhm }
-    })),
-
-  setFwhmBatch: (data) =>
-    set((state) => ({
-      fwhmData: { ...state.fwhmData, ...data }
-    })),
-
   updateCalibration: (projectName, filterName, date, calibration) =>
     set((state) => ({
       projects: state.projects.map((p) =>
@@ -271,6 +268,13 @@ export const useAppStore = create<AppState>((set) => ({
       )
     })),
 
+  setImportProgress: (progress) => set({ importProgress: progress }),
+
+  removeProject: (projectPath) =>
+    set((state) => ({
+      projects: state.projects.filter((p) => p.path !== projectPath)
+    })),
+
   removeLight: (filePath) =>
     set((state) => ({
       projects: state.projects.map((p) => ({
@@ -284,4 +288,23 @@ export const useAppStore = create<AppState>((set) => ({
         }))
       }))
     })),
+
+  mergeProjectScan: (raw) =>
+    set((state) => {
+      const updated = buildProjects(raw, state.mastersLibrary, state.darkTempTolerance)
+      if (updated.length === 0) return state
+
+      const updatedProject = updated[0]
+      const existingIdx = state.projects.findIndex((p) => p.path === updatedProject.path)
+
+      let projects: Project[]
+      if (existingIdx >= 0) {
+        projects = [...state.projects]
+        projects[existingIdx] = updatedProject
+      } else {
+        projects = [...state.projects, updatedProject].sort((a, b) => a.name.localeCompare(b.name))
+      }
+
+      return { projects }
+    }),
 }))

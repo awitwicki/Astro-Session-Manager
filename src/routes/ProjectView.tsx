@@ -1,19 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
 import { useProjects } from '../hooks/useProjects'
-import { formatIntegrationTime, formatFileSize } from '../lib/formatters'
-import { sessionPath, projectPath } from '../lib/constants'
+import { formatIntegrationTime, formatFileSize, formatTemperature, formatExposure } from '../lib/formatters'
+import { projectPath, fitsGalleryPath } from '../lib/constants'
 
 export function ProjectView() {
   const { projectName } = useParams<{ projectName: string }>()
   const navigate = useNavigate()
   const projects = useAppStore((s) => s.projects)
   const rootFolder = useAppStore((s) => s.rootFolder)
-  const { scan } = useProjects()
+  const removeProject = useAppStore((s) => s.removeProject)
+  const { scanProject } = useProjects()
   const project = projects.find((p) => p.name === decodeURIComponent(projectName || ''))
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [renameProject, setRenameProject] = useState(false)
@@ -48,7 +49,8 @@ export function ProjectView() {
         rootFolder
       })
       setRenameProject(false)
-      await scan()
+      removeProject(project.path)
+      await scanProject(rootFolder + '/' + newName)
       navigate(projectPath(newName), { replace: true })
     } catch (err) {
       alert('Rename failed: ' + String(err))
@@ -73,7 +75,7 @@ export function ProjectView() {
         rootFolder
       })
       setRenameFilter(null)
-      await scan()
+      await scanProject(project.path)
       setActiveFilter(newName)
     } catch (err) {
       alert('Rename failed: ' + String(err))
@@ -100,6 +102,27 @@ export function ProjectView() {
           >
             <Pencil size={13} />
           </button>
+          <button
+            className="btn btn-sm"
+            style={{ padding: '2px 6px' }}
+            onClick={() => scanProject(project.path)}
+            title="Rescan project"
+          >
+            <RefreshCw size={13} />
+          </button>
+          {project.totalLightFrames > 0 && (() => {
+            const firstLight = project.filters.flatMap((f) => f.sessions.flatMap((s) => s.lights))[0]
+            return firstLight ? (
+              <button
+                className="btn btn-sm"
+                style={{ padding: '2px 6px' }}
+                onClick={() => navigate(fitsGalleryPath(firstLight.path, 'project', project.name))}
+                title="View all project frames"
+              >
+                <Eye size={13} />
+              </button>
+            ) : null
+          })()}
         </div>
         <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -162,6 +185,19 @@ export function ProjectView() {
             >
               <FolderOpen size={13} />
             </button>
+            {(() => {
+              const firstLight = filterData.sessions.flatMap((s) => s.lights)[0]
+              return firstLight ? (
+                <button
+                  className="btn btn-sm"
+                  style={{ padding: '2px 6px' }}
+                  onClick={() => navigate(fitsGalleryPath(firstLight.path, 'filter', project.name, filterData.name))}
+                  title="View all filter frames"
+                >
+                  <Eye size={13} />
+                </button>
+              ) : null
+            })()}
             <button
               className="btn btn-sm"
               onClick={async () => {
@@ -175,7 +211,7 @@ export function ProjectView() {
                   sessionName: nextName,
                   rootFolder
                 })
-                await scan()
+                await scanProject(project.path)
               }}
               title="Create new empty night"
             >
@@ -190,10 +226,7 @@ export function ProjectView() {
               session={session}
               projectName={project.name}
               filterName={filterData.name}
-              onNavigate={() =>
-                navigate(sessionPath(project.name, filterData.name, session.date))
-              }
-              onRescan={scan}
+              onRescan={() => scanProject(project.path)}
             />
           ))}
         </div>
@@ -270,9 +303,8 @@ export function ProjectView() {
 
 function SessionAccordion({
   session,
-  projectName: _projectName,
-  filterName: _filterName,
-  onNavigate,
+  projectName,
+  filterName,
   onRescan
 }: {
   session: {
@@ -293,11 +325,30 @@ function SessionAccordion({
   }
   projectName: string
   filterName: string
-  onNavigate: () => void
   onRescan: () => Promise<void>
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [lightsExpanded, setLightsExpanded] = useState(false)
+  const [flatsExpanded, setFlatsExpanded] = useState(false)
+  const [lightHeaders, setLightHeaders] = useState<Record<string, Record<string, unknown>>>({})
+  const navigate = useNavigate()
   const cal = session.calibration
+
+  // Lazy-load FITS headers when lights list is expanded
+  useEffect(() => {
+    if (!lightsExpanded || Object.keys(lightHeaders).length > 0) return
+    const paths = session.lights.map((l) => l.path)
+    if (paths.length === 0) return
+    invoke<Record<string, unknown>[]>('batch_read_fits_headers', { filePaths: paths })
+      .then((headers) => {
+        const map: Record<string, Record<string, unknown>> = {}
+        for (let i = 0; i < paths.length; i++) {
+          if (headers[i]) map[paths[i]] = headers[i] as Record<string, unknown>
+        }
+        setLightHeaders(map)
+      })
+      .catch(() => {})
+  }, [lightsExpanded, lightHeaders, session.lights])
 
   return (
     <div className="accordion-item">
@@ -323,6 +374,19 @@ function SessionAccordion({
             <span className="badge badge-success"><Check size={10} /> Flats</span>
           ) : (
             <span className="badge badge-error"><X size={10} /> No flats</span>
+          )}
+
+          {session.lights.length > 0 && (
+            <span
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate(fitsGalleryPath(session.lights[0].path, 'session', projectName, filterName, session.date))
+              }}
+              title="View session frames"
+            >
+              <Eye size={13} />
+            </span>
           )}
         </span>
       </button>
@@ -354,11 +418,7 @@ function SessionAccordion({
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary btn-sm" onClick={onNavigate}>
-              View Frames
-              <ChevronRight size={14} />
-            </button>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <button
               className="btn btn-sm"
               onClick={async () => {
@@ -373,8 +433,9 @@ function SessionAccordion({
                 if (!files || (Array.isArray(files) && files.length === 0)) return
                 const fileList = Array.isArray(files) ? files : [files]
                 const lightsDir = session.path + '/lights'
-                await invoke('copy_to_directory', { files: fileList, targetDir: lightsDir })
-                await onRescan()
+                invoke('copy_to_directory', { files: fileList, targetDir: lightsDir })
+                  .then(() => onRescan())
+                  .catch(() => {})
               }}
             >
               <Plus size={12} />
@@ -394,8 +455,9 @@ function SessionAccordion({
                 if (!files || (Array.isArray(files) && files.length === 0)) return
                 const fileList = Array.isArray(files) ? files : [files]
                 const flatsDir = session.path + '/flats'
-                await invoke('copy_to_directory', { files: fileList, targetDir: flatsDir })
-                await onRescan()
+                invoke('copy_to_directory', { files: fileList, targetDir: flatsDir })
+                  .then(() => onRescan())
+                  .catch(() => {})
               }}
             >
               <Plus size={12} />
@@ -410,6 +472,89 @@ function SessionAccordion({
               <FolderOpen size={13} />
             </button>
           </div>
+
+          {/* Collapsible Lights list */}
+          {session.lights.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <button
+                className="btn btn-sm"
+                style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => setLightsExpanded(!lightsExpanded)}
+              >
+                {lightsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                Lights ({session.lights.length})
+              </button>
+              {lightsExpanded && (
+                <div style={{ marginTop: 4, maxHeight: 300, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 6 }}>
+                  <table className="table" style={{ margin: 0, fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th>Filename</th>
+                        <th>Temperature</th>
+                        <th>Exposure</th>
+                        <th>Size</th>
+                        <th style={{ width: 36 }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {session.lights.map((light) => (
+                        <tr key={light.path}>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{light.filename}</td>
+                          <td>{lightHeaders[light.path]?.ccdTemp != null ? formatTemperature(lightHeaders[light.path].ccdTemp as number) : '-'}</td>
+                          <td>{lightHeaders[light.path]?.exptime != null ? formatExposure(lightHeaders[light.path].exptime as number) : '-'}</td>
+                          <td>{formatFileSize(light.sizeBytes)}</td>
+                          <td>
+                            <button
+                              className="btn btn-sm"
+                              style={{ padding: '2px 6px' }}
+                              onClick={() => navigate(fitsGalleryPath(light.path, 'session', projectName, filterName, session.date))}
+                              title="View details"
+                            >
+                              <Eye size={12} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Collapsible Flats list */}
+          {session.flats.length > 0 && (
+            <div>
+              <button
+                className="btn btn-sm"
+                style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => setFlatsExpanded(!flatsExpanded)}
+              >
+                {flatsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                Flats ({session.flats.length})
+              </button>
+              {flatsExpanded && (
+                <div style={{ marginTop: 4, maxHeight: 300, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 6 }}>
+                  <table className="table" style={{ margin: 0, fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th>Filename</th>
+                        <th>Size</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {session.flats.map((flat) => (
+                        <tr key={flat.path}>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{flat.filename}</td>
+                          <td>{formatFileSize(flat.sizeBytes)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

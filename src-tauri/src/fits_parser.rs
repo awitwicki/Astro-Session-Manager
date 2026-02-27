@@ -111,8 +111,10 @@ pub fn parse_fits_header(file_path: &str) -> Result<ParsedFitsHeader, String> {
         for r in 0..RECORDS_PER_BLOCK {
             let start = r * RECORD_SIZE;
             let end = start + RECORD_SIZE;
-            let record = String::from_utf8_lossy(&block[start..end]);
-            let keyword = record[..8].trim_end().to_string();
+            let record_bytes = &block[start..end];
+
+            // Extract keyword from first 8 bytes directly (ASCII)
+            let keyword = String::from_utf8_lossy(&record_bytes[..8]).trim_end().to_string();
 
             if keyword == "END" {
                 end_found = true;
@@ -123,13 +125,10 @@ pub fn parse_fits_header(file_path: &str) -> Result<ParsedFitsHeader, String> {
                 continue;
             }
 
-            // Check for '= ' at positions 8-9
-            if record.len() >= 10
-                && record.as_bytes()[8] == b'='
-                && record.as_bytes()[9] == b' '
-            {
-                let value_field = &record[10..];
-                keywords.insert(keyword, parse_value_field(value_field));
+            // Check for '= ' at byte positions 8-9
+            if record_bytes[8] == b'=' && record_bytes[9] == b' ' {
+                let value_field = String::from_utf8_lossy(&record_bytes[10..]);
+                keywords.insert(keyword, parse_value_field(&value_field));
             }
         }
     }

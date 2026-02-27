@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
+use tokio::sync::Semaphore;
 
 use crate::cache;
 use crate::fits_parser;
@@ -22,6 +25,18 @@ pub async fn scan_root(
 ) -> Result<ScanResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         scanner::scan_root_directory(&root_folder, Some(&window))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+}
+
+#[tauri::command]
+pub async fn scan_single_project(
+    project_path: String,
+    window: tauri::Window,
+) -> Result<ScanResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        scanner::scan_single_project_directory(&project_path, Some(&window))
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -56,24 +71,94 @@ pub fn read_xisf_header(file_path: String) -> Result<FitsHeader, String> {
 #[tauri::command]
 pub async fn get_fits_preview(
     file_path: String,
-    app_handle: AppHandle,
 ) -> Result<FitsPreviewResult, String> {
-    tauri::async_runtime::spawn_blocking(move || fits_preview::get_fits_preview(&file_path, &app_handle))
+    tauri::async_runtime::spawn_blocking(move || fits_preview::get_fits_preview(&file_path))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
 }
 
+/// Batch generate previews using async semaphore pattern (like athenaeum).
+/// Cache hits bypass the semaphore entirely. Only actual processing acquires a permit.
+/// Double-check locking prevents duplicate work when multiple tasks target the same file.
 #[tauri::command]
 pub async fn batch_generate_previews(
     window: tauri::Window,
     file_paths: Vec<String>,
-    app_handle: AppHandle,
 ) -> Result<HashMap<String, FitsPreviewResult>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        fits_preview::batch_generate_previews(&window, &file_paths, &app_handle)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+    let total = file_paths.len();
+    let completed = Arc::new(AtomicUsize::new(0));
+    let semaphore = Arc::new(Semaphore::new(fits_preview::concurrent_limit()));
+
+    let mut handles = Vec::with_capacity(total);
+
+    for file_path in file_paths {
+        let sem = Arc::clone(&semaphore);
+        let window = window.clone();
+        let completed = Arc::clone(&completed);
+
+        handles.push(tokio::spawn(async move {
+            // Fast path: cache hit — no semaphore, returns instantly
+            if let Some(cached) = fits_preview::try_cache(&file_path) {
+                let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                let _ = window.emit(
+                    "preview:progress",
+                    PreviewProgress {
+                        current: done,
+                        total,
+                        file_path: file_path.clone(),
+                    },
+                );
+                return Some((file_path, cached));
+            }
+
+            // Slow path: acquire semaphore permit for actual processing
+            let _permit = sem.acquire().await.ok()?;
+
+            // Double-check cache — another task may have filled it while we waited
+            if let Some(cached) = fits_preview::try_cache(&file_path) {
+                let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                let _ = window.emit(
+                    "preview:progress",
+                    PreviewProgress {
+                        current: done,
+                        total,
+                        file_path: file_path.clone(),
+                    },
+                );
+                return Some((file_path, cached));
+            }
+
+            // Process on blocking thread pool (CPU-intensive FITS work)
+            let fp = file_path.clone();
+            let result = tauri::async_runtime::spawn_blocking(move || {
+                fits_preview::generate_preview(&fp)
+            })
+            .await
+            .ok()?
+            .ok()?;
+
+            let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
+            let _ = window.emit(
+                "preview:progress",
+                PreviewProgress {
+                    current: done,
+                    total,
+                    file_path: file_path.clone(),
+                },
+            );
+
+            Some((file_path, result))
+        }));
+    }
+
+    let mut results = HashMap::new();
+    for handle in handles {
+        if let Ok(Some((path, result))) = handle.await {
+            results.insert(path, result);
+        }
+    }
+
+    Ok(results)
 }
 
 #[tauri::command]
@@ -144,14 +229,19 @@ pub fn load_cache(root_folder: String) -> Result<serde_json::Value, String> {
 // ─── File Operation Commands ────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn copy_to_directory(files: Vec<String>, target_dir: String) -> Result<CopyResult, String> {
-    let target_path = Path::new(&target_dir);
-    fs::create_dir_all(target_path)
+pub async fn copy_to_directory(
+    files: Vec<String>,
+    target_dir: String,
+    app_handle: AppHandle,
+) -> Result<CopyResult, String> {
+    let target_path = PathBuf::from(&target_dir);
+    fs::create_dir_all(&target_path)
         .map_err(|e| format!("Failed to create target directory: {}", e))?;
 
+    let total = files.len();
     let mut copied: Vec<String> = Vec::new();
 
-    for file_path in &files {
+    for (i, file_path) in files.iter().enumerate() {
         let source = Path::new(file_path);
         let filename = source
             .file_name()
@@ -159,15 +249,33 @@ pub fn copy_to_directory(files: Vec<String>, target_dir: String) -> Result<CopyR
             .unwrap_or_default();
         let target = target_path.join(&filename);
 
-        match fs::copy(source, &target) {
-            Ok(_) => {
+        let _ = app_handle.emit("import:progress", serde_json::json!({
+            "current": i + 1,
+            "total": total,
+            "filename": &filename,
+        }));
+
+        let src = source.to_path_buf();
+        let dst = target.clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            fs::copy(&src, &dst)
+        })
+        .await;
+
+        match result {
+            Ok(Ok(_)) => {
                 copied.push(target.to_string_lossy().to_string());
             }
-            Err(_) => {
+            _ => {
                 // Skip failed copies
             }
         }
     }
+
+    let _ = app_handle.emit("import:done", serde_json::json!({
+        "copied": copied.len(),
+        "total": total,
+    }));
 
     Ok(CopyResult {
         copied: copied.len(),
