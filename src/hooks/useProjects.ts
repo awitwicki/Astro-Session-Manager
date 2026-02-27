@@ -52,7 +52,6 @@ export function useProjects() {
 
       // Save everything to cache
       try {
-        const state = useAppStore.getState()
         await invoke('save_cache', {
           rootFolder: currentRootFolder,
           data: {
