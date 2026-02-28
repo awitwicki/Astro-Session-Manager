@@ -3,6 +3,7 @@ export const ROUTES = {
   PROJECT: '/project/:projectName',
   FITS_DETAIL: '/fits',
   MASTERS: '/masters',
+  SKYMAP: '/skymap',
   SETTINGS: '/settings'
 } as const
 

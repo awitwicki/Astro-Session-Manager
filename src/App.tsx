@@ -6,6 +6,7 @@ import { ProjectView } from './routes/ProjectView'
 import { FitsDetailView } from './routes/FitsDetailView'
 import { MastersLibrary } from './routes/MastersLibrary'
 import { Settings } from './routes/Settings'
+import { SkyMap } from './routes/SkyMap'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
             <Route path="/project/:projectName" element={<ProjectView />} />
             <Route path="/fits" element={<FitsDetailView />} />
             <Route path="/masters" element={<MastersLibrary />} />
+            <Route path="/skymap" element={<SkyMap />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Routes>

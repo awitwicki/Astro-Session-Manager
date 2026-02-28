@@ -3,7 +3,8 @@ import {
   FolderOpen,
   Settings,
   Database,
-  RefreshCw
+  RefreshCw,
+  Map
 } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { useProjects } from '../../hooks/useProjects'
@@ -36,6 +37,14 @@ export function Sidebar() {
           >
             <Database size={16} />
             Masters Library
+          </button>
+
+          <button
+            className={`sidebar-item ${location.pathname === '/skymap' ? 'active' : ''}`}
+            onClick={() => navigate('/skymap')}
+          >
+            <Map size={16} />
+            Sky Map
           </button>
         </div>
 

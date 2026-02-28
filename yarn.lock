@@ -945,6 +945,18 @@ csstype@^3.2.2:
   resolved "https://registry.yarnpkg.com/csstype/-/csstype-3.2.3.tgz#ec48c0f3e993e50648c86da559e2610995cf989a"
   integrity sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==
 
+d3-celestial@^0.7.35:
+  version "0.7.35"
+  resolved "https://registry.yarnpkg.com/d3-celestial/-/d3-celestial-0.7.35.tgz#bee03f337ac1ae3d32de2c3bd7d7ae4dd27e1e21"
+  integrity sha512-cURxIl0E+FGWnYj6gTDt80SjuiM9lklcGykj/skVy7glDg5nj/QxTUoPPArU+bpEQ+1fLy5hi920OvJ/TgliRw==
+  dependencies:
+    d3 "^3.5.17"
+
+d3@^3.5.17:
+  version "3.5.17"
+  resolved "https://registry.yarnpkg.com/d3/-/d3-3.5.17.tgz#bc46748004378b21a360c9fc7cf5231790762fb8"
+  integrity sha512-yFk/2idb8OHPKkbAL8QaOaqENNoMhIaSHZerk3oQsECwkObkCpJyjYwCe+OHiq6UEdhe1m8ZGARRRO3ljFjlKg==
+
 debug@^4.1.0, debug@^4.3.1, debug@^4.3.2, debug@^4.4.3:
   version "4.4.3"
   resolved "https://registry.yarnpkg.com/debug/-/debug-4.4.3.tgz#c6ae432d9bd9662582fce08709b038c58e9e3d6a"
