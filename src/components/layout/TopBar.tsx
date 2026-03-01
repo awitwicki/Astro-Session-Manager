@@ -1,10 +1,41 @@
+import { useState, useEffect } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { Sun, Moon } from 'lucide-react'
+import { Sun, Moon, ArrowUpCircle } from 'lucide-react'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { useTheme } from '../../context/ThemeContext'
+
+declare const __APP_VERSION__: string
+
+function isNewerVersion(remote: string, current: string): boolean {
+  const r = remote.split('.').map(Number)
+  const c = current.split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if ((r[i] || 0) > (c[i] || 0)) return true
+    if ((r[i] || 0) < (c[i] || 0)) return false
+  }
+  return false
+}
+
+const GITHUB_REPO = 'awitwicki/Astro-Session-Manager'
+const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`
 
 export function TopBar() {
   const location = useLocation()
   const { theme, toggleTheme } = useTheme()
+  const [latestVersion, setLatestVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.tag_name) return
+        const remote = data.tag_name.replace(/^v/, '')
+        if (isNewerVersion(remote, __APP_VERSION__)) {
+          setLatestVersion(remote)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const breadcrumbs = buildBreadcrumbs(location.pathname)
 
@@ -26,6 +57,18 @@ export function TopBar() {
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {latestVersion && (
+        <button
+          className="btn btn-sm titlebar-no-drag"
+          onClick={() => openUrl(RELEASES_URL)}
+          title={`Update available: v${latestVersion}`}
+          style={{ color: 'var(--color-warning)', gap: 4 }}
+        >
+          <ArrowUpCircle size={14} />
+          Update v{latestVersion}
+        </button>
+      )}
 
       <button
         className="btn btn-sm titlebar-no-drag"
