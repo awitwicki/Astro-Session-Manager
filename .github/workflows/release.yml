@@ -56,6 +56,16 @@ jobs:
 
       - run: yarn tauri build --target aarch64-apple-darwin
 
+      - name: Ad-hoc codesign the app bundle
+        run: |
+          APP=$(find src-tauri/target/aarch64-apple-darwin/release/bundle -name "*.app" -type d | head -1)
+          if [ -n "$APP" ]; then
+            codesign --force --deep --sign - "$APP"
+          fi
+
+      - name: Remove quarantine attribute from DMG
+        run: xattr -cr src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+
       - uses: actions/upload-artifact@v4
         with:
           name: mac-arm-builds
@@ -83,6 +93,16 @@ jobs:
       - run: yarn install --frozen-lockfile
 
       - run: yarn tauri build --target x86_64-apple-darwin
+
+      - name: Ad-hoc codesign the app bundle
+        run: |
+          APP=$(find src-tauri/target/x86_64-apple-darwin/release/bundle -name "*.app" -type d | head -1)
+          if [ -n "$APP" ]; then
+            codesign --force --deep --sign - "$APP"
+          fi
+
+      - name: Remove quarantine attribute from DMG
+        run: xattr -cr src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
 
       - uses: actions/upload-artifact@v4
         with:
