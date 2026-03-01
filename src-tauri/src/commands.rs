@@ -427,3 +427,29 @@ pub fn show_in_folder(path: String) -> Result<(), String> {
 
     Ok(())
 }
+
+// ─── Notes Commands ─────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn read_note(folder_path: String) -> Result<String, String> {
+    let note_path = Path::new(&folder_path).join("notes.txt");
+    if !note_path.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(&note_path)
+        .map_err(|e| format!("Failed to read note: {}", e))
+}
+
+#[tauri::command]
+pub fn write_note(folder_path: String, content: String) -> Result<(), String> {
+    let note_path = Path::new(&folder_path).join("notes.txt");
+    if content.trim().is_empty() {
+        if note_path.exists() {
+            fs::remove_file(&note_path)
+                .map_err(|e| format!("Failed to delete note: {}", e))?;
+        }
+        return Ok(());
+    }
+    fs::write(&note_path, &content)
+        .map_err(|e| format!("Failed to write note: {}", e))
+}

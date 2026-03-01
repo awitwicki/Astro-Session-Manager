@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -22,6 +22,10 @@ export function ProjectView() {
   const [renameFilter, setRenameFilter] = useState<string | null>(null)
   const [renameFilterName, setRenameFilterName] = useState('')
   const [renaming, setRenaming] = useState(false)
+  const [notesPath, setNotesPath] = useState<string | null>(null)
+  const [notesTitle, setNotesTitle] = useState('')
+  const [notesContent, setNotesContent] = useState('')
+  const [notesSaving, setNotesSaving] = useState(false)
 
   if (!project) {
     return (
@@ -34,6 +38,31 @@ export function ProjectView() {
 
   const currentFilter = activeFilter || (project.filters.length > 0 ? project.filters[0].name : null)
   const filterData = project.filters.find((f) => f.name === currentFilter)
+
+  const openNotes = async (folderPath: string, title: string) => {
+    setNotesTitle(title)
+    setNotesPath(folderPath)
+    try {
+      const content = await invoke<string>('read_note', { folderPath })
+      setNotesContent(content)
+    } catch {
+      setNotesContent('')
+    }
+  }
+
+  const saveNotes = async () => {
+    if (!notesPath) return
+    setNotesSaving(true)
+    try {
+      await invoke('write_note', { folderPath: notesPath, content: notesContent })
+      setNotesPath(null)
+      await scanProject(project.path)
+    } catch (err) {
+      alert('Failed to save notes: ' + String(err))
+    } finally {
+      setNotesSaving(false)
+    }
+  }
 
   const handleRenameProject = async (): Promise<void> => {
     const newName = renameProjectName.trim()
@@ -110,6 +139,14 @@ export function ProjectView() {
           >
             <RefreshCw size={13} />
           </button>
+          <button
+            className="btn btn-sm"
+            style={{ padding: '2px 6px', opacity: project.hasNotes ? 1 : 0.5 }}
+            onClick={() => openNotes(project.path, `Project: ${project.name}`)}
+            title={project.hasNotes ? 'View notes' : 'Create notes'}
+          >
+            <FileText size={13} />
+          </button>
           {project.totalLightFrames > 0 && (() => {
             const firstLight = project.filters.flatMap((f) => f.sessions.flatMap((s) => s.lights))[0]
             return firstLight ? (
@@ -185,6 +222,14 @@ export function ProjectView() {
             >
               <FolderOpen size={13} />
             </button>
+            <button
+              className="btn btn-sm"
+              style={{ padding: '2px 6px', opacity: filterData.hasNotes ? 1 : 0.5 }}
+              onClick={() => openNotes(filterData.path, `Filter: ${filterData.name}`)}
+              title={filterData.hasNotes ? 'View notes' : 'Create notes'}
+            >
+              <FileText size={13} />
+            </button>
             {(() => {
               const firstLight = filterData.sessions.flatMap((s) => s.lights)[0]
               return firstLight ? (
@@ -227,6 +272,7 @@ export function ProjectView() {
               projectName={project.name}
               filterName={filterData.name}
               onRescan={() => scanProject(project.path)}
+              onOpenNotes={openNotes}
             />
           ))}
         </div>
@@ -297,6 +343,38 @@ export function ProjectView() {
           </div>
         </div>
       )}
+
+      {/* Notes Modal */}
+      {notesPath && (
+        <div className="modal-overlay" onClick={() => setNotesPath(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 560 }}>
+            <h3 className="modal-title">{notesTitle}</h3>
+            <div style={{ margin: '16px 0' }}>
+              <textarea
+                className="settings-input"
+                value={notesContent}
+                onChange={(e) => setNotesContent(e.target.value)}
+                autoFocus
+                rows={12}
+                style={{ resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 13 }}
+                placeholder="Write your notes here..."
+              />
+            </div>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setNotesPath(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={saveNotes}
+                disabled={notesSaving}
+              >
+                {notesSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -305,7 +383,8 @@ function SessionAccordion({
   session,
   projectName,
   filterName,
-  onRescan
+  onRescan,
+  onOpenNotes
 }: {
   session: {
     date: string
@@ -322,10 +401,13 @@ function SessionAccordion({
       flatsAvailable: boolean
       flatCount?: number
     }
+    hasNotes: boolean
+    subsDateRange: string | null
   }
   projectName: string
   filterName: string
   onRescan: () => Promise<void>
+  onOpenNotes: (folderPath: string, title: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [lightsExpanded, setLightsExpanded] = useState(false)
@@ -358,6 +440,11 @@ function SessionAccordion({
       >
         <ChevronRight size={16} className="rotatable" />
         <span style={{ fontWeight: 600 }}>{session.date}</span>
+        {session.subsDateRange && (
+          <span style={{ color: 'var(--color-text-muted)', fontSize: 12, fontWeight: 400 }}>
+            ({session.subsDateRange})
+          </span>
+        )}
         <span style={{ color: 'var(--color-text-muted)', fontSize: 12, marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
           <span>{session.lights.length} lights</span>
           {session.flats.length > 0 && <span>{session.flats.length} flats</span>}
@@ -366,12 +453,16 @@ function SessionAccordion({
 
           {cal.darksMatched ? (
             <span className="badge badge-success"><Check size={10} /> Darks</span>
+          ) : session.lights.length === 0 ? (
+            <span className="badge">Darks</span>
           ) : (
             <span className="badge badge-warning"><AlertCircle size={10} /> No darks</span>
           )}
 
           {cal.flatsAvailable ? (
             <span className="badge badge-success"><Check size={10} /> Flats</span>
+          ) : session.lights.length === 0 ? (
+            <span className="badge">Flats</span>
           ) : (
             <span className="badge badge-error"><X size={10} /> No flats</span>
           )}
@@ -388,6 +479,16 @@ function SessionAccordion({
               <Eye size={13} />
             </span>
           )}
+          <span
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: session.hasNotes ? 1 : 0.5 }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenNotes(session.path, `Night: ${session.date}`)
+            }}
+            title={session.hasNotes ? 'View notes' : 'Create notes'}
+          >
+            <FileText size={13} />
+          </span>
         </span>
       </button>
 

@@ -140,6 +140,7 @@ fn scan_session(session_path: &Path, date_name: &str) -> SessionScanNode {
         lights,
         flats,
         total_size_bytes,
+        has_notes: session_path.join("notes.txt").exists(),
     }
 }
 
@@ -175,6 +176,7 @@ fn scan_filter(filter_path: &Path, filter_name: &str) -> FilterScanNode {
                 lights: direct_fits,
                 flats: Vec::new(),
                 total_size_bytes: total,
+                has_notes: filter_path.join("notes.txt").exists(),
             });
         }
     }
@@ -187,6 +189,7 @@ fn scan_filter(filter_path: &Path, filter_name: &str) -> FilterScanNode {
         path: filter_path.to_string_lossy().to_string(),
         sessions,
         total_size_bytes,
+        has_notes: filter_path.join("notes.txt").exists(),
     }
 }
 
@@ -214,6 +217,7 @@ fn scan_project(project_path: &Path, project_name: &str) -> ProjectScanNode {
         path: project_path.to_string_lossy().to_string(),
         filters,
         total_size_bytes,
+        has_notes: project_path.join("notes.txt").exists(),
     }
 }
 

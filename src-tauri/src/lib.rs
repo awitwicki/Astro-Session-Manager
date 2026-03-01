@@ -55,6 +55,9 @@ pub fn run() {
             commands::create_project,
             commands::create_session,
             commands::show_in_folder,
+            // Notes
+            commands::read_note,
+            commands::write_note,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

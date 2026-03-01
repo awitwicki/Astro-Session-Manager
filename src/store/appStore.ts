@@ -13,6 +13,7 @@ interface ProjectScanNode {
   path: string
   filters: FilterScanNode[]
   totalSizeBytes: number
+  hasNotes: boolean
 }
 
 interface FilterScanNode {
@@ -20,6 +21,7 @@ interface FilterScanNode {
   path: string
   sessions: SessionScanNode[]
   totalSizeBytes: number
+  hasNotes: boolean
 }
 
 interface SessionScanNode {
@@ -28,6 +30,7 @@ interface SessionScanNode {
   lights: FitsFileRef[]
   flats: FitsFileRef[]
   totalSizeBytes: number
+  hasNotes: boolean
 }
 
 interface FitsFileRef {
@@ -115,14 +118,23 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
         const integrationSeconds = exptime * sessionLights
         filterIntegration += integrationSeconds
 
-        // Use the actual file modification date of the newest light
+        // Compute date range from light file modification dates
+        let minDate: string | null = null
+        let maxDate: string | null = null
         for (const light of s.lights) {
           if (light.modifiedAt) {
             const dateStr = light.modifiedAt.slice(0, 10)
+            if (!minDate || dateStr < minDate) minDate = dateStr
+            if (!maxDate || dateStr > maxDate) maxDate = dateStr
             if (!lastDate || dateStr > lastDate) {
               lastDate = dateStr
             }
           }
+        }
+
+        let subsDateRange: string | null = null
+        if (minDate && maxDate) {
+          subsDateRange = minDate === maxDate ? minDate : `${minDate} — ${maxDate}`
         }
 
         return {
@@ -145,7 +157,9 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
             darksMatched: false,
             flatsAvailable: s.flats.length > 0,
             flatCount: s.flats.length
-          }
+          },
+          hasNotes: s.hasNotes,
+          subsDateRange
         }
       })
 
@@ -159,7 +173,8 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
         sessions,
         totalIntegrationSeconds: filterIntegration,
         totalLightFrames: filterLights,
-        totalSizeBytes: f.totalSizeBytes
+        totalSizeBytes: f.totalSizeBytes,
+        hasNotes: f.hasNotes
       }
     })
 
@@ -171,7 +186,8 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
       totalLightFrames: totalLights,
       totalFlatFrames: totalFlats,
       totalSizeBytes: p.totalSizeBytes,
-      lastCaptureDate: lastDate
+      lastCaptureDate: lastDate,
+      hasNotes: p.hasNotes
     }
   })
 

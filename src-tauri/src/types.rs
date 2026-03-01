@@ -63,6 +63,7 @@ pub struct SessionScanNode {
     pub lights: Vec<FitsFileRef>,
     pub flats: Vec<FitsFileRef>,
     pub total_size_bytes: u64,
+    pub has_notes: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +73,7 @@ pub struct FilterScanNode {
     pub path: String,
     pub sessions: Vec<SessionScanNode>,
     pub total_size_bytes: u64,
+    pub has_notes: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +83,7 @@ pub struct ProjectScanNode {
     pub path: String,
     pub filters: Vec<FilterScanNode>,
     pub total_size_bytes: u64,
+    pub has_notes: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

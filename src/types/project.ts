@@ -9,6 +9,7 @@ export interface Project {
   totalFlatFrames: number
   totalSizeBytes: number
   lastCaptureDate: string | null
+  hasNotes: boolean
 }
 
 export interface FilterGroup {
@@ -18,6 +19,7 @@ export interface FilterGroup {
   totalIntegrationSeconds: number
   totalLightFrames: number
   totalSizeBytes: number
+  hasNotes: boolean
 }
 
 export interface Session {
@@ -28,6 +30,8 @@ export interface Session {
   integrationSeconds: number
   totalSizeBytes: number
   calibration: CalibrationMatch
+  hasNotes: boolean
+  subsDateRange: string | null
 }
 
 export interface LightFrame {

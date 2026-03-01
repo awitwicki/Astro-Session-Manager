@@ -4,7 +4,7 @@ import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, Chevr
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
-import { fitsGalleryPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
+import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
 
 interface FitsHeader {
   bayerpat?: string
@@ -403,7 +403,7 @@ export function FitsDetailView() {
       <div className="empty-state">
         <h3>Failed to load FITS file</h3>
         <p style={{ color: 'var(--color-error)' }}>{error}</p>
-        <button className="btn" style={{ marginTop: 16 }} onClick={() => navigate(-1)}>
+        <button className="btn" style={{ marginTop: 16 }} onClick={() => projectParam ? navigate(projectPath(projectParam)) : navigate(-1)}>
           <ArrowLeft size={14} /> Go Back
         </button>
       </div>
@@ -476,7 +476,7 @@ export function FitsDetailView() {
         {/* Gallery toolbar */}
         <div className="gallery-toolbar">
           <div className="gallery-toolbar-group">
-            <button className="btn btn-sm" onClick={() => navigate(-1)}>
+            <button className="btn btn-sm" onClick={() => projectParam ? navigate(projectPath(projectParam)) : navigate(-1)}>
               <ArrowLeft size={14} /> Back
             </button>
           </div>
