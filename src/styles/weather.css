@@ -1,0 +1,310 @@
+/* Weather forecast page */
+
+.weather-page {
+  max-width: 100%;
+}
+
+/* Location controls */
+.weather-location {
+  margin-bottom: 20px;
+}
+
+.weather-coords {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.weather-coord-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.weather-coord-input {
+  width: 100px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+/* Leaflet map */
+.weather-map-container {
+  margin-top: 12px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.weather-map {
+  height: 300px;
+  width: 100%;
+}
+
+/* Fix Leaflet controls for dark theme */
+.weather-map .leaflet-control-zoom a {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+.weather-map .leaflet-control-attribution {
+  background: var(--color-bg-secondary) !important;
+  color: var(--color-text-muted) !important;
+  font-size: 10px;
+}
+
+.weather-map .leaflet-control-attribution a {
+  color: var(--color-accent) !important;
+}
+
+/* Error */
+.weather-error {
+  background: var(--color-error-muted);
+  color: var(--color-error);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+/* ===== Day cards container — no gaps ===== */
+.weather-days {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+/* Day card — flush, no margin */
+.weather-day-card {
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.weather-day-card:last-child {
+  border-bottom: none;
+}
+
+/* Main row: left info + right grid */
+.weather-day-row {
+  display: flex;
+  min-height: 0;
+}
+
+/* ===== Left column: info + labels ===== */
+.weather-day-left {
+  flex-shrink: 0;
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+}
+
+.weather-day-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  gap: 2px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.weather-day-info:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.weather-day-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.weather-day-name {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.weather-day-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1.1;
+}
+
+.weather-moon-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.weather-moon-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.weather-moon-phase {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+
+.weather-moon-pct {
+  color: var(--color-warning);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.weather-sun-times {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.weather-sun-rise {
+  color: var(--color-warning);
+}
+
+.weather-sun-set {
+  color: var(--color-accent);
+}
+
+.weather-collapse-icon {
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* ===== Right: grid area ===== */
+.weather-day-grid {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Collapsed summary bar ===== */
+.weather-summary-bar {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 40px;
+}
+
+.weather-summary-hours {
+  display: flex;
+  flex: 1;
+}
+
+.weather-summary-cell {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  border-right: 1px solid rgba(0, 0, 0);
+  border-collapse: collapse;
+}
+
+.weather-summary-cell:last-child {
+  border-right: none;
+}
+
+.weather-summary-cell.night {
+  box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
+}
+
+.weather-summary-hour {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  padding-bottom: 2px;
+  line-height: 1;
+}
+
+/* ===== Labels column (under day-info) ===== */
+.weather-labels-col {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border);
+}
+
+.weather-label-cell {
+  padding: 0 8px;
+  height: 21px;
+  font-size: 10px;
+  font-family: var(--font-sans);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.weather-label-header {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+}
+
+/* ===== Expanded data rows (flex-based, matches summary bar) ===== */
+.weather-data-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.weather-data-row {
+  display: flex;
+  border-top: 1px solid rgba(0, 0, 0);
+}
+
+/* Data cells */
+.weather-cell {
+  flex: 1;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  border-right: 1px solid rgba(0, 0, 0);
+  box-sizing: border-box;
+}
+
+.weather-cell:last-child {
+  border-right: none;
+}
+
+.weather-cell.night {
+  box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
+}
+
+/* ===== Light theme adjustments ===== */
+[data-theme='light'] .weather-cell {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='light'] .weather-labels-col {
+  background: #f5f5f7;
+}
+
+[data-theme='light'] .weather-day-card {
+  background: #f5f5f7;
+}
+
+[data-theme='light'] .weather-day-info:hover {
+  background: #ececee;
+}

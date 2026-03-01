@@ -206,6 +206,8 @@ pub struct AppSettings {
     pub cache_path: String,
     pub dark_temp_tolerance: f64,
     pub auto_scan_on_startup: bool,
+    pub weather_lat: Option<f64>,
+    pub weather_lon: Option<f64>,
 }
 
 impl Default for AppSettings {
@@ -216,6 +218,8 @@ impl Default for AppSettings {
             cache_path: String::new(),
             dark_temp_tolerance: 2.0,
             auto_scan_on_startup: true,
+            weather_lat: None,
+            weather_lon: None,
         }
     }
 }

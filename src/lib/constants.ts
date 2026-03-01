@@ -4,6 +4,7 @@ export const ROUTES = {
   FITS_DETAIL: '/fits',
   MASTERS: '/masters',
   SKYMAP: '/skymap',
+  WEATHER: '/weather',
   SETTINGS: '/settings'
 } as const
 

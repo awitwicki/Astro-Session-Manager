@@ -54,6 +54,9 @@ function buildBreadcrumbs(pathname: string): Breadcrumb[] {
   } else if (pathname === '/settings') {
     crumbs.push({ label: 'Dashboard', path: '/' })
     crumbs.push({ label: 'Settings' })
+  } else if (pathname === '/weather') {
+    crumbs.push({ label: 'Dashboard', path: '/' })
+    crumbs.push({ label: 'Weather' })
   } else if (pathname.startsWith('/project/')) {
     crumbs.push({ label: 'Dashboard', path: '/' })
     const parts = pathname.split('/').filter(Boolean)

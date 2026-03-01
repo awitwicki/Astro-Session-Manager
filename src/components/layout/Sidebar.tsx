@@ -4,7 +4,8 @@ import {
   Settings,
   Database,
   RefreshCw,
-  Map
+  Map,
+  CloudSun
 } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { useProjects } from '../../hooks/useProjects'
@@ -45,6 +46,14 @@ export function Sidebar() {
           >
             <Map size={16} />
             Sky Map
+          </button>
+
+          <button
+            className={`sidebar-item ${location.pathname === '/weather' ? 'active' : ''}`}
+            onClick={() => navigate('/weather')}
+          >
+            <CloudSun size={16} />
+            Weather
           </button>
         </div>
 
