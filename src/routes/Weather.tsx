@@ -24,7 +24,7 @@ export function Weather() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showMap, setShowMap] = useState(false)
-  const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
+  const [expandedDays, setCollapsedDays] = useState<Set<string>>(new Set())
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const markerRef = useRef<L.Marker | null>(null)
@@ -131,7 +131,7 @@ export function Weather() {
   return (
     <div className="weather-page">
       <div className="page-header">
-        <h1 className="page-title">Astro Weather</h1>
+        <h1 className="page-title">Astro Weather (experimental)</h1>
         <div className="weather-coords">
           <button
             className="btn"
@@ -174,7 +174,7 @@ export function Weather() {
             <DayCard
               key={day.date}
               day={day}
-              collapsed={collapsedDays.has(day.date)}
+              collapsed={!expandedDays.has(day.date)}
               onToggle={() => toggleCollapse(day.date)}
             />
           ))}
@@ -253,6 +253,86 @@ const ROWS: RowDef[] = [
 // Summary row used in collapsed mode — shows total cloud cover colors
 const SUMMARY_ROW = ROWS[0]
 
+function buildSunBarGradient(sunrise: string, sunset: string): string {
+  if (sunrise === '--:--' || sunset === '--:--') return '#0d1117'
+
+  const parseTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    return (h * 60 + m) / (24 * 60) * 100
+  }
+
+  const rise = parseTime(sunrise)
+  const set = parseTime(sunset)
+  const tw = 4 // twilight transition width %
+
+  const night = '#0d1117'
+  const twilight = '#1a3a5c'
+  const day = '#e8b830'
+
+  const p = (v: number) => `${v.toFixed(1)}%`
+
+  // sunrise/sunset mark the start of twilight, not the boundary with night
+  const riseStart = rise - tw
+  const riseEnd = rise + tw
+  const setStart = set - tw
+  const setEnd = set + tw
+
+  const noon = (rise + set) / 2
+  const noonW = 0.3
+
+  return `linear-gradient(to right, ${night} ${p(riseStart)}, ${twilight} ${p(rise)}, ${day} ${p(riseEnd)}, ${day} ${p(noon - noonW)}, ${night} ${p(noon)}, ${day} ${p(noon + noonW)}, ${day} ${p(setStart)}, ${twilight} ${p(set)}, ${night} ${p(setEnd)})`
+}
+
+function buildMoonBarGradient(date: string, sunrise: string, illumination: number): string {
+  if (sunrise === '--:--') return '#0d1117'
+
+  const parseTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    return (h * 60 + m) / (24 * 60) * 100
+  }
+
+  // Calculate moon phase ratio (same logic as getMoonPhase)
+  const dt = new Date(date + 'T12:00:00')
+  const knownNewMoon = new Date('2000-01-06T18:14:00Z')
+  const synodicMonth = 29.53059
+  const daysSinceNew = (dt.getTime() - knownNewMoon.getTime()) / (1000 * 60 * 60 * 24)
+  const phaseRatio = (((daysSinceNew % synodicMonth) + synodicMonth) % synodicMonth) / synodicMonth
+
+  const sunrisePos = parseTime(sunrise)
+
+  // Approximate moonrise: at new moon rises with sun, full moon rises ~12h after
+  const moonrise = (sunrisePos + phaseRatio * 100) % 100
+  const moonset = (moonrise + 50) % 100 // ~12h above horizon
+
+  const tw = 3
+  const night = '#0d1117'
+  const b = Math.min(160, Math.round(40 + illumination * 1.2))
+  const hex = b.toString(16).padStart(2, '0')
+  const moonColor = `#${hex}${hex}${hex}`
+
+  const p = (v: number) => `${Math.max(0, Math.min(100, v)).toFixed(1)}%`
+
+  // Moon's peak altitude is midpoint between moonrise and moonset
+  const lw = 0.3
+
+  if (moonrise < moonset) {
+    const peak = (moonrise + moonset) / 2
+    return `linear-gradient(to right, ${night} ${p(moonrise - tw)}, ${moonColor} ${p(moonrise + tw)}, ${moonColor} ${p(peak - lw)}, ${night} ${p(peak)}, ${moonColor} ${p(peak + lw)}, ${moonColor} ${p(moonset - tw)}, ${night} ${p(moonset + tw)})`
+  } else {
+    // Wrap: moon visible at start and end of day, peak wraps too
+    const peak = ((moonrise + moonset + 100) / 2) % 100
+    if (peak > moonrise || peak < moonset) {
+      // Peak is in the visible range
+      if (peak > moonrise) {
+        return `linear-gradient(to right, ${moonColor} ${p(moonset - tw)}, ${night} ${p(moonset + tw)}, ${night} ${p(moonrise - tw)}, ${moonColor} ${p(moonrise + tw)}, ${moonColor} ${p(peak - lw)}, ${night} ${p(peak)}, ${moonColor} ${p(peak + lw)})`
+      } else {
+        return `linear-gradient(to right, ${moonColor} ${p(peak - lw)}, ${night} ${p(peak)}, ${moonColor} ${p(peak + lw)}, ${moonColor} ${p(moonset - tw)}, ${night} ${p(moonset + tw)}, ${night} ${p(moonrise - tw)}, ${moonColor} ${p(moonrise + tw)})`
+      }
+    }
+    return `linear-gradient(to right, ${moonColor} ${p(moonset - tw)}, ${night} ${p(moonset + tw)}, ${night} ${p(moonrise - tw)}, ${moonColor} ${p(moonrise + tw)})`
+  }
+}
+
 interface DayCardProps {
   day: DayForecast
   collapsed: boolean
@@ -274,7 +354,6 @@ function DayCard({ day, collapsed, onToggle }: DayCardProps) {
 
             <div className="weather-moon-info">
               <span className="weather-moon-emoji">{day.moonEmoji}</span>
-              <span className="weather-moon-phase">{day.moonPhase}</span>
               <span className="weather-moon-pct">{day.moonIllumination}%</span>
             </div>
             <div className="weather-sun-times">
@@ -306,6 +385,14 @@ function DayCard({ day, collapsed, onToggle }: DayCardProps) {
                 ))}
               </div>
             </div>
+            <div
+              className="weather-sun-bar"
+              style={{ background: buildSunBarGradient(day.sunrise, day.sunset) }}
+            />
+            <div
+              className="weather-sun-bar"
+              style={{ background: buildMoonBarGradient(day.date, day.sunrise, day.moonIllumination) }}
+            />
           {!collapsed && (
             <div className="weather-data-rows">
               {ROWS.map((row) => (
