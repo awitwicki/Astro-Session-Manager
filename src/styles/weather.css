@@ -216,9 +216,6 @@
   border-right: none;
 }
 
-.weather-summary-cell.night {
-  box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
-}
 
 .weather-summary-hour {
   font-size: 13px;
@@ -289,8 +286,15 @@
   border-right: none;
 }
 
-.weather-cell.night {
-  box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
+
+/* Gray out past hours (today only) */
+.weather-summary-cell.past,
+.weather-cell.past {
+  filter: saturate(0.5) brightness(0.5);
+}
+
+.weather-summary-cell.past .weather-summary-hour {
+  opacity: 0.4;
 }
 
 /* ===== Light theme adjustments ===== */

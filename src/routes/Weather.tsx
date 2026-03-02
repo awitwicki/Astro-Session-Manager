@@ -377,7 +377,7 @@ function DayCard({ day, collapsed, onToggle }: DayCardProps) {
                 {day.hours.map((h, i) => (
                   <div
                     key={i}
-                    className={`weather-summary-cell ${h.isNight ? 'night' : ''}`}
+                    className={`weather-summary-cell ${h.isNight ? 'night' : ''}${h.isPast ? ' past' : ''}`}
                     style={{ backgroundColor: SUMMARY_ROW.getColor(h) }}
                   >
                     <span className="weather-summary-hour">{String(h.hour).padStart(2, '0')}</span>
@@ -400,7 +400,7 @@ function DayCard({ day, collapsed, onToggle }: DayCardProps) {
                   {day.hours.map((h, i) => (
                     <div
                       key={i}
-                      className={`weather-cell ${h.isNight ? 'night' : ''}`}
+                      className={`weather-cell ${h.isNight ? 'night' : ''}${h.isPast ? ' past' : ''}`}
                       style={{ backgroundColor: row.getColor(h) }}
                     >
                       {row.getValue(h)}

@@ -42,6 +42,7 @@ export interface HourData {
   precipProb: number
   precipitation: number
   isNight: boolean
+  isPast: boolean      // true for hours before current hour today
 }
 
 export interface DayForecast {
@@ -83,6 +84,11 @@ function processForecast(data: OpenMeteoResponse): DayForecast[] {
   const { hourly, daily } = data
   const days: DayForecast[] = []
 
+  // Current time for marking past hours
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const currentHour = now.getHours()
+
   // Build a map of sunrise/sunset per date
   const sunTimes: Record<string, { sunrise: string; sunset: string }> = {}
   for (let i = 0; i < daily.time.length; i++) {
@@ -105,6 +111,9 @@ function processForecast(data: OpenMeteoResponse): DayForecast[] {
       isNight = currentMinutes < sunriseHour || currentMinutes >= sunsetHour
     }
 
+    // Mark hours before current hour on today as past
+    const isPast = dateStr === todayStr && dt.getHours() < currentHour
+
     return {
       time: t,
       hour: dt.getHours(),
@@ -121,7 +130,8 @@ function processForecast(data: OpenMeteoResponse): DayForecast[] {
       visibility: hourly.visibility[i],
       precipProb: hourly.precipitation_probability[i],
       precipitation: hourly.precipitation[i],
-      isNight
+      isNight,
+      isPast
     }
   })
 
