@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   FolderOpen,
@@ -5,7 +6,9 @@ import {
   Database,
   RefreshCw,
   Map,
-  CloudSun
+  CloudSun,
+  Search,
+  X
 } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { useProjects } from '../../hooks/useProjects'
@@ -19,6 +22,13 @@ export function Sidebar() {
   const rootFolder = useAppStore((s) => s.rootFolder)
   const isScanning = useAppStore((s) => s.isScanning)
   const { selectFolder, scan } = useProjects()
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredProjects = useMemo(() => {
+    if (!searchQuery.trim()) return projects
+    const q = searchQuery.toLowerCase()
+    return projects.filter((p) => p.name.toLowerCase().includes(q))
+  }, [projects, searchQuery])
 
   return (
     <div className="app-sidebar">
@@ -60,7 +70,25 @@ export function Sidebar() {
         {projects.length > 0 && (
           <div className="sidebar-section">
             <div className="sidebar-section-title">Projects</div>
-            {projects.map((p) => {
+            <div className="sidebar-search">
+              <Search size={14} className="sidebar-search-icon" />
+              <input
+                type="text"
+                className="sidebar-search-input"
+                placeholder="Search projects..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  className="sidebar-search-clear"
+                  onClick={() => setSearchQuery('')}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            {filteredProjects.map((p) => {
               const prefix = `/project/${encodeURIComponent(p.name)}`
               const isActive = location.pathname === prefix || location.pathname.startsWith(`${prefix}/`)
               return (
