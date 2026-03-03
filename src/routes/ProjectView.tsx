@@ -18,7 +18,7 @@ export function ProjectView() {
   const setSubAnalysis = useAppStore((s) => s.setSubAnalysis)
   const isAnalyzing = useAppStore((s) => s.isAnalyzing)
   const setAnalyzing = useAppStore((s) => s.setAnalyzing)
-  const { scanProject, saveCache } = useProjects()
+  const { scanProject } = useProjects()
   const project = projects.find((p) => p.name === decodeURIComponent(projectName || ''))
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [renameProject, setRenameProject] = useState(false)
