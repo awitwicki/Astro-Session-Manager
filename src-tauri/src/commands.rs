@@ -7,7 +7,9 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Semaphore;
 
+use crate::analyzer;
 use crate::cache;
+use crate::cancellation;
 use crate::fits_parser;
 use crate::fits_preview;
 use crate::masters;
@@ -19,12 +21,20 @@ use crate::xisf_parser;
 // ─── Scanner Commands ───────────────────────────────────────────────────────
 
 #[tauri::command]
+pub fn cancel_operation(operation: String) {
+    cancellation::request_cancel(&operation);
+}
+
+#[tauri::command]
 pub async fn scan_root(
     root_folder: String,
     window: tauri::Window,
+    app_handle: AppHandle,
 ) -> Result<ScanResult, String> {
+    let patterns = load_exclude_patterns(&app_handle);
+    cancellation::reset_cancel("scan");
     tauri::async_runtime::spawn_blocking(move || {
-        scanner::scan_root_directory(&root_folder, Some(&window))
+        scanner::scan_root_directory(&root_folder, Some(&window), &patterns)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -34,9 +44,12 @@ pub async fn scan_root(
 pub async fn scan_single_project(
     project_path: String,
     window: tauri::Window,
+    app_handle: AppHandle,
 ) -> Result<ScanResult, String> {
+    let patterns = load_exclude_patterns(&app_handle);
+    cancellation::reset_cancel("scan");
     tauri::async_runtime::spawn_blocking(move || {
-        scanner::scan_single_project_directory(&project_path, Some(&window))
+        scanner::scan_single_project_directory(&project_path, Some(&window), &patterns)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -193,6 +206,21 @@ pub fn import_masters(
     masters::import_masters(&root_folder, &files, &master_type, ccd_temp)
 }
 
+// ─── Analyzer Commands ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn analyze_subs(
+    file_paths: Vec<String>,
+    window: tauri::Window,
+) -> Result<HashMap<String, SubAnalysis>, String> {
+    cancellation::reset_cancel("analyze");
+    tauri::async_runtime::spawn_blocking(move || {
+        analyzer::analyze_batch(&file_paths, Some(&window))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))
+}
+
 // ─── Settings Commands ──────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -238,10 +266,16 @@ pub async fn copy_to_directory(
     fs::create_dir_all(&target_path)
         .map_err(|e| format!("Failed to create target directory: {}", e))?;
 
+    cancellation::reset_cancel("import");
     let total = files.len();
     let mut copied: Vec<String> = Vec::new();
 
     for (i, file_path) in files.iter().enumerate() {
+        if cancellation::is_cancelled("import") {
+            log::info!("[import] cancelled at {}/{}", i, total);
+            break;
+        }
+
         let source = Path::new(file_path);
         let filename = source
             .file_name()
@@ -426,6 +460,20 @@ pub fn show_in_folder(path: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Parse exclude patterns text (newline-separated, # comments, empty lines ignored)
+fn parse_exclude_patterns(text: &str) -> Vec<String> {
+    text.lines()
+        .map(|l| l.trim().trim_end_matches('/').trim_end_matches('\\').to_string())
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .collect()
+}
+
+fn load_exclude_patterns(app_handle: &tauri::AppHandle) -> Vec<String> {
+    settings::load_settings(app_handle)
+        .map(|s| parse_exclude_patterns(&s.exclude_patterns))
+        .unwrap_or_default()
 }
 
 // ─── Notes Commands ─────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, Clock, Image, Camera, Plus, LayoutGrid, List } from 'lucide-react'
+import { FolderOpen, Clock, Image, Camera, Plus, LayoutGrid, List, EyeOff } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { useProjects } from '../hooks/useProjects'
 import { useAppStore } from '../store/appStore'
@@ -23,6 +23,9 @@ export function Dashboard() {
   const [creating, setCreating] = useState(false)
   const [sortColumn, setSortColumn] = useState<ProjectSortColumn>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [showExcluded, setShowExcluded] = useState(false)
+  const [patternsText, setPatternsText] = useState('')
+  const [patternsLoaded, setPatternsLoaded] = useState(false)
 
   const setViewMode = (mode: 'grid' | 'table') => {
     setDashboardViewMode(mode)
@@ -32,6 +35,15 @@ export function Dashboard() {
   useEffect(() => {
     init()
   }, [init])
+
+  useEffect(() => {
+    if (!patternsLoaded) {
+      invoke<unknown>('get_setting', { key: 'excludePatterns' }).then((val) => {
+        if (typeof val === 'string') setPatternsText(val)
+        setPatternsLoaded(true)
+      })
+    }
+  }, [patternsLoaded])
 
   const handleCreateProject = async (): Promise<void> => {
     if (!newProjectName.trim()) return
@@ -157,6 +169,17 @@ export function Dashboard() {
   )
   const totalSize = projects.reduce((s, p) => s + p.totalSizeBytes, 0)
 
+  const currentYear = String(new Date().getFullYear())
+  const thisYearIntegration = projects.reduce(
+    (s, p) => s + p.filters.reduce(
+      (sf, f) => sf + f.sessions
+        .filter((ses) => ses.subsDateRange?.startsWith(currentYear))
+        .reduce((ss, ses) => ss + ses.integrationSeconds, 0),
+      0
+    ),
+    0
+  )
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -180,6 +203,13 @@ export function Dashboard() {
               <List size={14} />
             </button>
           </div>
+          <button
+            className="btn btn-sm"
+            onClick={() => setShowExcluded(true)}
+            title="Manage exclusions"
+          >
+            <EyeOff size={14} />
+          </button>
           <button className="btn btn-primary" onClick={() => setShowNewProject(true)}>
             <Plus size={14} />
             New Project
@@ -194,6 +224,9 @@ export function Dashboard() {
         </div>
         <div className="stat-card">
           <div className="stat-value">{formatIntegrationTime(totalIntegration)}</div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)'}}>
+              {formatIntegrationTime(thisYearIntegration)} this year
+            </div>
           <div className="stat-label">Total Integration</div>
         </div>
         <div className="stat-card">
@@ -263,7 +296,7 @@ export function Dashboard() {
                   </div>
                 </td>
                 <td>{project.totalLightFrames}</td>
-                <td>
+                <td style={{ display: 'flex', gap: 4 }}>
                   <button
                     className="btn btn-sm"
                     style={{ padding: '2px 6px' }}
@@ -274,6 +307,21 @@ export function Dashboard() {
                     title="Show in Finder"
                   >
                     <FolderOpen size={13} />
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    style={{ padding: '2px 6px' }}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const updated = patternsText ? patternsText + '\n' + project.name : project.name
+                      setPatternsText(updated)
+                      setPatternsLoaded(true)
+                      await invoke('set_setting', { key: 'excludePatterns', value: updated })
+                      useAppStore.getState().applyExcludePatterns(updated)
+                    }}
+                    title="Exclude project"
+                  >
+                    <EyeOff size={13} />
                   </button>
                 </td>
               </tr>
@@ -331,9 +379,70 @@ export function Dashboard() {
                 >
                   <FolderOpen size={13} />
                 </button>
+                <button
+                  className="btn btn-sm"
+                  style={{ padding: '2px 6px' }}
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    const updated = patternsText ? patternsText + '\n' + project.name : project.name
+                    setPatternsText(updated)
+                    setPatternsLoaded(true)
+                    await invoke('set_setting', { key: 'excludePatterns', value: updated })
+                    useAppStore.getState().applyExcludePatterns(updated)
+                  }}
+                  title="Exclude project"
+                >
+                  <EyeOff size={13} />
+                </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Exclude Patterns Modal */}
+      {showExcluded && (
+        <div className="modal-overlay" onClick={() => setShowExcluded(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 560 }}>
+            <h3 className="modal-title">Exclude Patterns</h3>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12 }}>
+              Folder names matching these patterns will be skipped during scanning.
+              One pattern per line. Supports * and ? wildcards. Lines starting with # are comments.
+            </p>
+            <textarea
+              className="settings-input"
+              value={patternsText}
+              onChange={(e) => setPatternsText(e.target.value)}
+              placeholder={'*.pxiproject\ntemp_*\n# This is a comment'}
+              rows={8}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 12, resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
+            />
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setShowExcluded(false)}>
+                Close
+              </button>
+              <button
+                className="btn"
+                onClick={async () => {
+                  await invoke('set_setting', { key: 'excludePatterns', value: patternsText })
+                  useAppStore.getState().applyExcludePatterns(patternsText)
+                  setShowExcluded(false)
+                }}
+              >
+                Save
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  await invoke('set_setting', { key: 'excludePatterns', value: patternsText })
+                  setShowExcluded(false)
+                  await scan()
+                }}
+              >
+                Save & Rescan
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

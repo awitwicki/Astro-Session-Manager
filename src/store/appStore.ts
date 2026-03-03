@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Project, MastersLibrary } from '../types'
+import type { Project, MastersLibrary, SubAnalysisResult } from '../types'
 
 interface ScanResultRaw {
   rootPath: string
@@ -38,6 +38,50 @@ interface FitsFileRef {
   path: string
   sizeBytes: number
   modifiedAt: string
+}
+
+function simpleGlobMatch(text: string, pattern: string): boolean {
+  let ti = 0, pi = 0, starPi = -1, starTi = 0
+  while (ti < text.length) {
+    if (pi < pattern.length && (pattern[pi] === '?' || pattern[pi] === text[ti])) {
+      ti++; pi++
+    } else if (pi < pattern.length && pattern[pi] === '*') {
+      starPi = pi; starTi = ti; pi++
+    } else if (starPi !== -1) {
+      pi = starPi + 1; starTi++; ti = starTi
+    } else {
+      return false
+    }
+  }
+  while (pi < pattern.length && pattern[pi] === '*') pi++
+  return pi === pattern.length
+}
+
+function matchesExcludePattern(name: string, patterns: string[]): boolean {
+  if (patterns.length === 0) return false
+  const lower = name.toLowerCase()
+  return patterns.some((p) => simpleGlobMatch(lower, p.toLowerCase()))
+}
+
+function parseExcludePatterns(text: string): string[] {
+  return text.split('\n')
+    .map((l) => l.trim().replace(/[/\\]+$/, ''))
+    .filter((l) => l.length > 0 && !l.startsWith('#'))
+}
+
+function filterByPatterns(projects: Project[], patterns: string[]): Project[] {
+  if (patterns.length === 0) return projects
+  return projects
+    .filter((p) => !matchesExcludePattern(p.name, patterns))
+    .map((p) => ({
+      ...p,
+      filters: p.filters
+        .filter((f) => !matchesExcludePattern(f.name, patterns))
+        .map((f) => ({
+          ...f,
+          sessions: f.sessions.filter((s) => !matchesExcludePattern(s.date, patterns))
+        }))
+    }))
 }
 
 function applyCalibration(projects: Project[], mastersLibrary: MastersLibrary | null, tempTolerance: number): Project[] {
@@ -210,6 +254,8 @@ interface AppState {
   darkTempTolerance: number
   dashboardViewMode: 'grid' | 'table'
   importProgress: ImportProgress | null
+  subAnalysis: Record<string, SubAnalysisResult>
+  isAnalyzing: boolean
 
   setRootFolder: (path: string | null) => void
   setDashboardViewMode: (mode: 'grid' | 'table') => void
@@ -224,6 +270,9 @@ interface AppState {
   removeProject: (projectPath: string) => void
   setImportProgress: (progress: ImportProgress | null) => void
   mergeProjectScan: (raw: ScanResultRaw) => void
+  applyExcludePatterns: (patternsText: string) => void
+  setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
+  setAnalyzing: (v: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -237,6 +286,8 @@ export const useAppStore = create<AppState>((set) => ({
   dashboardViewMode: 'grid',
   darkTempTolerance: 2,
   importProgress: null,
+  subAnalysis: {},
+  isAnalyzing: false,
 
   setRootFolder: (path) => set({ rootFolder: path }),
 
@@ -304,6 +355,16 @@ export const useAppStore = create<AppState>((set) => ({
         }))
       }))
     })),
+
+  applyExcludePatterns: (patternsText) => set((state) => ({
+    projects: filterByPatterns(state.projects, parseExcludePatterns(patternsText))
+  })),
+
+  setSubAnalysis: (data) => set((state) => ({
+    subAnalysis: { ...state.subAnalysis, ...data }
+  })),
+
+  setAnalyzing: (v) => set({ isAnalyzing: v }),
 
   mergeProjectScan: (raw) =>
     set((state) => {

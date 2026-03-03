@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "astro-session-manager",
+  "productName": "Astro session manager",
   "version": "../package.json",
   "identifier": "com.asm.dev",
   "build": {

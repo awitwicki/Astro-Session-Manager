@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use tauri::Emitter;
 
+use crate::cancellation;
 use crate::fits_parser;
 use crate::types::{
     FilterScanNode, FitsFileRef, FitsHeader, ProjectScanNode, ScanResult, ScanProgress,
@@ -29,6 +30,50 @@ pub fn seed_header_cache(headers: HashMap<String, FitsHeader>) {
 }
 
 const FITS_EXTENSIONS: &[&str] = &[".fits", ".fit", ".fts", ".xisf"];
+
+/// Simple glob matching supporting * (any chars) and ? (single char)
+fn simple_glob_match(text: &[u8], pattern: &[u8]) -> bool {
+    let mut ti = 0;
+    let mut pi = 0;
+    let mut star_pi = usize::MAX;
+    let mut star_ti = 0;
+
+    while ti < text.len() {
+        if pi < pattern.len() && (pattern[pi] == b'?' || pattern[pi] == text[ti]) {
+            ti += 1;
+            pi += 1;
+        } else if pi < pattern.len() && pattern[pi] == b'*' {
+            star_pi = pi;
+            star_ti = ti;
+            pi += 1;
+        } else if star_pi != usize::MAX {
+            pi = star_pi + 1;
+            star_ti += 1;
+            ti = star_ti;
+        } else {
+            return false;
+        }
+    }
+
+    while pi < pattern.len() && pattern[pi] == b'*' {
+        pi += 1;
+    }
+
+    pi == pattern.len()
+}
+
+/// Check if a directory name matches any of the exclude patterns (case-insensitive)
+fn matches_exclude_pattern(name: &str, patterns: &[String]) -> bool {
+    if patterns.is_empty() {
+        return false;
+    }
+    let lower = name.to_lowercase();
+    let lower_bytes = lower.as_bytes();
+    patterns.iter().any(|p| {
+        let lp = p.to_lowercase();
+        simple_glob_match(lower_bytes, lp.as_bytes())
+    })
+}
 
 /// Check if a filename has a supported FITS/XISF extension
 fn is_fits_file(filename: &str) -> bool {
@@ -145,7 +190,7 @@ fn scan_session(session_path: &Path, date_name: &str) -> SessionScanNode {
 }
 
 /// Scan a filter directory for session subdirectories
-fn scan_filter(filter_path: &Path, filter_name: &str) -> FilterScanNode {
+fn scan_filter(filter_path: &Path, filter_name: &str, exclude_patterns: &[String]) -> FilterScanNode {
     let entries = list_dir_safe(filter_path);
     let mut sessions: Vec<SessionScanNode> = Vec::new();
 
@@ -157,6 +202,9 @@ fn scan_filter(filter_path: &Path, filter_name: &str) -> FilterScanNode {
 
     for entry in &dir_entries {
         let name = entry.file_name().to_string_lossy().to_string();
+        if matches_exclude_pattern(&name, exclude_patterns) {
+            continue;
+        }
         let session = scan_session(&filter_path.join(&name), &name);
         sessions.push(session);
     }
@@ -194,7 +242,7 @@ fn scan_filter(filter_path: &Path, filter_name: &str) -> FilterScanNode {
 }
 
 /// Scan a project directory for filter subdirectories
-fn scan_project(project_path: &Path, project_name: &str) -> ProjectScanNode {
+fn scan_project(project_path: &Path, project_name: &str, exclude_patterns: &[String]) -> ProjectScanNode {
     let entries = list_dir_safe(project_path);
     let mut filters: Vec<FilterScanNode> = Vec::new();
 
@@ -205,7 +253,10 @@ fn scan_project(project_path: &Path, project_name: &str) -> ProjectScanNode {
 
     for entry in &dir_entries {
         let name = entry.file_name().to_string_lossy().to_string();
-        let filter = scan_filter(&project_path.join(&name), &name);
+        if matches_exclude_pattern(&name, exclude_patterns) {
+            continue;
+        }
+        let filter = scan_filter(&project_path.join(&name), &name, exclude_patterns);
         filters.push(filter);
     }
 
@@ -247,6 +298,11 @@ fn enrich_with_headers(
     let total = first_lights.len();
 
     for (i, first_light) in first_lights.iter().enumerate() {
+        if cancellation::is_cancelled("scan") {
+            log::info!("[scan] cancelled at header {}/{}", i, total);
+            break;
+        }
+
         // Emit progress
         if let Some(win) = window {
             let _ = win.emit(
@@ -313,6 +369,11 @@ fn enrich_with_headers_merge(
     let total = first_lights.len();
 
     for (i, first_light) in first_lights.iter().enumerate() {
+        if cancellation::is_cancelled("scan") {
+            log::info!("[scan] cancelled at header {}/{}", i, total);
+            break;
+        }
+
         if let Some(win) = window {
             let _ = win.emit(
                 "scan:progress",
@@ -360,6 +421,7 @@ fn enrich_with_headers_merge(
 pub fn scan_single_project_directory(
     project_path: &str,
     window: Option<&tauri::Window>,
+    exclude_patterns: &[String],
 ) -> Result<ScanResult, String> {
     let path = Path::new(project_path);
     if !path.exists() || !path.is_dir() {
@@ -375,7 +437,7 @@ pub fn scan_single_project_directory(
         .unwrap_or_default();
 
     let start = Instant::now();
-    let project = scan_project(path, &project_name);
+    let project = scan_project(path, &project_name, exclude_patterns);
     let duration = start.elapsed();
 
     let mut result = ScanResult {
@@ -391,6 +453,10 @@ pub fn scan_single_project_directory(
     // Enrich with headers, merging into existing cache
     result.project_headers = enrich_with_headers_merge(&result, window);
 
+    if cancellation::is_cancelled("scan") {
+        return Err("Scan cancelled".to_string());
+    }
+
     Ok(result)
 }
 
@@ -398,6 +464,7 @@ pub fn scan_single_project_directory(
 pub fn scan_root_directory(
     root_path: &str,
     window: Option<&tauri::Window>,
+    exclude_patterns: &[String],
 ) -> Result<ScanResult, String> {
     let start = Instant::now();
     let root = Path::new(root_path);
@@ -419,7 +486,13 @@ pub fn scan_root_directory(
             if let Ok(ft) = e.file_type() {
                 if ft.is_dir() {
                     let name = e.file_name().to_string_lossy().to_string();
-                    return name != "masters" && !name.starts_with('.');
+                    if name == "masters" || name.starts_with('.') {
+                        return false;
+                    }
+                    if matches_exclude_pattern(&name, exclude_patterns) {
+                        return false;
+                    }
+                    return true;
                 }
             }
             false
@@ -429,6 +502,11 @@ pub fn scan_root_directory(
     let total_projects = dir_entries.len();
 
     for (i, entry) in dir_entries.iter().enumerate() {
+        if cancellation::is_cancelled("scan") {
+            log::info!("[scan] cancelled at project {}/{}", i, total_projects);
+            break;
+        }
+
         let name = entry.file_name().to_string_lossy().to_string();
 
         // Emit directory-scan progress
@@ -444,7 +522,7 @@ pub fn scan_root_directory(
             );
         }
 
-        let project = scan_project(&root.join(&name), &name);
+        let project = scan_project(&root.join(&name), &name, exclude_patterns);
         projects.push(project);
     }
 
@@ -460,6 +538,10 @@ pub fn scan_root_directory(
 
     // Enrich with headers from first light of each session
     result.project_headers = enrich_with_headers(&result, window);
+
+    if cancellation::is_cancelled("scan") {
+        return Err("Scan cancelled".to_string());
+    }
 
     Ok(result)
 }
