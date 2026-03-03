@@ -157,6 +157,17 @@ export function Dashboard() {
   )
   const totalSize = projects.reduce((s, p) => s + p.totalSizeBytes, 0)
 
+  const currentYear = String(new Date().getFullYear())
+  const thisYearIntegration = projects.reduce(
+    (s, p) => s + p.filters.reduce(
+      (sf, f) => sf + f.sessions
+        .filter((ses) => ses.subsDateRange?.startsWith(currentYear))
+        .reduce((ss, ses) => ss + ses.integrationSeconds, 0),
+      0
+    ),
+    0
+  )
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -194,6 +205,9 @@ export function Dashboard() {
         </div>
         <div className="stat-card">
           <div className="stat-value">{formatIntegrationTime(totalIntegration)}</div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)'}}>
+              {formatIntegrationTime(thisYearIntegration)} this year
+            </div>
           <div className="stat-label">Total Integration</div>
         </div>
         <div className="stat-card">
