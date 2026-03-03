@@ -156,11 +156,6 @@ export function useProjects() {
         // Cache load failed
       }
 
-      // Auto-scan if setting is enabled
-      const autoScan = await invoke<unknown>('get_setting', { key: 'autoScanOnStartup' })
-      if (autoScan !== false) {
-        await scan()
-      }
     }
   }, [setRootFolder, setScanResult, setMastersLibrary, scan])
 
