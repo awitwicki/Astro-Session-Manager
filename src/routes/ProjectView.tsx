@@ -247,10 +247,10 @@ export function ProjectView() {
               className="btn btn-sm"
               onClick={async () => {
                 const maxNight = filterData.sessions.reduce((max, s) => {
-                  const m = s.date.match(/^night(\d+)$/i)
+                  const m = s.date.match(/^night\s*(\d+)$/i)
                   return m ? Math.max(max, parseInt(m[1])) : max
                 }, 0)
-                const nextName = `night${Math.max(maxNight, filterData.sessions.length) + 1}`
+                const nextName = `Night ${maxNight + 1}`
                 await invoke('create_session', {
                   filterPath: filterData.path,
                   sessionName: nextName,
