@@ -208,6 +208,8 @@ pub struct AppSettings {
     pub auto_scan_on_startup: bool,
     pub weather_lat: Option<f64>,
     pub weather_lon: Option<f64>,
+    #[serde(default)]
+    pub exclude_patterns: String,
 }
 
 impl Default for AppSettings {
@@ -220,6 +222,7 @@ impl Default for AppSettings {
             auto_scan_on_startup: true,
             weather_lat: None,
             weather_lon: None,
+            exclude_patterns: String::new(),
         }
     }
 }

@@ -22,9 +22,11 @@ use crate::xisf_parser;
 pub async fn scan_root(
     root_folder: String,
     window: tauri::Window,
+    app_handle: AppHandle,
 ) -> Result<ScanResult, String> {
+    let patterns = load_exclude_patterns(&app_handle);
     tauri::async_runtime::spawn_blocking(move || {
-        scanner::scan_root_directory(&root_folder, Some(&window))
+        scanner::scan_root_directory(&root_folder, Some(&window), &patterns)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -34,9 +36,11 @@ pub async fn scan_root(
 pub async fn scan_single_project(
     project_path: String,
     window: tauri::Window,
+    app_handle: AppHandle,
 ) -> Result<ScanResult, String> {
+    let patterns = load_exclude_patterns(&app_handle);
     tauri::async_runtime::spawn_blocking(move || {
-        scanner::scan_single_project_directory(&project_path, Some(&window))
+        scanner::scan_single_project_directory(&project_path, Some(&window), &patterns)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -426,6 +430,20 @@ pub fn show_in_folder(path: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Parse exclude patterns text (newline-separated, # comments, empty lines ignored)
+fn parse_exclude_patterns(text: &str) -> Vec<String> {
+    text.lines()
+        .map(|l| l.trim().trim_end_matches('/').trim_end_matches('\\').to_string())
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .collect()
+}
+
+fn load_exclude_patterns(app_handle: &tauri::AppHandle) -> Vec<String> {
+    settings::load_settings(app_handle)
+        .map(|s| parse_exclude_patterns(&s.exclude_patterns))
+        .unwrap_or_default()
 }
 
 // ─── Notes Commands ─────────────────────────────────────────────────────────
