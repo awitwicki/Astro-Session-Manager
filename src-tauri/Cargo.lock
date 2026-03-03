@@ -103,6 +103,7 @@ dependencies = [
  "hex",
  "image",
  "log",
+ "rayon",
  "regex",
  "rustafits",
  "serde",
@@ -3847,9 +3848,9 @@ dependencies = [
 
 [[package]]
 name = "rustafits"
-version = "0.4.5"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42d7f400ef5c1ac385a14ed4633e63fbe5eded913f15c912cd90442d29a0b9de"
+checksum = "5b14e4be483721579b55bef06935853aaa4b54f6fb2b779c48e93db0c73be805"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

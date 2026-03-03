@@ -56,3 +56,9 @@ export interface CalibrationMatch {
   flatsAvailable: boolean
   flatCount?: number
 }
+
+export interface SubAnalysisResult {
+  medianFwhm: number
+  medianEccentricity: number
+  starsDetected: number
+}

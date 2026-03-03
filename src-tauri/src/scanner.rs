@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use tauri::Emitter;
 
+use crate::cancellation;
 use crate::fits_parser;
 use crate::types::{
     FilterScanNode, FitsFileRef, FitsHeader, ProjectScanNode, ScanResult, ScanProgress,
@@ -297,6 +298,11 @@ fn enrich_with_headers(
     let total = first_lights.len();
 
     for (i, first_light) in first_lights.iter().enumerate() {
+        if cancellation::is_cancelled("scan") {
+            log::info!("[scan] cancelled at header {}/{}", i, total);
+            break;
+        }
+
         // Emit progress
         if let Some(win) = window {
             let _ = win.emit(
@@ -363,6 +369,11 @@ fn enrich_with_headers_merge(
     let total = first_lights.len();
 
     for (i, first_light) in first_lights.iter().enumerate() {
+        if cancellation::is_cancelled("scan") {
+            log::info!("[scan] cancelled at header {}/{}", i, total);
+            break;
+        }
+
         if let Some(win) = window {
             let _ = win.emit(
                 "scan:progress",
@@ -442,6 +453,10 @@ pub fn scan_single_project_directory(
     // Enrich with headers, merging into existing cache
     result.project_headers = enrich_with_headers_merge(&result, window);
 
+    if cancellation::is_cancelled("scan") {
+        return Err("Scan cancelled".to_string());
+    }
+
     Ok(result)
 }
 
@@ -487,6 +502,11 @@ pub fn scan_root_directory(
     let total_projects = dir_entries.len();
 
     for (i, entry) in dir_entries.iter().enumerate() {
+        if cancellation::is_cancelled("scan") {
+            log::info!("[scan] cancelled at project {}/{}", i, total_projects);
+            break;
+        }
+
         let name = entry.file_name().to_string_lossy().to_string();
 
         // Emit directory-scan progress
@@ -518,6 +538,10 @@ pub fn scan_root_directory(
 
     // Enrich with headers from first light of each session
     result.project_headers = enrich_with_headers(&result, window);
+
+    if cancellation::is_cancelled("scan") {
+        return Err("Scan cancelled".to_string());
+    }
 
     Ok(result)
 }

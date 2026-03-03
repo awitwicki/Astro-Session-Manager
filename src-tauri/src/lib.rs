@@ -1,4 +1,6 @@
+mod analyzer;
 mod cache;
+mod cancellation;
 mod commands;
 mod fits_parser;
 mod fits_preview;
@@ -24,6 +26,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // Cancellation
+            commands::cancel_operation,
             // Scanner
             commands::scan_root,
             commands::scan_single_project,
@@ -37,6 +41,8 @@ pub fn run() {
             commands::get_fits_preview,
             commands::batch_generate_previews,
             commands::clear_preview_cache,
+            // Analyzer
+            commands::analyze_subs,
             // Masters
             commands::scan_masters,
             commands::find_master_match,

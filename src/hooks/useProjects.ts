@@ -63,7 +63,9 @@ export function useProjects() {
         // Cache save is best-effort
       }
     } catch (err) {
-      setScanError(String(err))
+      if (!String(err).includes('cancelled')) {
+        setScanError(String(err))
+      }
     } finally {
       setScanning(false)
     }
@@ -111,7 +113,9 @@ export function useProjects() {
           })
         } catch { /* best-effort */ }
       } catch (err) {
-        setScanError(String(err))
+        if (!String(err).includes('cancelled')) {
+          setScanError(String(err))
+        }
       } finally {
         setScanning(false)
       }
@@ -150,6 +154,9 @@ export function useProjects() {
           }
           if (cached.mastersLibrary) {
             setMastersLibrary(cached.mastersLibrary as Parameters<typeof setMastersLibrary>[0])
+          }
+          if (cached.subAnalysis && typeof cached.subAnalysis === 'object') {
+            useAppStore.getState().setSubAnalysis(cached.subAnalysis as Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>)
           }
         }
       } catch {

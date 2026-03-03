@@ -196,6 +196,24 @@ pub struct TrashResult {
     pub error: Option<String>,
 }
 
+// ─── Sub Analysis Types ─────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubAnalysis {
+    pub median_fwhm: f32,
+    pub median_eccentricity: f32,
+    pub stars_detected: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzeProgress {
+    pub current: usize,
+    pub total: usize,
+    pub file_path: String,
+}
+
 // ─── Settings ───────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

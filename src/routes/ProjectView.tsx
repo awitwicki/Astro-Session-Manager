@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -14,7 +14,11 @@ export function ProjectView() {
   const projects = useAppStore((s) => s.projects)
   const rootFolder = useAppStore((s) => s.rootFolder)
   const removeProject = useAppStore((s) => s.removeProject)
-  const { scanProject } = useProjects()
+  const subAnalysis = useAppStore((s) => s.subAnalysis)
+  const setSubAnalysis = useAppStore((s) => s.setSubAnalysis)
+  const isAnalyzing = useAppStore((s) => s.isAnalyzing)
+  const setAnalyzing = useAppStore((s) => s.setAnalyzing)
+  const { scanProject, saveCache } = useProjects()
   const project = projects.find((p) => p.name === decodeURIComponent(projectName || ''))
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [renameProject, setRenameProject] = useState(false)
@@ -263,6 +267,32 @@ export function ProjectView() {
               <Plus size={12} />
               New Night
             </button>
+            <button
+              className="btn btn-sm"
+              disabled={isAnalyzing}
+              onClick={async () => {
+                const allLightPaths = filterData.sessions.flatMap((s) => s.lights.map((l) => l.path))
+                const unanalyzed = allLightPaths.filter((p) => !subAnalysis[p])
+                if (unanalyzed.length === 0) return
+                setAnalyzing(true)
+                try {
+                  const results = await invoke<Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>>('analyze_subs', { filePaths: unanalyzed })
+                  setSubAnalysis(results)
+                  if (rootFolder) {
+                    const merged = { ...subAnalysis, ...results }
+                    await invoke('save_cache', { rootFolder, data: { subAnalysis: merged } }).catch(() => {})
+                  }
+                } catch (err) {
+                  console.error('Analysis failed:', err)
+                } finally {
+                  setAnalyzing(false)
+                }
+              }}
+              title="Analyze light frames (FWHM & Eccentricity)"
+            >
+              <BarChart3 size={12} />
+              {isAnalyzing ? 'Analyzing...' : 'Analyze Subs'}
+            </button>
           </div>
 
           {filterData.sessions.map((session) => (
@@ -271,6 +301,7 @@ export function ProjectView() {
               session={session}
               projectName={project.name}
               filterName={filterData.name}
+              subAnalysis={subAnalysis}
               onRescan={() => scanProject(project.path)}
               onOpenNotes={openNotes}
             />
@@ -383,6 +414,7 @@ function SessionAccordion({
   session,
   projectName,
   filterName,
+  subAnalysis,
   onRescan,
   onOpenNotes
 }: {
@@ -406,6 +438,7 @@ function SessionAccordion({
   }
   projectName: string
   filterName: string
+  subAnalysis: Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>
   onRescan: () => Promise<void>
   onOpenNotes: (folderPath: string, title: string) => void
 }) {
@@ -415,6 +448,17 @@ function SessionAccordion({
   const [lightHeaders, setLightHeaders] = useState<Record<string, Record<string, unknown>>>({})
   const navigate = useNavigate()
   const cal = session.calibration
+
+  // Compute session-level FWHM and ECC from analyzed subs
+  const analyzedLights = session.lights
+    .map((l) => subAnalysis[l.path])
+    .filter((a): a is { medianFwhm: number; medianEccentricity: number; starsDetected: number } => a != null)
+  const sessionFwhm = analyzedLights.length > 0
+    ? analyzedLights.reduce((sum, a) => sum + a.medianFwhm, 0) / analyzedLights.length
+    : null
+  const sessionEcc = analyzedLights.length > 0
+    ? analyzedLights.reduce((sum, a) => sum + a.medianEccentricity, 0) / analyzedLights.length
+    : null
 
   // Lazy-load FITS headers when lights list is expanded
   useEffect(() => {
@@ -450,6 +494,13 @@ function SessionAccordion({
           {session.flats.length > 0 && <span>{session.flats.length} flats</span>}
           <span>{formatIntegrationTime(session.integrationSeconds)}</span>
           <span>{formatFileSize(session.totalSizeBytes)}</span>
+
+          {sessionFwhm != null && (
+            <span title="Average median FWHM across subs">FWHM {sessionFwhm.toFixed(2)}</span>
+          )}
+          {sessionEcc != null && (
+            <span title="Average median eccentricity across subs">ECC {sessionEcc.toFixed(2)}</span>
+          )}
 
           {cal.darksMatched ? (
             <span className="badge badge-success"><Check size={10} /> Darks</span>
@@ -494,21 +545,31 @@ function SessionAccordion({
 
       {isOpen && (
         <div className="accordion-content">
-          <div style={{ display: 'flex', gap: 24, marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Light Frames</div>
-              <div style={{ fontSize: 20, fontWeight: 600 }}>{session.lights.length}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Flat Frames</div>
-              <div style={{ fontSize: 20, fontWeight: 600 }}>{session.flats.length}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Integration</div>
-              <div style={{ fontSize: 20, fontWeight: 600 }}>
-                {formatIntegrationTime(session.integrationSeconds)}
+          <div style={{ display: 'flex', gap: 16, marginBottom: 12, alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', gap: 24, flexShrink: 0 }}>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Light Frames</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>{session.lights.length}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Flat Frames</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>{session.flats.length}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Integration</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  {formatIntegrationTime(session.integrationSeconds)}
+                </div>
               </div>
             </div>
+
+            {/* FWHM / Eccentricity chart */}
+            {analyzedLights.length > 0 && (
+              <SubsChart
+                lights={session.lights}
+                subAnalysis={subAnalysis}
+              />
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -658,6 +719,130 @@ function SessionAccordion({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function SubsChart({
+  lights,
+  subAnalysis,
+}: Readonly<{
+  lights: { filename: string; path: string }[]
+  subAnalysis: Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>
+}>) {
+  const [metric, setMetric] = useState<'fwhm' | 'ecc'>('fwhm')
+
+  const data = useMemo(() => {
+    return lights
+      .map((l) => {
+        const a = subAnalysis[l.path]
+        if (!a) return null
+        return {
+          filename: l.filename,
+          fwhm: a.medianFwhm,
+          ecc: a.medianEccentricity,
+        }
+      })
+      .filter((d): d is NonNullable<typeof d> => d != null)
+  }, [lights, subAnalysis])
+
+  if (data.length === 0) return null
+
+  const values = data.map((d) => (metric === 'fwhm' ? d.fwhm : d.ecc))
+  const maxVal = Math.max(...values)
+  const minVal = Math.min(...values)
+  const avg = values.reduce((s, v) => s + v, 0) / values.length
+  const sorted = [...values].sort((a, b) => a - b)
+  const median = sorted.length % 2 === 1
+    ? sorted[Math.floor(sorted.length / 2)]
+    : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+
+  // Y-axis layout
+  const axisW = 36
+  const chartH = 80
+  const padTop = 12
+  const padBot = 4
+  const plotH = chartH - padTop - padBot
+
+  const range = maxVal - minVal || 1
+  const valToY = (v: number) => padTop + plotH - ((v - minVal) / range) * plotH
+
+  // Generate ~3 tick values: min, mid, max
+  const mid = (minVal + maxVal) / 2
+  const ticks = minVal === maxVal ? [maxVal] : [minVal, mid, maxVal]
+
+  return (
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 8 }}>
+      {/* Left: toggle + stats */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 2 }}>
+          <button
+            className={`btn btn-sm ${metric === 'fwhm' ? 'btn-primary' : ''}`}
+            style={{ fontSize: 10, padding: '2px 8px' }}
+            onClick={() => setMetric('fwhm')}
+          >
+            FWHM
+          </button>
+          <button
+            className={`btn btn-sm ${metric === 'ecc' ? 'btn-primary' : ''}`}
+            style={{ fontSize: 10, padding: '2px 8px' }}
+            onClick={() => setMetric('ecc')}
+          >
+            ECC
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span>avg: {avg.toFixed(2)}</span>
+          <span>med: {median.toFixed(2)}</span>
+        </div>
+      </div>
+      {/* Right: chart */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg-primary)', overflow: 'hidden' }}>
+        {/* Y-axis */}
+        <svg width={axisW} height={chartH} style={{ display: 'block', flexShrink: 0 }}>
+          {/* Axis line */}
+          <line x1={axisW - 1} x2={axisW - 1} y1={padTop} y2={padTop + plotH} stroke="var(--color-border)" strokeWidth={1} />
+          {/* Ticks */}
+          {ticks.map((v) => {
+            const y = valToY(v)
+            return (
+              <g key={v}>
+                <line x1={axisW - 4} x2={axisW - 1} y1={y} y2={y} stroke="var(--color-text-muted)" strokeWidth={1} />
+                <text x={axisW - 6} y={y + 3} textAnchor="end" fontSize={9} fill="var(--color-text-muted)">
+                  {v.toFixed(1)}
+                </text>
+              </g>
+            )
+          })}
+        </svg>
+        {/* Chart area */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <svg width="100%" height={chartH} style={{ display: 'block' }}
+            preserveAspectRatio="none" viewBox={`0 0 ${data.length * 8} ${chartH}`}
+          >
+            {/* Average line */}
+            <line
+              x1={0} x2={data.length * 8}
+              y1={valToY(avg)} y2={valToY(avg)}
+              stroke="var(--color-text-muted)" strokeWidth={0.5} strokeDasharray="3 2" opacity={0.6}
+            />
+            {/* Bars */}
+            {data.map((d, i) => {
+              const v = metric === 'fwhm' ? d.fwhm : d.ecc
+              const barH = Math.max(((v - minVal) / range) * plotH, 0.5)
+              const x = i * 8 + 1
+              const y = padTop + plotH - barH
+              return (
+                <rect key={d.filename} x={x} y={y} width={6} height={barH} rx={0.5}
+                  fill="var(--color-accent)" opacity={0.75}
+                >
+                  <title>{d.filename}: {v.toFixed(2)}</title>
+                </rect>
+              )
+            })}
+          </svg>
+        </div>
+      </div>
     </div>
   )
 }

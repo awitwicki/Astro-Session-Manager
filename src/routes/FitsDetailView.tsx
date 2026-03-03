@@ -4,6 +4,7 @@ import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, Chevr
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
+import type { SubAnalysisResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
 
 interface FitsHeader {
@@ -44,6 +45,10 @@ export function FitsDetailView() {
   const viewTypeParam = (searchParams.get('viewType') as GalleryViewType) || 'lights'
 
   const projects = useAppStore((s) => s.projects)
+  const subAnalysis = useAppStore((s) => s.subAnalysis)
+
+  const [analysisResult, setAnalysisResult] = useState<SubAnalysisResult | null>(null)
+  const [analysisLoading, setAnalysisLoading] = useState(false)
 
   const project = useMemo(() => projects.find((p) => p.name === projectParam), [projects, projectParam])
 
@@ -246,6 +251,18 @@ export function FitsDetailView() {
   useEffect(() => {
     setError(null)
   }, [filePath])
+
+  // Show cached analysis if available (no auto-analyze)
+  useEffect(() => {
+    if (!filePath) return
+    const cached = subAnalysis[filePath]
+    if (cached) {
+      setAnalysisResult(cached)
+    } else {
+      setAnalysisResult(null)
+    }
+    setAnalysisLoading(false)
+  }, [filePath, subAnalysis])
 
   // Fit image to container
   const fitToView = useCallback(() => {
@@ -682,6 +699,14 @@ export function FitsDetailView() {
                 {displayHeader.bayerpat != null && <HeaderChip label="Bayer" value={String(displayHeader.bayerpat)} />}
                 <HeaderChip label="Size" value={`${String(displayHeader.naxis1)}x${String(displayHeader.naxis2)}`} />
                 <HeaderChip label="Bits" value={`${String(displayHeader.bitpix)}`} />
+                {analysisLoading && <span style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Analyzing...</span>}
+                {analysisResult && (
+                  <>
+                    <HeaderChip label="FWHM" value={analysisResult.medianFwhm.toFixed(2)} />
+                    <HeaderChip label="ECC" value={analysisResult.medianEccentricity.toFixed(2)} />
+                    <HeaderChip label="Stars" value={String(analysisResult.starsDetected)} />
+                  </>
+                )}
               </div>
 
               {/* Expandable raw keywords */}

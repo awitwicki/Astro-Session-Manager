@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Project, MastersLibrary } from '../types'
+import type { Project, MastersLibrary, SubAnalysisResult } from '../types'
 
 interface ScanResultRaw {
   rootPath: string
@@ -254,6 +254,8 @@ interface AppState {
   darkTempTolerance: number
   dashboardViewMode: 'grid' | 'table'
   importProgress: ImportProgress | null
+  subAnalysis: Record<string, SubAnalysisResult>
+  isAnalyzing: boolean
 
   setRootFolder: (path: string | null) => void
   setDashboardViewMode: (mode: 'grid' | 'table') => void
@@ -269,6 +271,8 @@ interface AppState {
   setImportProgress: (progress: ImportProgress | null) => void
   mergeProjectScan: (raw: ScanResultRaw) => void
   applyExcludePatterns: (patternsText: string) => void
+  setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
+  setAnalyzing: (v: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -282,6 +286,8 @@ export const useAppStore = create<AppState>((set) => ({
   dashboardViewMode: 'grid',
   darkTempTolerance: 2,
   importProgress: null,
+  subAnalysis: {},
+  isAnalyzing: false,
 
   setRootFolder: (path) => set({ rootFolder: path }),
 
@@ -353,6 +359,12 @@ export const useAppStore = create<AppState>((set) => ({
   applyExcludePatterns: (patternsText) => set((state) => ({
     projects: filterByPatterns(state.projects, parseExcludePatterns(patternsText))
   })),
+
+  setSubAnalysis: (data) => set((state) => ({
+    subAnalysis: { ...state.subAnalysis, ...data }
+  })),
+
+  setAnalyzing: (v) => set({ isAnalyzing: v }),
 
   mergeProjectScan: (raw) =>
     set((state) => {
