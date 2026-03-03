@@ -317,7 +317,7 @@ export function Dashboard() {
                       setPatternsText(updated)
                       setPatternsLoaded(true)
                       await invoke('set_setting', { key: 'excludePatterns', value: updated })
-                      await scan()
+                      useAppStore.getState().applyExcludePatterns(updated)
                     }}
                     title="Exclude project"
                   >
@@ -388,7 +388,7 @@ export function Dashboard() {
                     setPatternsText(updated)
                     setPatternsLoaded(true)
                     await invoke('set_setting', { key: 'excludePatterns', value: updated })
-                    await scan()
+                    useAppStore.getState().applyExcludePatterns(updated)
                   }}
                   title="Exclude project"
                 >
@@ -420,6 +420,16 @@ export function Dashboard() {
             <div className="modal-actions">
               <button className="btn" onClick={() => setShowExcluded(false)}>
                 Close
+              </button>
+              <button
+                className="btn"
+                onClick={async () => {
+                  await invoke('set_setting', { key: 'excludePatterns', value: patternsText })
+                  useAppStore.getState().applyExcludePatterns(patternsText)
+                  setShowExcluded(false)
+                }}
+              >
+                Save
               </button>
               <button
                 className="btn btn-primary"
