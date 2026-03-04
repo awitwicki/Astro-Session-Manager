@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3 } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -30,6 +30,25 @@ export function ProjectView() {
   const [notesTitle, setNotesTitle] = useState('')
   const [notesContent, setNotesContent] = useState('')
   const [notesSaving, setNotesSaving] = useState(false)
+  const [excludeConfirm, setExcludeConfirm] = useState<{ name: string; type: 'project' | 'filter' | 'night' } | null>(null)
+  const [patternsText, setPatternsText] = useState('')
+
+  useEffect(() => {
+    invoke<unknown>('get_setting', { key: 'excludePatterns' }).then((val) => {
+      if (typeof val === 'string') setPatternsText(val)
+    })
+  }, [])
+
+  const doExclude = async (name: string, type: 'project' | 'filter' | 'night') => {
+    const updated = patternsText ? patternsText + '\n' + name : name
+    setPatternsText(updated)
+    await invoke('set_setting', { key: 'excludePatterns', value: updated })
+    useAppStore.getState().applyExcludePatterns(updated)
+    setExcludeConfirm(null)
+    if (type === 'project') {
+      navigate('/')
+    }
+  }
 
   if (!project) {
     return (
@@ -145,6 +164,14 @@ export function ProjectView() {
           </button>
           <button
             className="btn btn-sm"
+            style={{ padding: '2px 6px' }}
+            onClick={() => setExcludeConfirm({ name: project.name, type: 'project' })}
+            title="Exclude project"
+          >
+            <EyeOff size={13} />
+          </button>
+          <button
+            className="btn btn-sm"
             style={{ padding: '2px 6px', opacity: project.hasNotes ? 1 : 0.5 }}
             onClick={() => openNotes(project.path, `Project: ${project.name}`)}
             title={project.hasNotes ? 'View notes' : 'Create notes'}
@@ -234,6 +261,14 @@ export function ProjectView() {
             >
               <FileText size={13} />
             </button>
+            <button
+              className="btn btn-sm"
+              style={{ padding: '2px 6px' }}
+              onClick={() => setExcludeConfirm({ name: filterData.name, type: 'filter' })}
+              title="Exclude filter"
+            >
+              <EyeOff size={13} />
+            </button>
             {(() => {
               const firstLight = filterData.sessions.flatMap((s) => s.lights)[0]
               return firstLight ? (
@@ -304,6 +339,7 @@ export function ProjectView() {
               subAnalysis={subAnalysis}
               onRescan={() => scanProject(project.path)}
               onOpenNotes={openNotes}
+              onExclude={(name) => setExcludeConfirm({ name, type: 'night' })}
             />
           ))}
         </div>
@@ -406,6 +442,30 @@ export function ProjectView() {
           </div>
         </div>
       )}
+
+      {/* Exclude Confirmation Modal */}
+      {excludeConfirm && (
+        <div className="modal-overlay" onClick={() => setExcludeConfirm(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">Exclude {excludeConfirm.type}</h3>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '12px 0' }}>
+              Are you sure you want to exclude <strong>{excludeConfirm.name}</strong>?
+              It will be hidden from scanning and viewing. You can restore it later from the Exclude Patterns on the Dashboard.
+            </p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setExcludeConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => doExclude(excludeConfirm.name, excludeConfirm.type)}
+              >
+                Proceed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -416,7 +476,8 @@ function SessionAccordion({
   filterName,
   subAnalysis,
   onRescan,
-  onOpenNotes
+  onOpenNotes,
+  onExclude
 }: {
   session: {
     date: string
@@ -441,6 +502,7 @@ function SessionAccordion({
   subAnalysis: Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>
   onRescan: () => Promise<void>
   onOpenNotes: (folderPath: string, title: string) => void
+  onExclude: (name: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [lightsExpanded, setLightsExpanded] = useState(false)
@@ -499,7 +561,7 @@ function SessionAccordion({
             <span title="Average median FWHM across subs">FWHM {sessionFwhm.toFixed(2)}</span>
           )}
           {sessionEcc != null && (
-            <span title="Average median eccentricity across subs">ECC {sessionEcc.toFixed(2)}</span>
+            <span title="Average median eccentricity across subs" style={{ color: sessionEcc >= 0.6 ? '#e74c3c' : sessionEcc >= 0.55 ? '#f0ad4e' : undefined }}>ECC {sessionEcc.toFixed(2)}</span>
           )}
 
           {cal.darksMatched ? (
@@ -632,6 +694,14 @@ function SessionAccordion({
               title="Show in Finder"
             >
               <FolderOpen size={13} />
+            </button>
+            <button
+              className="btn btn-sm"
+              style={{ padding: '4px 8px' }}
+              onClick={() => onExclude(session.date)}
+              title="Exclude night"
+            >
+              <EyeOff size={13} />
             </button>
           </div>
 

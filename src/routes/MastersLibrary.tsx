@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Database, Plus, FolderOpen, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, File, Folder } from 'lucide-react'
+import { Database, Plus, FolderOpen, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, File, Folder, Info, Star } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -34,6 +34,7 @@ export function MastersLibrary() {
   const [scanning, setScanning] = useState(false)
   const [otherDarksOpen, setOtherDarksOpen] = useState(false)
   const [otherBiasesOpen, setOtherBiasesOpen] = useState(false)
+  const [namingInfoOpen, setNamingInfoOpen] = useState(false)
 
   // Import modal state
   const [importModal, setImportModal] = useState<{
@@ -175,11 +176,6 @@ export function MastersLibrary() {
     )
   }
 
-  const totalSize = [...mastersLibrary.darks, ...mastersLibrary.biases].reduce(
-    (s, f) => s + f.sizeBytes,
-    0
-  )
-
   const renderTempCell = (entry: MasterFileEntry) => {
     if (entry.tempSource === 'unknown' || entry.ccdTemp === null) {
       return (
@@ -214,7 +210,7 @@ export function MastersLibrary() {
           <div>
             <h1 className="page-title">Masters Library</h1>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ paddingLeft: "8px"}}>
             <button
               className="btn btn-sm"
               onClick={() => invoke('show_in_folder', { path: mastersLibrary.rootPath })}
@@ -226,19 +222,86 @@ export function MastersLibrary() {
         </div>
       </div>
 
-      <div className="stat-row" style={{ marginBottom: 24 }}>
-        <div className="stat-card">
-          <div className="stat-value">{mastersLibrary.darks.length}</div>
-          <div className="stat-label">Dark Files</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{mastersLibrary.biases.length}</div>
-          <div className="stat-label">Bias Files</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{formatFileSize(totalSize)}</div>
-          <div className="stat-label">Total Size</div>
-        </div>
+      {/* Naming Convention Info */}
+      <div style={{ marginBottom: 24 }}>
+        <button
+          onClick={() => setNamingInfoOpen(!namingInfoOpen)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 0',
+            fontSize: 13,
+          }}
+        >
+          <Info size={14} />
+          File naming convention
+          {namingInfoOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+        {namingInfoOpen && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: '12px 16px',
+              background: 'var(--color-bg-secondary)',
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              fontSize: 13,
+              lineHeight: 1.6,
+            }}
+          >
+            <p style={{ marginBottom: 8, fontWeight: 500 }}>
+              Name your master files using this template for automatic matching:
+            </p>
+            <code
+              style={{
+                display: 'block',
+                padding: '8px 12px',
+                background: 'var(--color-bg)',
+                borderRadius: 6,
+                fontFamily: 'monospace',
+                fontSize: 12,
+                wordBreak: 'break-all',
+                marginBottom: 10,
+              }}
+            >
+              master&#123;type&#125;_&#123;temperature&#125;C_BIN-&#123;binning&#125;_&#123;width&#125;x&#123;height&#125;_EXPOSURE-&#123;xx.xx&#125;s.xisf/fits
+            </code>
+            <p style={{ marginBottom: 6, color: 'var(--color-text-muted)', fontWeight: 500 }}>Examples:</p>
+            <code
+              style={{
+                display: 'block',
+                paddingLeft: '12px',
+                background: 'var(--color-bg)',
+                borderRadius: 6,
+                fontFamily: 'monospace',
+                fontSize: 12,
+                wordBreak: 'break-all',
+                marginBottom: 4,
+              }}
+            >
+              masterBias_-20C_BIN-1_6248x4176_EXPOSURE-10.00s.xisf
+            </code>
+            <code
+              style={{
+                display: 'block',
+                paddingLeft: '12px',
+                background: 'var(--color-bg)',
+                borderRadius: 6,
+                fontFamily: 'monospace',
+                fontSize: 12,
+                wordBreak: 'break-all',
+                marginBottom: 4,
+              }}
+            >
+              masterDark_-10C_BIN-1_4656x3520_EXPOSURE-60.00s.fits
+            </code>
+          </div>
+        )}
       </div>
 
       {/* Darks */}
@@ -273,7 +336,10 @@ export function MastersLibrary() {
             {mastersLibrary.darks.map((f, i) => (
               <tr key={i}>
                 <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.filename}>
-                  {f.filename}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <Star size={12} fill="var(--color-accent)" color="var(--color-accent)" />
+                    {f.filename}
+                  </span>
                 </td>
                 <td>{formatExposure(f.exposureTime)}</td>
                 <td>{renderTempCell(f)}</td>
@@ -392,7 +458,10 @@ export function MastersLibrary() {
             {mastersLibrary.biases.map((f, i) => (
               <tr key={i}>
                 <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.filename}>
-                  {f.filename}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <Star size={12} fill="var(--color-accent)" color="var(--color-accent)" />
+                    {f.filename}
+                  </span>
                 </td>
                 <td>{renderTempCell(f)}</td>
                 <td>{f.binning !== null ? `${f.binning}x${f.binning}` : '-'}</td>
