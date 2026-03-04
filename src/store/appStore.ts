@@ -250,6 +250,7 @@ interface AppState {
   mastersLibrary: MastersLibrary | null
   isScanning: boolean
   scanError: string | null
+  excludePatternsText: string
   theme: 'dark' | 'light'
   darkTempTolerance: number
   dashboardViewMode: 'grid' | 'table'
@@ -281,6 +282,7 @@ export const useAppStore = create<AppState>((set) => ({
   mastersLibrary: null,
   isScanning: false,
   scanError: null,
+  excludePatternsText: '',
   theme: 'dark',
 
   dashboardViewMode: 'grid',
@@ -298,7 +300,13 @@ export const useAppStore = create<AppState>((set) => ({
     projects: applyCalibration(state.projects, state.mastersLibrary, val)
   })),
 
-  setScanResult: (raw) => set((state) => ({ projects: buildProjects(raw, state.mastersLibrary, state.darkTempTolerance), scanError: null })),
+  setScanResult: (raw) => set((state) => ({
+    projects: filterByPatterns(
+      buildProjects(raw, state.mastersLibrary, state.darkTempTolerance),
+      parseExcludePatterns(state.excludePatternsText)
+    ),
+    scanError: null
+  })),
 
   setScanning: (v) => set({ isScanning: v }),
 
@@ -357,6 +365,7 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   applyExcludePatterns: (patternsText) => set((state) => ({
+    excludePatternsText: patternsText,
     projects: filterByPatterns(state.projects, parseExcludePatterns(patternsText))
   })),
 
@@ -368,7 +377,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   mergeProjectScan: (raw) =>
     set((state) => {
-      const updated = buildProjects(raw, state.mastersLibrary, state.darkTempTolerance)
+      const patterns = parseExcludePatterns(state.excludePatternsText)
+      const updated = filterByPatterns(buildProjects(raw, state.mastersLibrary, state.darkTempTolerance), patterns)
       if (updated.length === 0) return state
 
       const updatedProject = updated[0]

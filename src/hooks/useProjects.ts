@@ -135,6 +135,12 @@ export function useProjects() {
       useAppStore.getState().setDashboardViewMode(viewMode)
     }
 
+    // Load exclude patterns into store before any scan results
+    const excludePatterns = await invoke<unknown>('get_setting', { key: 'excludePatterns' })
+    if (typeof excludePatterns === 'string') {
+      useAppStore.getState().applyExcludePatterns(excludePatterns)
+    }
+
     const saved = await invoke<unknown>('get_setting', { key: 'rootFolder' })
     if (typeof saved === 'string' && saved) {
       setRootFolder(saved)
