@@ -53,24 +53,26 @@ function ensureCelestialLoaded(): Promise<void> {
   return celestialLoadPromise
 }
 
+// Module-level state so d3-celestial callbacks (which persist across remounts)
+// always read the current value.
+let activeHipsOverlay: HiPSConfig | null = null
+let activeTargets: SkyMapTarget[] = []
+
 export function SkyMap() {
   const projects = useAppStore((s) => s.projects)
   const containerRef = useRef<HTMLDivElement>(null)
   const celestialInit = useRef(false)
   const [loading, setLoading] = useState(true)
-  const [hipsOverlay, setHipsOverlay] = useState<HiPSConfig | null>(null)
-  const hipsOverlayRef = useRef<HiPSConfig | null>(null)
-
+  const [hipsOverlay, setHipsOverlay] = useState<HiPSConfig | null>(activeHipsOverlay)
 
   const targets = useMemo(() => extractSkyMapTargets(projects), [projects])
-  const targetsRef = useRef(targets)
 
   useEffect(() => {
-    targetsRef.current = targets
+    activeTargets = targets
   }, [targets])
 
   useEffect(() => {
-    hipsOverlayRef.current = hipsOverlay
+    activeHipsOverlay = hipsOverlay
     if (celestialInit.current) {
       try { Celestial.redraw() } catch {}
     }
@@ -90,7 +92,7 @@ export function SkyMap() {
       celestialInit.current = true
       setLoading(false)
 
-      const center = computeInitialCenter(targetsRef.current)
+      const center = computeInitialCenter(activeTargets)
 
       // Size the canvas to fill the container
       const rect = containerRef.current.getBoundingClientRect()
@@ -212,18 +214,26 @@ export function SkyMap() {
           if (!ctx || !proj) return
 
           // Draw HiPS survey background if enabled
-          const overlay = hipsOverlayRef.current
+          const overlay = activeHipsOverlay
           if (overlay) {
             const canvas = ctx.canvas
             renderHiPSTiles(ctx, proj, overlay, canvas.width, canvas.height, 0.7)
           }
 
-          const currentTargets = targetsRef.current
+          const currentTargets = activeTargets
           for (const target of currentTargets) {
             drawTarget(ctx, proj, target)
           }
         },
       })
+
+      // d3-celestial's async catalog loads (stars, DSOs, MW) can reset the
+      // projection center after display(). Re-apply until all data has loaded.
+      let reCenterCount = 0
+      const reCenterInterval = setInterval(() => {
+        try { Celestial.rotate({ center }) } catch { /* ignore */ }
+        if (++reCenterCount >= 5) clearInterval(reCenterInterval)
+      }, 300)
     })
 
     return () => {
@@ -332,19 +342,7 @@ export function SkyMap() {
           >
             <ZoomOut size={15} />
           </button>
-          <button
-            className="skymap-btn"
-            onClick={() => {
-              try {
-                const center = computeInitialCenter(targets)
-                Celestial.rotate({ center })
-              } catch {}
-            }}
-            title="Center on targets"
-          >
-            <Crosshair size={15} />
-          </button>
-
+        
           <div className="skymap-controls-separator" />
 
           <div className="skymap-survey-dropdown">

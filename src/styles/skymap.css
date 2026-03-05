@@ -156,7 +156,8 @@
   border-radius: 6px;
   color: #a8abbe;
   font-size: 11px;
-  padding: 5px 22px 5px 8px;
+  padding: 0 22px 0 8px;
+  height: 32px;
   cursor: pointer;
   backdrop-filter: blur(8px);
   transition: border-color 150ms ease;
