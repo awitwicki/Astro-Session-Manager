@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Map, ZoomIn, ZoomOut, Crosshair } from 'lucide-react'
+import { Map, ZoomIn, ZoomOut, Crosshair, Layers } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import {
   extractSkyMapTargets,
@@ -9,7 +9,10 @@ import {
   getTargetFillColor,
   type SkyMapTarget,
 } from '../lib/skymap'
+import { NSNS_RGB, NSNS_OHS, NSNS_HA, renderHiPSTiles, setHiPSRedrawCallback, type HiPSConfig } from '../lib/hips'
 import '../styles/skymap.css'
+
+const HIPS_SURVEYS: HiPSConfig[] = [NSNS_RGB, NSNS_OHS, NSNS_HA]
 
 const LEGEND_ITEMS = [
   { label: 'Ha', color: '#ff4444' },
@@ -55,6 +58,9 @@ export function SkyMap() {
   const containerRef = useRef<HTMLDivElement>(null)
   const celestialInit = useRef(false)
   const [loading, setLoading] = useState(true)
+  const [hipsOverlay, setHipsOverlay] = useState<HiPSConfig | null>(null)
+  const hipsOverlayRef = useRef<HiPSConfig | null>(null)
+
 
   const targets = useMemo(() => extractSkyMapTargets(projects), [projects])
   const targetsRef = useRef(targets)
@@ -62,6 +68,13 @@ export function SkyMap() {
   useEffect(() => {
     targetsRef.current = targets
   }, [targets])
+
+  useEffect(() => {
+    hipsOverlayRef.current = hipsOverlay
+    if (celestialInit.current) {
+      try { Celestial.redraw() } catch {}
+    }
+  }, [hipsOverlay])
 
   // Initialize d3-celestial
   useEffect(() => {
@@ -93,10 +106,11 @@ export function SkyMap() {
         projectionRatio: containerAspect,
         container: 'celestial-map',
         datapath: '/d3-celestial-data/',
-        projection: 'airy',
+        projection: 'stereographic',
         transform: 'equatorial',
         center,
         interactive: true,
+        disableAnimations: true,
         form: false,
         controls: false,
         zoomlevel: fillZoom,
@@ -176,17 +190,35 @@ export function SkyMap() {
         },
       })
 
-      // Add custom FOV overlay layer
+      // Remove d3-celestial's own window resize handler to prevent initial jump
+      try {
+        const d3ref = (globalThis as Record<string, unknown>)['d3'] as
+          { select: (t: EventTarget) => { on: (e: string, h: null) => void } } | undefined
+        d3ref?.select(globalThis).on('resize', null)
+      } catch { /* ignore */ }
+
+      // Register redraw callback for HiPS tile loading
+      setHiPSRedrawCallback(() => {
+        try { Celestial.redraw() } catch { /* ignore */ }
+      })
+
+      // Add custom overlay layer (HiPS background + FOV targets)
       Celestial.add({
         type: 'raw',
-        callback: () => { /* data loaded via props, no file to fetch */ },
+        callback: () => { /* data loaded via props/state, no file to fetch */ },
         redraw: () => {
           const ctx = Celestial.context
           const proj = Celestial.map.projection()
           if (!ctx || !proj) return
 
-          const currentTargets = targetsRef.current
+          // Draw HiPS survey background if enabled
+          const overlay = hipsOverlayRef.current
+          if (overlay) {
+            const canvas = ctx.canvas
+            renderHiPSTiles(ctx, proj, overlay, canvas.width, canvas.height, 0.7)
+          }
 
+          const currentTargets = targetsRef.current
           for (const target of currentTargets) {
             drawTarget(ctx, proj, target)
           }
@@ -204,9 +236,12 @@ export function SkyMap() {
     if (!containerRef.current) return
     let prevWidth = containerRef.current.getBoundingClientRect().width
     let resizeTimer: ReturnType<typeof setTimeout>
+    let firstFire = true
 
     const observer = new ResizeObserver(() => {
       if (!celestialInit.current) return
+      // Skip the initial fire that happens immediately after observe()
+      if (firstFire) { firstFire = false; return }
       clearTimeout(resizeTimer)
       resizeTimer = setTimeout(() => {
         const el = containerRef.current
@@ -309,6 +344,32 @@ export function SkyMap() {
           >
             <Crosshair size={15} />
           </button>
+
+          <div className="skymap-controls-separator" />
+
+          <div className="skymap-survey-dropdown">
+            <button
+              className={`skymap-btn${hipsOverlay ? ' skymap-btn-active' : ''}`}
+              onClick={() => setHipsOverlay(hipsOverlay ? null : NSNS_RGB)}
+              title="Toggle survey overlay"
+            >
+              <Layers size={15} />
+            </button>
+            {hipsOverlay && (
+              <select
+                className="skymap-survey-select"
+                value={hipsOverlay.id}
+                onChange={(e) => {
+                  const survey = HIPS_SURVEYS.find((s) => s.id === e.target.value)
+                  if (survey) setHipsOverlay(survey)
+                }}
+              >
+                {HIPS_SURVEYS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
       </div>
 

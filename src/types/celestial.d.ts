@@ -76,6 +76,7 @@ interface CelestialConfig {
   follow?: string
   container?: string
   interactive?: boolean
+  disableAnimations?: boolean
   form?: boolean
   controls?: boolean
   zoomlevel?: number | null
