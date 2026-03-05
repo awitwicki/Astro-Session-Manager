@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Map, ZoomIn, ZoomOut, Crosshair, Layers } from 'lucide-react'
+import { Map, ZoomIn, ZoomOut, Layers } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import {
   extractSkyMapTargets,
