@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Map, ZoomIn, ZoomOut, Layers } from 'lucide-react'
+import { ZoomIn, ZoomOut, Layers } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import {
   extractSkyMapTargets,
@@ -289,22 +289,6 @@ export function SkyMap() {
     }
   }, [])
 
-  if (targets.length === 0) {
-    return (
-      <div className="skymap-page">
-        <div className="skymap-empty">
-          <Map size={64} />
-          <h3>No Targets on Sky Map</h3>
-          <p>
-            Plate-solved FITS files with RA/DEC coordinates are needed to display
-            targets on the sky map. Ensure your capture software saves WCS
-            coordinate data in the FITS headers.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="skymap-page">
       <div
@@ -321,10 +305,12 @@ export function SkyMap() {
       <div className="skymap-header">
         <div className="skymap-title">
           Sky Map
-          <span className="skymap-title-count">
-            {targets.length} target{targets.length !== 1 ? 's' : ''}
-            {targets.length < projects.length && ` of ${projects.length} projects`}
-          </span>
+          {targets.length > 0 && (
+            <span className="skymap-title-count">
+              {targets.length} target{targets.length !== 1 ? 's' : ''}
+              {targets.length < projects.length && ` of ${projects.length} projects`}
+            </span>
+          )}
         </div>
 
         <div className="skymap-controls">
