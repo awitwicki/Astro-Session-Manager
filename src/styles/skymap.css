@@ -127,6 +127,55 @@
   transform: scale(0.95);
 }
 
+.skymap-btn-active {
+  border-color: rgba(91, 155, 213, 0.5);
+  background: rgba(91, 155, 213, 0.18);
+  color: #c8daf0;
+  box-shadow: 0 0 8px rgba(91, 155, 213, 0.2);
+}
+
+/* ---- Survey overlay controls ---- */
+
+.skymap-controls-separator {
+  width: 1px;
+  height: 20px;
+  background: rgba(91, 155, 213, 0.2);
+  margin: 0 4px;
+}
+
+.skymap-survey-dropdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skymap-survey-select {
+  appearance: none;
+  background: rgba(15, 17, 23, 0.7);
+  border: 1px solid rgba(91, 155, 213, 0.25);
+  border-radius: 6px;
+  color: #a8abbe;
+  font-size: 11px;
+  padding: 0 22px 0 8px;
+  height: 32px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: border-color 150ms ease;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7085'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+}
+
+.skymap-survey-select:hover {
+  border-color: rgba(91, 155, 213, 0.5);
+}
+
+.skymap-survey-select:focus {
+  outline: none;
+  border-color: rgba(91, 155, 213, 0.6);
+  box-shadow: 0 0 0 2px rgba(91, 155, 213, 0.15);
+}
+
 /* ---- Legend ---- */
 
 .skymap-legend {

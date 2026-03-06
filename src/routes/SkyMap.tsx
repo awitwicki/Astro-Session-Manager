@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Map, ZoomIn, ZoomOut, Crosshair } from 'lucide-react'
+import { ZoomIn, ZoomOut, Layers } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import {
   extractSkyMapTargets,
@@ -9,7 +9,10 @@ import {
   getTargetFillColor,
   type SkyMapTarget,
 } from '../lib/skymap'
+import { NSNS_RGB, NSNS_OHS, NSNS_HA, renderHiPSTiles, setHiPSRedrawCallback, type HiPSConfig } from '../lib/hips'
 import '../styles/skymap.css'
+
+const HIPS_SURVEYS: HiPSConfig[] = [NSNS_RGB, NSNS_OHS, NSNS_HA]
 
 const LEGEND_ITEMS = [
   { label: 'Ha', color: '#ff4444' },
@@ -50,18 +53,30 @@ function ensureCelestialLoaded(): Promise<void> {
   return celestialLoadPromise
 }
 
+// Module-level state so d3-celestial callbacks (which persist across remounts)
+// always read the current value.
+let activeHipsOverlay: HiPSConfig | null = null
+let activeTargets: SkyMapTarget[] = []
+
 export function SkyMap() {
   const projects = useAppStore((s) => s.projects)
   const containerRef = useRef<HTMLDivElement>(null)
   const celestialInit = useRef(false)
   const [loading, setLoading] = useState(true)
+  const [hipsOverlay, setHipsOverlay] = useState<HiPSConfig | null>(activeHipsOverlay)
 
   const targets = useMemo(() => extractSkyMapTargets(projects), [projects])
-  const targetsRef = useRef(targets)
 
   useEffect(() => {
-    targetsRef.current = targets
+    activeTargets = targets
   }, [targets])
+
+  useEffect(() => {
+    activeHipsOverlay = hipsOverlay
+    if (celestialInit.current) {
+      try { Celestial.redraw() } catch {}
+    }
+  }, [hipsOverlay])
 
   // Initialize d3-celestial
   useEffect(() => {
@@ -77,7 +92,7 @@ export function SkyMap() {
       celestialInit.current = true
       setLoading(false)
 
-      const center = computeInitialCenter(targetsRef.current)
+      const center = computeInitialCenter(activeTargets)
 
       // Size the canvas to fill the container
       const rect = containerRef.current.getBoundingClientRect()
@@ -93,10 +108,11 @@ export function SkyMap() {
         projectionRatio: containerAspect,
         container: 'celestial-map',
         datapath: '/d3-celestial-data/',
-        projection: 'airy',
+        projection: 'stereographic',
         transform: 'equatorial',
         center,
         interactive: true,
+        disableAnimations: true,
         form: false,
         controls: false,
         zoomlevel: fillZoom,
@@ -176,22 +192,48 @@ export function SkyMap() {
         },
       })
 
-      // Add custom FOV overlay layer
+      // Remove d3-celestial's own window resize handler to prevent initial jump
+      try {
+        const d3ref = (globalThis as Record<string, unknown>)['d3'] as
+          { select: (t: EventTarget) => { on: (e: string, h: null) => void } } | undefined
+        d3ref?.select(globalThis).on('resize', null)
+      } catch { /* ignore */ }
+
+      // Register redraw callback for HiPS tile loading
+      setHiPSRedrawCallback(() => {
+        try { Celestial.redraw() } catch { /* ignore */ }
+      })
+
+      // Add custom overlay layer (HiPS background + FOV targets)
       Celestial.add({
         type: 'raw',
-        callback: () => { /* data loaded via props, no file to fetch */ },
+        callback: () => { /* data loaded via props/state, no file to fetch */ },
         redraw: () => {
           const ctx = Celestial.context
           const proj = Celestial.map.projection()
           if (!ctx || !proj) return
 
-          const currentTargets = targetsRef.current
+          // Draw HiPS survey background if enabled
+          const overlay = activeHipsOverlay
+          if (overlay) {
+            const canvas = ctx.canvas
+            renderHiPSTiles(ctx, proj, overlay, canvas.width, canvas.height, 0.7)
+          }
 
+          const currentTargets = activeTargets
           for (const target of currentTargets) {
             drawTarget(ctx, proj, target)
           }
         },
       })
+
+      // d3-celestial's async catalog loads (stars, DSOs, MW) can reset the
+      // projection center after display(). Re-apply until all data has loaded.
+      let reCenterCount = 0
+      const reCenterInterval = setInterval(() => {
+        try { Celestial.rotate({ center }) } catch { /* ignore */ }
+        if (++reCenterCount >= 5) clearInterval(reCenterInterval)
+      }, 300)
     })
 
     return () => {
@@ -204,9 +246,12 @@ export function SkyMap() {
     if (!containerRef.current) return
     let prevWidth = containerRef.current.getBoundingClientRect().width
     let resizeTimer: ReturnType<typeof setTimeout>
+    let firstFire = true
 
     const observer = new ResizeObserver(() => {
       if (!celestialInit.current) return
+      // Skip the initial fire that happens immediately after observe()
+      if (firstFire) { firstFire = false; return }
       clearTimeout(resizeTimer)
       resizeTimer = setTimeout(() => {
         const el = containerRef.current
@@ -244,22 +289,6 @@ export function SkyMap() {
     }
   }, [])
 
-  if (targets.length === 0) {
-    return (
-      <div className="skymap-page">
-        <div className="skymap-empty">
-          <Map size={64} />
-          <h3>No Targets on Sky Map</h3>
-          <p>
-            Plate-solved FITS files with RA/DEC coordinates are needed to display
-            targets on the sky map. Ensure your capture software saves WCS
-            coordinate data in the FITS headers.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="skymap-page">
       <div
@@ -276,10 +305,12 @@ export function SkyMap() {
       <div className="skymap-header">
         <div className="skymap-title">
           Sky Map
-          <span className="skymap-title-count">
-            {targets.length} target{targets.length !== 1 ? 's' : ''}
-            {targets.length < projects.length && ` of ${projects.length} projects`}
-          </span>
+          {targets.length > 0 && (
+            <span className="skymap-title-count">
+              {targets.length} target{targets.length !== 1 ? 's' : ''}
+              {targets.length < projects.length && ` of ${projects.length} projects`}
+            </span>
+          )}
         </div>
 
         <div className="skymap-controls">
@@ -297,18 +328,32 @@ export function SkyMap() {
           >
             <ZoomOut size={15} />
           </button>
-          <button
-            className="skymap-btn"
-            onClick={() => {
-              try {
-                const center = computeInitialCenter(targets)
-                Celestial.rotate({ center })
-              } catch {}
-            }}
-            title="Center on targets"
-          >
-            <Crosshair size={15} />
-          </button>
+        
+          <div className="skymap-controls-separator" />
+
+          <div className="skymap-survey-dropdown">
+            <button
+              className={`skymap-btn${hipsOverlay ? ' skymap-btn-active' : ''}`}
+              onClick={() => setHipsOverlay(hipsOverlay ? null : NSNS_RGB)}
+              title="Toggle survey overlay"
+            >
+              <Layers size={15} />
+            </button>
+            {hipsOverlay && (
+              <select
+                className="skymap-survey-select"
+                value={hipsOverlay.id}
+                onChange={(e) => {
+                  const survey = HIPS_SURVEYS.find((s) => s.id === e.target.value)
+                  if (survey) setHipsOverlay(survey)
+                }}
+              >
+                {HIPS_SURVEYS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
       </div>
 

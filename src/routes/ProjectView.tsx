@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -776,8 +776,15 @@ function SessionAccordion({
                     </thead>
                     <tbody>
                       {session.flats.map((flat) => (
-                        <tr key={flat.path}>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{flat.filename}</td>
+                        <tr key={flat.path} style={{ verticalAlign: 'middle' }}>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              {flat.filename.toLowerCase().startsWith('masterflat') && (
+                                <span title="Master flat"><Star size={12} fill="var(--color-accent)" color="var(--color-accent)" /></span>
+                              )}
+                              {flat.filename}
+                            </span>
+                          </td>
                           <td>{formatFileSize(flat.sizeBytes)}</td>
                         </tr>
                       ))}

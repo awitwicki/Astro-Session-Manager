@@ -202,8 +202,16 @@ pub fn import_masters(
     files: Vec<String>,
     master_type: String,
     ccd_temp: i32,
+    binning: Option<i32>,
+    width: Option<i32>,
+    height: Option<i32>,
+    exposure: Option<f64>,
 ) -> Result<ImportResult, String> {
-    masters::import_masters(&root_folder, &files, &master_type, ccd_temp)
+    let resolution = match (width, height) {
+        (Some(w), Some(h)) => Some(format!("{}x{}", w, h)),
+        _ => None,
+    };
+    masters::import_masters(&root_folder, &files, &master_type, ccd_temp, binning, &resolution, exposure)
 }
 
 // ─── Analyzer Commands ──────────────────────────────────────────────────────
