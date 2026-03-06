@@ -97,7 +97,7 @@ export function Sidebar() {
                 className={`sidebar-item ${isActive ? 'active' : ''}`}
                 onClick={() => navigate(projectPath(p.name))}
               >
-                {p.name}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
               </button>
               )
             })}
