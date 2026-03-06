@@ -202,7 +202,6 @@ export function Dashboard() {
             >
               <List size={14} />
             </button>
-          </div>
           <button
             className="btn btn-sm"
             onClick={() => setShowExcluded(true)}
@@ -210,10 +209,11 @@ export function Dashboard() {
           >
             <EyeOff size={14} />
           </button>
-          <button className="btn btn-primary" onClick={() => setShowNewProject(true)}>
+          <button className="btn btn-sm btn-primary" onClick={() => setShowNewProject(true)}>
             <Plus size={14} />
             New Project
           </button>
+        </div>
         </div>
       </div>
 
@@ -296,7 +296,7 @@ export function Dashboard() {
                   </div>
                 </td>
                 <td>{project.totalLightFrames}</td>
-                <td style={{ display: 'flex', gap: 4 }}>
+                <td><div style={{ display: 'flex', gap: 4 }}>
                   <button
                     className="btn btn-sm"
                     style={{ padding: '2px 6px' }}
@@ -323,7 +323,7 @@ export function Dashboard() {
                   >
                     <EyeOff size={13} />
                   </button>
-                </td>
+                </div></td>
               </tr>
             ))}
           </tbody>
@@ -336,16 +336,44 @@ export function Dashboard() {
               className="card card-clickable"
               onClick={() => navigate(projectPath(project.name))}
             >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 600, textTransform: 'uppercase' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 600, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                   {project.name}
                 </h3>
-                {project.lastCaptureDate && (
-                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                    {project.lastCaptureDate}
-                  </span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <button
+                    className="btn btn-sm"
+                    style={{ padding: '2px 6px' }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      invoke('show_in_folder', { path: project.path })
+                    }}
+                    title="Show in Finder"
+                  >
+                    <FolderOpen size={13} />
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    style={{ padding: '2px 6px' }}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const updated = patternsText ? patternsText + '\n' + project.name : project.name
+                      setPatternsText(updated)
+                      setPatternsLoaded(true)
+                      await invoke('set_setting', { key: 'excludePatterns', value: updated })
+                      useAppStore.getState().applyExcludePatterns(updated)
+                    }}
+                    title="Exclude project"
+                  >
+                    <EyeOff size={13} />
+                  </button>
+                </div>
               </div>
+              {project.lastCaptureDate && (
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8 }}>
+                  Last sub: {project.lastCaptureDate}
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
                 {project.filters.map((f) => (
@@ -355,7 +383,7 @@ export function Dashboard() {
                 ))}
               </div>
 
-              <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--color-text-secondary)', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--color-text-secondary)', alignItems: 'center', whiteSpace: 'nowrap' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Clock size={13} />
                   {formatIntegrationTime(project.totalIntegrationSeconds)}
@@ -368,32 +396,6 @@ export function Dashboard() {
                   {project.filters.reduce((s, f) => s + f.sessions.length, 0)} nights
                 </span>
                 <span>{formatFileSize(project.totalSizeBytes)}</span>
-                <button
-                  className="btn btn-sm"
-                  style={{ marginLeft: 'auto', padding: '2px 6px' }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    invoke('show_in_folder', { path: project.path })
-                  }}
-                  title="Show in Finder"
-                >
-                  <FolderOpen size={13} />
-                </button>
-                <button
-                  className="btn btn-sm"
-                  style={{ padding: '2px 6px' }}
-                  onClick={async (e) => {
-                    e.stopPropagation()
-                    const updated = patternsText ? patternsText + '\n' + project.name : project.name
-                    setPatternsText(updated)
-                    setPatternsLoaded(true)
-                    await invoke('set_setting', { key: 'excludePatterns', value: updated })
-                    useAppStore.getState().applyExcludePatterns(updated)
-                  }}
-                  title="Exclude project"
-                >
-                  <EyeOff size={13} />
-                </button>
               </div>
             </div>
           ))}
