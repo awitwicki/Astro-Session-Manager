@@ -2,11 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use regex::Regex;
-use walkdir::WalkDir;
 
-use crate::fits_parser;
-use crate::types::{FitsHeader, ImportResult, MasterFileEntry, MasterMatch, MastersLibrary, OtherEntry};
-use crate::xisf_parser;
+use crate::types::{ImportResult, MasterFileEntry, MasterMatch, MastersLibrary, OtherEntry};
 
 const SUPPORTED_EXTENSIONS: &[&str] = &[".fits", ".fit", ".fts", ".xisf"];
 
@@ -32,19 +29,22 @@ struct ScannedFile {
     format: String,
 }
 
-/// Recursively scan a directory for supported files
-fn scan_files_recursive(dir_path: &Path) -> Vec<ScannedFile> {
+/// Scan a directory (non-recursive) for supported files
+fn scan_files(dir_path: &Path) -> Vec<ScannedFile> {
     let mut files: Vec<ScannedFile> = Vec::new();
 
     if !dir_path.exists() {
         return files;
     }
 
-    for entry in WalkDir::new(dir_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        if !entry.file_type().is_file() {
+    let entries = match fs::read_dir(dir_path) {
+        Ok(e) => e,
+        Err(_) => return files,
+    };
+
+    for entry in entries.filter_map(|e| e.ok()) {
+        let is_file = entry.file_type().map(|ft| ft.is_file()).unwrap_or(false);
+        if !is_file {
             continue;
         }
 
@@ -66,15 +66,6 @@ fn scan_files_recursive(dir_path: &Path) -> Vec<ScannedFile> {
     }
 
     files
-}
-
-/// Parse a file header (FITS or XISF) returning Option<FitsHeader>
-fn parse_file_header(file: &ScannedFile) -> Option<FitsHeader> {
-    if file.format == "xisf" {
-        xisf_parser::read_xisf_header(&file.path).ok()
-    } else {
-        fits_parser::read_fits_header(&file.path).ok()
-    }
 }
 
 /// Parse metadata from filename template:
@@ -127,86 +118,6 @@ fn parse_filename_metadata(filename: &str) -> FilenameMeta {
     meta
 }
 
-/// Extract metadata from a FITS header and filename, with fallback to filename parsing
-struct ExtractedMeta {
-    exposure_time: f64,
-    ccd_temp: Option<f64>,
-    binning: Option<i32>,
-    resolution: Option<String>,
-    camera: String,
-    temp_source: String,
-}
-
-fn extract_meta(header: &Option<FitsHeader>, filename: &str) -> ExtractedMeta {
-    let mut exposure_time: f64 = 0.0;
-    let mut ccd_temp: Option<f64> = None;
-    let mut binning: Option<i32> = None;
-    let mut resolution: Option<String> = None;
-    let mut camera = "Unknown".to_string();
-    let mut temp_source = "unknown".to_string();
-
-    if let Some(h) = header {
-        // Exposure
-        if let Some(exp) = h.exptime {
-            exposure_time = (exp * 100.0).round() / 100.0;
-        }
-
-        // Temperature
-        if let Some(temp) = h.ccd_temp {
-            ccd_temp = Some(temp.round());
-            temp_source = "header".to_string();
-        }
-
-        // Camera
-        if let Some(ref instr) = h.instrume {
-            let trimmed = instr.trim();
-            if !trimmed.is_empty() {
-                camera = trimmed.to_string();
-            }
-        }
-
-        // Binning
-        if let Some(bin) = h.xbinning {
-            binning = Some(bin);
-        }
-
-        // Resolution
-        if h.naxis1 > 0 && h.naxis2 > 0 {
-            resolution = Some(format!("{}x{}", h.naxis1, h.naxis2));
-        }
-    }
-
-    // Fallback to filename parsing for missing values
-    let fname_meta = parse_filename_metadata(filename);
-
-    if ccd_temp.is_none() {
-        if let Some(t) = fname_meta.ccd_temp {
-            ccd_temp = Some(t);
-            temp_source = "filename".to_string();
-        }
-    }
-    if exposure_time == 0.0 {
-        if let Some(e) = fname_meta.exposure_time {
-            exposure_time = e;
-        }
-    }
-    if binning.is_none() {
-        binning = fname_meta.binning;
-    }
-    if resolution.is_none() {
-        resolution = fname_meta.resolution;
-    }
-
-    ExtractedMeta {
-        exposure_time,
-        ccd_temp,
-        binning,
-        resolution,
-        camera,
-        temp_source,
-    }
-}
-
 /// Generate a standard filename for imported master frames
 fn generate_filename(
     master_type: &str,
@@ -240,8 +151,8 @@ fn generate_filename(
     format!("{}.{}", name, ext)
 }
 
-/// Collect "other" entries (non-master files and subdirectories) from a directory
-fn collect_other_entries(dir_path: &Path, master_prefix: &str) -> Vec<OtherEntry> {
+/// Collect "other" entries (non-master files and subdirectories) from the masters directory
+fn collect_other_entries(dir_path: &Path) -> Vec<OtherEntry> {
     let mut others: Vec<OtherEntry> = Vec::new();
     if !dir_path.exists() {
         return others;
@@ -256,8 +167,8 @@ fn collect_other_entries(dir_path: &Path, master_prefix: &str) -> Vec<OtherEntry
         let name = entry.file_name().to_string_lossy().to_string();
         let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
 
-        // Skip proper master files (they are in the main list)
-        if !is_dir && name.starts_with(master_prefix) && is_supported_file(&name) {
+        // Skip proper master files (they are in the darks/biases lists)
+        if !is_dir && (name.starts_with("masterDark") || name.starts_with("masterBias")) && is_supported_file(&name) {
             continue;
         }
 
@@ -290,32 +201,43 @@ fn collect_other_entries(dir_path: &Path, master_prefix: &str) -> Vec<OtherEntry
 /// Scan the masters library (darks and biases) from root_folder/masters/
 pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
     let masters_path = PathBuf::from(root_folder).join("masters");
-
-    // Scan darks
-    let darks_path = masters_path.join("darks");
-    let dark_files = scan_files_recursive(&darks_path);
+    let all_files = scan_files(&masters_path);
 
     let mut darks: Vec<MasterFileEntry> = Vec::new();
-    for file in &dark_files {
-        // Only files starting with "masterDark" are proper darks
-        if !file.filename.starts_with("masterDark") {
-            continue;
+    let mut biases: Vec<MasterFileEntry> = Vec::new();
+
+    for file in &all_files {
+        if file.filename.starts_with("masterDark") {
+            let meta = parse_filename_metadata(&file.filename);
+            darks.push(MasterFileEntry {
+                filename: file.filename.clone(),
+                path: file.path.clone(),
+                size_bytes: file.size_bytes,
+                format: file.format.clone(),
+                exposure_time: meta.exposure_time.unwrap_or(0.0),
+                ccd_temp: meta.ccd_temp,
+                binning: meta.binning,
+                resolution: meta.resolution,
+                camera: "Unknown".to_string(),
+                temp_source: if meta.ccd_temp.is_some() { "filename".to_string() } else { "unknown".to_string() },
+            });
+        } else if file.filename.starts_with("masterBias") {
+            let meta = parse_filename_metadata(&file.filename);
+            biases.push(MasterFileEntry {
+                filename: file.filename.clone(),
+                path: file.path.clone(),
+                size_bytes: file.size_bytes,
+                format: file.format.clone(),
+                exposure_time: meta.exposure_time.unwrap_or(0.0),
+                ccd_temp: meta.ccd_temp,
+                binning: meta.binning,
+                resolution: meta.resolution,
+                camera: "Unknown".to_string(),
+                temp_source: if meta.ccd_temp.is_some() { "filename".to_string() } else { "unknown".to_string() },
+            });
         }
-        let header = parse_file_header(file);
-        let meta = extract_meta(&header, &file.filename);
-        darks.push(MasterFileEntry {
-            filename: file.filename.clone(),
-            path: file.path.clone(),
-            size_bytes: file.size_bytes,
-            format: file.format.clone(),
-            exposure_time: meta.exposure_time,
-            ccd_temp: meta.ccd_temp,
-            binning: meta.binning,
-            resolution: meta.resolution,
-            camera: meta.camera,
-            temp_source: meta.temp_source,
-        });
     }
+
     darks.sort_by(|a, b| {
         a.exposure_time
             .partial_cmp(&b.exposure_time)
@@ -328,33 +250,6 @@ pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
             )
     });
 
-    let other_darks = collect_other_entries(&darks_path, "masterDark");
-
-    // Scan biases
-    let biases_path = masters_path.join("biases");
-    let bias_files = scan_files_recursive(&biases_path);
-
-    let mut biases: Vec<MasterFileEntry> = Vec::new();
-    for file in &bias_files {
-        // Only files starting with "masterBias" are proper biases
-        if !file.filename.starts_with("masterBias") {
-            continue;
-        }
-        let header = parse_file_header(file);
-        let meta = extract_meta(&header, &file.filename);
-        biases.push(MasterFileEntry {
-            filename: file.filename.clone(),
-            path: file.path.clone(),
-            size_bytes: file.size_bytes,
-            format: file.format.clone(),
-            exposure_time: meta.exposure_time,
-            ccd_temp: meta.ccd_temp,
-            binning: meta.binning,
-            resolution: meta.resolution,
-            camera: meta.camera,
-            temp_source: meta.temp_source,
-        });
-    }
     biases.sort_by(|a, b| {
         a.ccd_temp
             .unwrap_or(0.0)
@@ -362,13 +257,12 @@ pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let other_biases = collect_other_entries(&biases_path, "masterBias");
+    let other_files = collect_other_entries(&masters_path);
 
     Ok(MastersLibrary {
         darks,
         biases,
-        other_darks,
-        other_biases,
+        other_files,
         root_path: masters_path.to_string_lossy().to_string(),
     })
 }
@@ -409,16 +303,17 @@ pub fn find_master_match(
     Ok(MasterMatch { dark, bias })
 }
 
-/// Import master files: copy to rootFolder/masters/{type}/ with proper naming
+/// Import master files: copy to rootFolder/masters/ with proper naming
 pub fn import_masters(
     root_folder: &str,
     files: &[String],
     master_type: &str,
     ccd_temp: i32,
+    binning: Option<i32>,
+    resolution: &Option<String>,
+    exposure: Option<f64>,
 ) -> Result<ImportResult, String> {
-    let target_dir = PathBuf::from(root_folder)
-        .join("masters")
-        .join(master_type);
+    let target_dir = PathBuf::from(root_folder).join("masters");
 
     fs::create_dir_all(&target_dir)
         .map_err(|e| format!("Failed to create target directory: {}", e))?;
@@ -427,29 +322,14 @@ pub fn import_masters(
 
     for file_path in files {
         let ext = get_format(file_path);
-        let filename = Path::new(file_path)
-            .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or_default();
 
-        // Read header to get metadata
-        let scanned = ScannedFile {
-            filename: filename.clone(),
-            path: file_path.clone(),
-            size_bytes: 0,
-            format: ext.clone(),
-        };
-
-        let header = parse_file_header(&scanned);
-        let meta = extract_meta(&header, &filename);
-
-        // Generate proper filename with user-provided temperature
+        // Generate proper filename with user-provided metadata
         let new_filename = generate_filename(
             master_type,
             ccd_temp,
-            meta.binning,
-            &meta.resolution,
-            meta.exposure_time,
+            binning,
+            resolution,
+            exposure.unwrap_or(0.0),
             &ext,
         );
 
