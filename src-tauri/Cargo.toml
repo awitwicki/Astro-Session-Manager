@@ -35,5 +35,5 @@ dirs = "5"
 chrono = "0.4"
 base64 = "0.22"
 tokio = { version = "1", features = ["sync"] }
-rustafits = "0.5.5"
+rustafits = "0.6"
 rayon = "1"

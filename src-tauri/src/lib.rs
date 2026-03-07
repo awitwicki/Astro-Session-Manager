@@ -43,6 +43,7 @@ pub fn run() {
             commands::clear_preview_cache,
             // Analyzer
             commands::analyze_subs,
+            commands::analyze_stars_detail,
             // Masters
             commands::scan_masters,
             commands::find_master_match,
