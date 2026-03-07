@@ -606,6 +606,18 @@ export function FitsDetailView() {
       C: { x: preview.width * 0.5, y: preview.height * 0.5 },
     }
 
+    // Draw quadrilateral connecting the 4 corners
+    const quadOrder = ['TL', 'TR', 'BR', 'BL']
+    ctx.beginPath()
+    ctx.moveTo(positions[quadOrder[0]].x, positions[quadOrder[0]].y)
+    for (let i = 1; i < quadOrder.length; i++) {
+      ctx.lineTo(positions[quadOrder[i]].x, positions[quadOrder[i]].y)
+    }
+    ctx.closePath()
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'
+    ctx.lineWidth = lineWidth
+    ctx.stroke()
+
     // Draw lines from corners to center
     const corners = ['TL', 'TR', 'BL', 'BR']
     for (const corner of corners) {
@@ -652,7 +664,7 @@ export function FitsDetailView() {
       const fwhm = avgFwhm[name]
       if (fwhm == null) continue
 
-      const label = fwhm.toFixed(2)
+      const label = `${fwhm.toFixed(2)}px`
       ctx.font = `bold ${labelFontSize}px monospace`
       const metrics = ctx.measureText(label)
 
