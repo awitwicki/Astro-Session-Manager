@@ -270,3 +270,22 @@
   border: 1px solid rgba(46, 49, 66, 0.4);
 }
 
+/* ---- Pointer coordinates ---- */
+
+.skymap-pointer-coords {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  font-size: 12px;
+  font-family: var(--font-mono), monospace;
+  color: #8b90a8;
+  z-index: 10;
+  padding: 6px 12px;
+  background: rgba(10, 13, 20, 0.75);
+  border-radius: 6px;
+  border: 1px solid rgba(46, 49, 66, 0.5);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  letter-spacing: 0.3px;
+}
+

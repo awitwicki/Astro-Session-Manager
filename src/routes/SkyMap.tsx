@@ -64,6 +64,7 @@ export function SkyMap() {
   const celestialInit = useRef(false)
   const [loading, setLoading] = useState(true)
   const [hipsOverlay, setHipsOverlay] = useState<HiPSConfig | null>(activeHipsOverlay)
+  const [pointerCoords, setPointerCoords] = useState<{ ra: number; dec: number } | null>(null)
 
   const targets = useMemo(() => extractSkyMapTargets(projects), [projects])
 
@@ -220,6 +221,9 @@ export function SkyMap() {
             renderHiPSTiles(ctx, proj, overlay, canvas.width, canvas.height, 0.7)
           }
 
+          // Draw coordinate ticks at edges
+          drawGridTicks(ctx, proj, ctx.canvas.width, ctx.canvas.height)
+
           const currentTargets = activeTargets
           for (const target of currentTargets) {
             drawTarget(ctx, proj, target)
@@ -295,6 +299,22 @@ export function SkyMap() {
         ref={containerRef}
         id="celestial-map"
         className="skymap-container"
+        onMouseMove={(e) => {
+          if (!celestialInit.current) return
+          const proj = Celestial.map?.projection?.()
+          const inv = proj?.invert
+          if (!inv) return
+          const rect = e.currentTarget.getBoundingClientRect()
+          const x = e.clientX - rect.left
+          const y = e.clientY - rect.top
+          const coord = inv([x, y])
+          if (coord && !Number.isNaN(coord[0]) && !Number.isNaN(coord[1])) {
+            setPointerCoords({ ra: ((coord[0] % 360) + 360) % 360, dec: coord[1] })
+          } else {
+            setPointerCoords(null)
+          }
+        }}
+        onMouseLeave={() => setPointerCoords(null)}
       />
 
       {loading && (
@@ -369,8 +389,178 @@ export function SkyMap() {
           </div>
         ))}
       </div>
+      {/* Pointer coordinates */}
+      {pointerCoords && (
+        <div className="skymap-pointer-coords">
+          RA {formatRA(pointerCoords.ra)} &nbsp; Dec {formatDec(pointerCoords.dec)}
+        </div>
+      )}
     </div>
   )
+}
+
+function formatRA(raDeg: number): string {
+  const h = raDeg / 15
+  const hours = Math.floor(h)
+  const m = (h - hours) * 60
+  const mins = Math.floor(m)
+  const secs = (m - mins) * 60
+  return `${hours}h ${String(mins).padStart(2, '0')}m ${secs.toFixed(1).padStart(4, '0')}s`
+}
+
+function formatDec(dec: number): string {
+  const sign = dec >= 0 ? '+' : '-'
+  const abs = Math.abs(dec)
+  const deg = Math.floor(abs)
+  const m = (abs - deg) * 60
+  const mins = Math.floor(m)
+  const secs = (m - mins) * 60
+  return `${sign}${deg}° ${String(mins).padStart(2, '0')}′ ${secs.toFixed(0).padStart(2, '0')}″`
+}
+
+function drawGridTicks(
+  ctx: CanvasRenderingContext2D,
+  proj: ((coords: [number, number]) => [number, number] | null) & { invert?: (pt: [number, number]) => [number, number] | null },
+  w: number,
+  h: number
+) {
+  const inv = proj.invert
+  if (!inv) return
+
+  const margin = 4
+  const tickLen = 6
+  const labelFont = '10px -apple-system, BlinkMacSystemFont, sans-serif'
+  const labelColor = '#6b7085'
+  const tickColor = '#3d4260'
+
+  // Sample edges to find where round RA/Dec values cross
+  const samples = 300
+
+  type EdgeHit = { x: number; y: number; label: string; edge: 'top' | 'bottom' | 'left' | 'right' }
+  const hits: EdgeHit[] = []
+  const placed = new Set<string>()
+
+  // Normalize RA to [0, 360)
+  const normRA = (ra: number) => ((ra % 360) + 360) % 360
+
+  // RA tick spacing: every 1h (15°); Dec tick spacing: every 10°
+  const raStep = 15
+  const decStep = 10
+
+  // Edges: [start, end, axis]
+  const edges: { pts: (t: number) => [number, number]; edge: 'top' | 'bottom' | 'left' | 'right' }[] = [
+    { pts: (t) => [margin + t * (w - 2 * margin), margin], edge: 'top' },
+    { pts: (t) => [margin + t * (w - 2 * margin), h - margin], edge: 'bottom' },
+    { pts: (t) => [margin, margin + t * (h - 2 * margin)], edge: 'left' },
+    { pts: (t) => [w - margin, margin + t * (h - 2 * margin)], edge: 'right' },
+  ]
+
+  for (const { pts, edge } of edges) {
+    let prevCoord: [number, number] | null = null
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples
+      const screenPt = pts(t)
+      const coord = inv(screenPt)
+      if (!coord || Number.isNaN(coord[0]) || Number.isNaN(coord[1])) {
+        prevCoord = null
+        continue
+      }
+      const ra = normRA(coord[0])
+      const dec = coord[1]
+
+      if (prevCoord) {
+        const prevRA = normRA(prevCoord[0])
+        const prevDec = prevCoord[1]
+
+        // Check RA crossings (horizontal axis — top/bottom edges preferred)
+        for (let raVal = 0; raVal < 360; raVal += raStep) {
+          // Handle wrapping: check if raVal is between prevRA and ra
+          let crossed = false
+          if (Math.abs(ra - prevRA) < 180) {
+            crossed = (prevRA <= raVal && ra >= raVal) || (prevRA >= raVal && ra <= raVal)
+          }
+          if (crossed) {
+            const key = `ra-${raVal}-${edge}`
+            if (!placed.has(key)) {
+              placed.add(key)
+              // Interpolate position
+              const frac = Math.abs(raVal - prevRA) / Math.abs(ra - prevRA)
+              const prevPt = pts((i - 1) / samples)
+              const x = prevPt[0] + frac * (screenPt[0] - prevPt[0])
+              const y = prevPt[1] + frac * (screenPt[1] - prevPt[1])
+              const hours = Math.round(raVal / 15)
+              hits.push({ x, y, label: `${hours}h`, edge })
+            }
+          }
+        }
+
+        // Check Dec crossings
+        for (let decVal = -80; decVal <= 80; decVal += decStep) {
+          if (decVal === 0) continue // skip equator, already shown as a line
+          const crossed = (prevDec <= decVal && dec >= decVal) || (prevDec >= decVal && dec <= decVal)
+          if (crossed) {
+            const key = `dec-${decVal}-${edge}`
+            if (!placed.has(key)) {
+              placed.add(key)
+              const frac = Math.abs(decVal - prevDec) / Math.abs(dec - prevDec)
+              const prevPt = pts((i - 1) / samples)
+              const x = prevPt[0] + frac * (screenPt[0] - prevPt[0])
+              const y = prevPt[1] + frac * (screenPt[1] - prevPt[1])
+              hits.push({ x, y, label: `${decVal > 0 ? '+' : ''}${decVal}°`, edge })
+            }
+          }
+        }
+      }
+      prevCoord = coord
+    }
+  }
+
+  // Draw ticks and labels
+  ctx.save()
+  ctx.font = labelFont
+  ctx.fillStyle = labelColor
+  ctx.strokeStyle = tickColor
+  ctx.lineWidth = 1
+
+  for (const hit of hits) {
+    ctx.beginPath()
+    switch (hit.edge) {
+      case 'top':
+        ctx.moveTo(hit.x, hit.y)
+        ctx.lineTo(hit.x, hit.y + tickLen)
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        ctx.stroke()
+        ctx.fillText(hit.label, hit.x, hit.y + tickLen + 2)
+        break
+      case 'bottom':
+        ctx.moveTo(hit.x, hit.y)
+        ctx.lineTo(hit.x, hit.y - tickLen)
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        ctx.stroke()
+        ctx.fillText(hit.label, hit.x, hit.y - tickLen - 2)
+        break
+      case 'left':
+        ctx.moveTo(hit.x, hit.y)
+        ctx.lineTo(hit.x + tickLen, hit.y)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'middle'
+        ctx.stroke()
+        ctx.fillText(hit.label, hit.x + tickLen + 2, hit.y)
+        break
+      case 'right':
+        ctx.moveTo(hit.x, hit.y)
+        ctx.lineTo(hit.x - tickLen, hit.y)
+        ctx.textAlign = 'right'
+        ctx.textBaseline = 'middle'
+        ctx.stroke()
+        ctx.fillText(hit.label, hit.x - tickLen - 2, hit.y)
+        break
+    }
+  }
+
+  ctx.restore()
 }
 
 function drawTarget(
