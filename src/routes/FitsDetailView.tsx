@@ -555,6 +555,24 @@ export function FitsDetailView() {
 
     const imgW = starData.imageWidth
     const imgH = starData.imageHeight
+    const scaleX = preview.width / imgW
+    const scaleY = preview.height / imgH
+
+    // Draw up to 200 star markers (sorted by lowest eccentricity = best stars)
+    const sortedStars = [...starData.stars]
+      .sort((a, b) => a.eccentricity - b.eccentricity)
+      .slice(0, 200)
+
+    const baseSize = Math.min(canvas.width, canvas.height)
+    const markerSize = Math.max(4, Math.round(baseSize * 0.008))
+
+    for (const star of sortedStars) {
+      const sx = star.x * scaleX
+      const sy = star.y * scaleY
+      ctx.strokeStyle = 'rgba(180, 180, 180, 0.6)'
+      ctx.lineWidth = 1
+      ctx.strokeRect(sx - markerSize, sy - markerSize, markerSize * 2, markerSize * 2)
+    }
 
     // Define 5 regions: 4 corners + center
     const regionSize = 0.25
@@ -571,7 +589,6 @@ export function FitsDetailView() {
       regionFwhm[r.name] = []
     }
 
-    // Assign stars to regions
     for (const star of starData.stars) {
       for (const r of regions) {
         if (star.x >= r.xMin && star.x < r.xMax && star.y >= r.yMin && star.y < r.yMax) {
@@ -580,7 +597,6 @@ export function FitsDetailView() {
       }
     }
 
-    // Compute median FWHM per region
     const avgFwhm: Record<string, number | null> = {}
     for (const name of Object.keys(regionFwhm)) {
       const values = regionFwhm[name]
@@ -590,23 +606,41 @@ export function FitsDetailView() {
     const centerFwhm = avgFwhm['C']
     if (centerFwhm == null) return
 
-    // Scale fonts relative to canvas size
-    const baseSize = Math.min(canvas.width, canvas.height)
-    const labelFontSize = Math.max(14, Math.round(baseSize * 0.03))
-    const pctFontSize = Math.max(12, Math.round(baseSize * 0.025))
-    const lineWidth = Math.max(2, Math.round(baseSize * 0.004))
-
-    // Position labels in preview coordinates
-    const margin = 0.12
-    const positions: Record<string, { x: number; y: number }> = {
+    // Compute deformed quadrilateral positions
+    // Base positions for corners
+    const margin = 0.15
+    const basePositions: Record<string, { x: number; y: number }> = {
       TL: { x: preview.width * margin, y: preview.height * margin },
       TR: { x: preview.width * (1 - margin), y: preview.height * margin },
       BL: { x: preview.width * margin, y: preview.height * (1 - margin) },
       BR: { x: preview.width * (1 - margin), y: preview.height * (1 - margin) },
-      C: { x: preview.width * 0.5, y: preview.height * 0.5 },
+    }
+    const centerPos = { x: preview.width * 0.5, y: preview.height * 0.5 }
+
+    // Shift vertices based on FWHM deviation: higher FWHM pushes outward
+    const maxShift = baseSize * 0.06
+    const positions: Record<string, { x: number; y: number }> = { C: centerPos }
+    for (const corner of ['TL', 'TR', 'BL', 'BR']) {
+      const cornerFwhm = avgFwhm[corner]
+      if (cornerFwhm == null) {
+        positions[corner] = basePositions[corner]
+        continue
+      }
+      const deviation = (cornerFwhm - centerFwhm) / centerFwhm
+      const shift = Math.max(-1, Math.min(1, deviation / 0.3)) * maxShift
+      const dirX = basePositions[corner].x - centerPos.x
+      const dirY = basePositions[corner].y - centerPos.y
+      const len = Math.sqrt(dirX * dirX + dirY * dirY)
+      positions[corner] = {
+        x: basePositions[corner].x + (dirX / len) * shift,
+        y: basePositions[corner].y + (dirY / len) * shift,
+      }
     }
 
-    // Draw quadrilateral connecting the 4 corners
+    const labelFontSize = Math.max(14, Math.round(baseSize * 0.032))
+    const lineWidth = Math.max(2, Math.round(baseSize * 0.003))
+
+    // Draw quadrilateral
     const quadOrder = ['TL', 'TR', 'BR', 'BL']
     ctx.beginPath()
     ctx.moveTo(positions[quadOrder[0]].x, positions[quadOrder[0]].y)
@@ -614,52 +648,48 @@ export function FitsDetailView() {
       ctx.lineTo(positions[quadOrder[i]].x, positions[quadOrder[i]].y)
     }
     ctx.closePath()
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.7)'
     ctx.lineWidth = lineWidth
     ctx.stroke()
 
-    // Draw lines from corners to center
-    const corners = ['TL', 'TR', 'BL', 'BR']
-    for (const corner of corners) {
+    // Draw diagonal cross-lines through center with deviation % labels
+    const pctFontSize = Math.max(12, Math.round(baseSize * 0.022))
+    for (const corner of ['TL', 'TR', 'BL', 'BR']) {
       const cornerFwhm = avgFwhm[corner]
       if (cornerFwhm == null) continue
 
       const deviation = Math.abs(cornerFwhm - centerFwhm) / centerFwhm
-      const t = Math.min(deviation / 0.5, 1)
+      const t = Math.min(deviation / 0.3, 1)
       const r = Math.round(255 * t)
       const g = Math.round(255 * (1 - t))
 
-      const from = positions[corner]
-      const to = positions['C']
-
       ctx.beginPath()
-      ctx.moveTo(from.x, from.y)
-      ctx.lineTo(to.x, to.y)
-      ctx.strokeStyle = `rgba(${r}, ${g}, 0, 0.8)`
+      ctx.moveTo(positions[corner].x, positions[corner].y)
+      ctx.lineTo(centerPos.x, centerPos.y)
+      ctx.strokeStyle = `rgba(${r}, ${g}, 0, 0.7)`
       ctx.lineWidth = lineWidth
       ctx.stroke()
 
-      // Deviation percentage label on line midpoint
-      const midX = (from.x + to.x) / 2
-      const midY = (from.y + to.y) / 2
+      // Deviation percentage label at line midpoint
+      const midX = (positions[corner].x + centerPos.x) / 2
+      const midY = (positions[corner].y + centerPos.y) / 2
       const pct = ((cornerFwhm - centerFwhm) / centerFwhm * 100).toFixed(1)
       const sign = cornerFwhm >= centerFwhm ? '+' : ''
+      const pctText = `${sign}${pct}%`
 
-      // Background for readability
-      const text = `${sign}${pct}%`
       ctx.font = `bold ${pctFontSize}px monospace`
-      const metrics = ctx.measureText(text)
+      const pctMetrics = ctx.measureText(pctText)
       const pctPadX = Math.round(pctFontSize * 0.25)
       const pctPadY = Math.round(pctFontSize * 0.65)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-      ctx.fillRect(midX - metrics.width / 2 - pctPadX, midY - pctPadY / 2 - pctPadX, metrics.width + pctPadX * 2, pctPadY + pctPadX)
+      ctx.fillRect(midX - pctMetrics.width / 2 - pctPadX, midY - pctPadY / 2 - pctPadX, pctMetrics.width + pctPadX * 2, pctPadY + pctPadX)
       ctx.fillStyle = `rgb(${r}, ${g}, 0)`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(text, midX, midY)
+      ctx.fillText(pctText, midX, midY)
     }
 
-    // Draw FWHM value labels at each position
+    // Draw FWHM labels at vertices and center
     for (const [name, pos] of Object.entries(positions)) {
       const fwhm = avgFwhm[name]
       if (fwhm == null) continue
@@ -668,16 +698,14 @@ export function FitsDetailView() {
       ctx.font = `bold ${labelFontSize}px monospace`
       const metrics = ctx.measureText(label)
 
-      // Background pill
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-      const pw = metrics.width + Math.round(labelFontSize * 0.85)
-      const ph = Math.round(labelFontSize * 1.6)
+      const pw = metrics.width + Math.round(labelFontSize * 0.8)
+      const ph = Math.round(labelFontSize * 1.5)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
       ctx.beginPath()
       ctx.roundRect(pos.x - pw / 2, pos.y - ph / 2, pw, ph, 4)
       ctx.fill()
 
-      // Text
-      ctx.fillStyle = name === 'C' ? '#4fc3f7' : '#ffffff'
+      ctx.fillStyle = name === 'C' ? '#4fc3f7' : '#ffff00'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(label, pos.x, pos.y)
