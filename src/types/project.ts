@@ -62,3 +62,17 @@ export interface SubAnalysisResult {
   medianEccentricity: number
   starsDetected: number
 }
+
+export interface StarDetail {
+  x: number
+  y: number
+  fwhm: number
+  eccentricity: number
+}
+
+export interface StarsDetailResult {
+  stars: StarDetail[]
+  imageWidth: number
+  imageHeight: number
+  medianFwhm: number
+}

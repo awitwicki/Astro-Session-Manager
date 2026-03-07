@@ -213,6 +213,26 @@ pub struct AnalyzeProgress {
     pub file_path: String,
 }
 
+// ─── Star Detail Types ──────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StarDetail {
+    pub x: f32,
+    pub y: f32,
+    pub fwhm: f32,
+    pub eccentricity: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StarsDetailResult {
+    pub stars: Vec<StarDetail>,
+    pub image_width: u32,
+    pub image_height: u32,
+    pub median_fwhm: f32,
+}
+
 // ─── Settings ───────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

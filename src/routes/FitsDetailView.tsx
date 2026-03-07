@@ -4,7 +4,7 @@ import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, Chevr
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
-import type { SubAnalysisResult } from '../types'
+import type { SubAnalysisResult, StarsDetailResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
 
 interface FitsHeader {
@@ -49,6 +49,11 @@ export function FitsDetailView() {
 
   const [analysisResult, setAnalysisResult] = useState<SubAnalysisResult | null>(null)
   const [analysisLoading, setAnalysisLoading] = useState(false)
+
+  const starsCacheRef = useRef<Map<string, StarsDetailResult>>(new Map())
+  const starsFailedRef = useRef<Set<string>>(new Set())
+  const [starsCacheVersion, setStarsCacheVersion] = useState(0)
+  const [starsLoading, setStarsLoading] = useState(false)
 
   const project = useMemo(() => projects.find((p) => p.name === projectParam), [projects, projectParam])
 
@@ -181,6 +186,30 @@ export function FitsDetailView() {
     })
   }, [])
 
+  const [showHeatmap, setShowHeatmap] = useState(() => {
+    return localStorage.getItem('fitsDetail.showHeatmap') === 'true'
+  })
+
+  const [showTilt, setShowTilt] = useState(() => {
+    return localStorage.getItem('fitsDetail.showTilt') === 'true'
+  })
+
+  const toggleHeatmap = useCallback(() => {
+    setShowHeatmap((prev) => {
+      const next = !prev
+      localStorage.setItem('fitsDetail.showHeatmap', String(next))
+      return next
+    })
+  }, [])
+
+  const toggleTilt = useCallback(() => {
+    setShowTilt((prev) => {
+      const next = !prev
+      localStorage.setItem('fitsDetail.showTilt', String(next))
+      return next
+    })
+  }, [])
+
   const [preview, setPreview] = useState<FitsPreviewResult | null>(null)
   const [headerData, setHeaderData] = useState<FitsHeader | null>(null)
   const [headerLoading, setHeaderLoading] = useState(true)
@@ -263,6 +292,33 @@ export function FitsDetailView() {
     }
     setAnalysisLoading(false)
   }, [filePath, subAnalysis])
+
+  // Fetch per-star detail when heatmap or tilt is enabled
+  useEffect(() => {
+    if (!filePath || (!showHeatmap && !showTilt)) return
+    if (starsCacheRef.current.has(filePath) || starsFailedRef.current.has(filePath)) return
+
+    let cancelled = false
+    setStarsLoading(true)
+
+    invoke<StarsDetailResult>('analyze_stars_detail', { filePath })
+      .then((result) => {
+        if (!cancelled) {
+          starsCacheRef.current.set(filePath, result)
+          setStarsCacheVersion((v) => v + 1)
+          setStarsLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Star analysis failed:', err)
+          starsFailedRef.current.add(filePath)
+          setStarsLoading(false)
+        }
+      })
+
+    return () => { cancelled = true }
+  }, [filePath, showHeatmap, showTilt])
 
   // Fit image to container
   const fitToView = useCallback(() => {
@@ -368,6 +424,8 @@ export function FitsDetailView() {
 
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const heatmapCanvasRef = useRef<HTMLCanvasElement>(null)
+  const tiltCanvasRef = useRef<HTMLCanvasElement>(null)
 
   // Draw image onto canvas when imageUrl changes
   useEffect(() => {
@@ -387,6 +445,218 @@ export function FitsDetailView() {
     }
     img.src = imageUrl
   }, [imageUrl, preview, handleImageLoad])
+
+  // Draw FWHM heatmap overlay
+  useEffect(() => {
+    const canvas = heatmapCanvasRef.current
+    if (!canvas || !preview || !showHeatmap) {
+      if (canvas) {
+        const ctx = canvas.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      return
+    }
+
+    const starData = starsCacheRef.current.get(filePath)
+    if (!starData || starData.stars.length === 0) return
+
+    canvas.width = preview.width
+    canvas.height = preview.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    const gridCols = 20
+    const gridRows = 20
+    const cellW = starData.imageWidth / gridCols
+    const cellH = starData.imageHeight / gridRows
+
+    // Scale factors from original image to preview
+    const scaleX = preview.width / starData.imageWidth
+    const scaleY = preview.height / starData.imageHeight
+
+    // Accumulate FWHM values per grid cell
+    const grid: { sum: number; count: number }[][] = Array.from({ length: gridRows }, () =>
+      Array.from({ length: gridCols }, () => ({ sum: 0, count: 0 }))
+    )
+
+    for (const star of starData.stars) {
+      const col = Math.min(Math.floor(star.x / cellW), gridCols - 1)
+      const row = Math.min(Math.floor(star.y / cellH), gridRows - 1)
+      grid[row][col].sum += star.fwhm
+      grid[row][col].count += 1
+    }
+
+    const medianFwhm = starData.medianFwhm
+    if (medianFwhm === 0) return
+
+    // Draw grid cells
+    for (let row = 0; row < gridRows; row++) {
+      for (let col = 0; col < gridCols; col++) {
+        const cell = grid[row][col]
+        if (cell.count === 0) continue
+
+        const avgFwhm = cell.sum / cell.count
+        const deviation = Math.abs(avgFwhm - medianFwhm) / medianFwhm
+
+        // Color: green (0% deviation) -> yellow (25%) -> red (50%+)
+        let r: number, g: number, b: number
+        if (deviation < 0.25) {
+          const t = deviation / 0.25
+          r = Math.round(255 * t)
+          g = 255
+          b = 0
+        } else {
+          const t = Math.min((deviation - 0.25) / 0.25, 1)
+          r = 255
+          g = Math.round(255 * (1 - t))
+          b = 0
+        }
+
+        const px = col * cellW * scaleX
+        const py = row * cellH * scaleY
+        const pw = cellW * scaleX
+        const ph = cellH * scaleY
+
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`
+        ctx.fillRect(px, py, pw, ph)
+      }
+    }
+  }, [filePath, preview, showHeatmap, starsCacheVersion])
+
+  // Draw tilt diagram overlay
+  useEffect(() => {
+    const canvas = tiltCanvasRef.current
+    if (!canvas || !preview || !showTilt) {
+      if (canvas) {
+        const ctx = canvas.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      return
+    }
+
+    const starData = starsCacheRef.current.get(filePath)
+    if (!starData || starData.stars.length === 0) return
+
+    canvas.width = preview.width
+    canvas.height = preview.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    const imgW = starData.imageWidth
+    const imgH = starData.imageHeight
+
+    // Define 5 regions: 4 corners + center
+    const regionSize = 0.25
+    const regions = [
+      { name: 'TL', xMin: 0, xMax: imgW * regionSize, yMin: 0, yMax: imgH * regionSize },
+      { name: 'TR', xMin: imgW * (1 - regionSize), xMax: imgW, yMin: 0, yMax: imgH * regionSize },
+      { name: 'BL', xMin: 0, xMax: imgW * regionSize, yMin: imgH * (1 - regionSize), yMax: imgH },
+      { name: 'BR', xMin: imgW * (1 - regionSize), xMax: imgW, yMin: imgH * (1 - regionSize), yMax: imgH },
+      { name: 'C', xMin: imgW * 0.25, xMax: imgW * 0.75, yMin: imgH * 0.25, yMax: imgH * 0.75 },
+    ]
+
+    const regionFwhm: Record<string, { sum: number; count: number }> = {}
+    for (const r of regions) {
+      regionFwhm[r.name] = { sum: 0, count: 0 }
+    }
+
+    // Assign stars to regions
+    for (const star of starData.stars) {
+      for (const r of regions) {
+        if (star.x >= r.xMin && star.x < r.xMax && star.y >= r.yMin && star.y < r.yMax) {
+          regionFwhm[r.name].sum += star.fwhm
+          regionFwhm[r.name].count += 1
+        }
+      }
+    }
+
+    // Compute average FWHM per region
+    const avgFwhm: Record<string, number | null> = {}
+    for (const name of Object.keys(regionFwhm)) {
+      const r = regionFwhm[name]
+      avgFwhm[name] = r.count > 0 ? r.sum / r.count : null
+    }
+
+    const centerFwhm = avgFwhm['C']
+    if (centerFwhm == null) return
+
+    // Position labels in preview coordinates
+    const margin = 0.12
+    const positions: Record<string, { x: number; y: number }> = {
+      TL: { x: preview.width * margin, y: preview.height * margin },
+      TR: { x: preview.width * (1 - margin), y: preview.height * margin },
+      BL: { x: preview.width * margin, y: preview.height * (1 - margin) },
+      BR: { x: preview.width * (1 - margin), y: preview.height * (1 - margin) },
+      C: { x: preview.width * 0.5, y: preview.height * 0.5 },
+    }
+
+    // Draw lines from corners to center
+    const corners = ['TL', 'TR', 'BL', 'BR']
+    for (const corner of corners) {
+      const cornerFwhm = avgFwhm[corner]
+      if (cornerFwhm == null) continue
+
+      const deviation = Math.abs(cornerFwhm - centerFwhm) / centerFwhm
+      const t = Math.min(deviation / 0.5, 1)
+      const r = Math.round(255 * t)
+      const g = Math.round(255 * (1 - t))
+
+      const from = positions[corner]
+      const to = positions['C']
+
+      ctx.beginPath()
+      ctx.moveTo(from.x, from.y)
+      ctx.lineTo(to.x, to.y)
+      ctx.strokeStyle = `rgba(${r}, ${g}, 0, 0.8)`
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // Deviation percentage label on line midpoint
+      const midX = (from.x + to.x) / 2
+      const midY = (from.y + to.y) / 2
+      const pct = ((cornerFwhm - centerFwhm) / centerFwhm * 100).toFixed(1)
+      const sign = cornerFwhm >= centerFwhm ? '+' : ''
+
+      // Background for readability
+      const text = `${sign}${pct}%`
+      ctx.font = 'bold 12px monospace'
+      const metrics = ctx.measureText(text)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+      ctx.fillRect(midX - metrics.width / 2 - 3, midY - 8, metrics.width + 6, 16)
+      ctx.fillStyle = `rgb(${r}, ${g}, 0)`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(text, midX, midY)
+    }
+
+    // Draw FWHM value labels at each position
+    for (const [name, pos] of Object.entries(positions)) {
+      const fwhm = avgFwhm[name]
+      if (fwhm == null) continue
+
+      const label = fwhm.toFixed(2)
+      ctx.font = 'bold 14px monospace'
+      const metrics = ctx.measureText(label)
+
+      // Background pill
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      const pw = metrics.width + 12
+      const ph = 22
+      ctx.beginPath()
+      ctx.roundRect(pos.x - pw / 2, pos.y - ph / 2, pw, ph, 4)
+      ctx.fill()
+
+      // Text
+      ctx.fillStyle = name === 'C' ? '#4fc3f7' : '#ffffff'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, pos.x, pos.y)
+    }
+  }, [filePath, preview, showTilt, starsCacheVersion])
 
   const handleWheel = (e: React.WheelEvent): void => {
     e.preventDefault()
@@ -534,6 +804,18 @@ export function FitsDetailView() {
 
           <div style={{ flex: 1 }} />
 
+          <div className="gallery-toolbar-group" style={{ gap: 8 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
+              <input type="checkbox" checked={showHeatmap} onChange={toggleHeatmap} />
+              FWHM Heatmap
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
+              <input type="checkbox" checked={showTilt} onChange={toggleTilt} />
+              Tilt Diagram
+            </label>
+            {starsLoading && <div className="spinner" style={{ width: 12, height: 12 }} />}
+          </div>
+
           <div className="gallery-toolbar-group">
             {isColor && (
               <span className="badge badge-info" style={{ fontSize: 10 }}>
@@ -662,6 +944,30 @@ export function FitsDetailView() {
                 transformOrigin: '0 0',
                 imageRendering: zoom > 2 ? 'pixelated' : 'auto',
                 display: 'block',
+              }}
+            />
+            <canvas
+              ref={heatmapCanvasRef}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                transformOrigin: '0 0',
+                pointerEvents: 'none',
+                display: showHeatmap ? 'block' : 'none',
+              }}
+            />
+            <canvas
+              ref={tiltCanvasRef}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                transformOrigin: '0 0',
+                pointerEvents: 'none',
+                display: showTilt ? 'block' : 'none',
               }}
             />
           </div>

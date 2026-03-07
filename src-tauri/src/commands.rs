@@ -229,6 +229,17 @@ pub async fn analyze_subs(
     .map_err(|e| format!("Task join error: {}", e))
 }
 
+#[tauri::command]
+pub async fn analyze_stars_detail(
+    file_path: String,
+) -> Result<StarsDetailResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        analyzer::analyze_stars_detail(&file_path)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+}
+
 // ─── Settings Commands ──────────────────────────────────────────────────────
 
 #[tauri::command]

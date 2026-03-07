@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use tauri::Emitter;
 
 use crate::cancellation;
-use crate::types::{AnalyzeProgress, SubAnalysis};
+use crate::types::{AnalyzeProgress, StarDetail, StarsDetailResult, SubAnalysis};
 
 /// Dedicated thread pool for analysis — avoids contention with the global rayon
 /// pool that astroimage / other crates may also use.
@@ -41,6 +41,32 @@ pub fn analyze_single(file_path: &str) -> Result<SubAnalysis, String> {
         median_fwhm: result.median_fwhm,
         median_eccentricity: result.median_eccentricity,
         stars_detected: result.stars_detected,
+    })
+}
+
+pub fn analyze_stars_detail(file_path: &str) -> Result<StarsDetailResult, String> {
+    let analyzer = new_analyzer();
+
+    let result = analyzer
+        .analyze(file_path)
+        .map_err(|e| format!("Analysis failed for {}: {}", file_path, e))?;
+
+    let stars: Vec<StarDetail> = result
+        .stars
+        .iter()
+        .map(|s| StarDetail {
+            x: s.x,
+            y: s.y,
+            fwhm: s.fwhm,
+            eccentricity: s.eccentricity,
+        })
+        .collect();
+
+    Ok(StarsDetailResult {
+        stars,
+        image_width: result.width as u32,
+        image_height: result.height as u32,
+        median_fwhm: result.median_fwhm,
     })
 }
 
