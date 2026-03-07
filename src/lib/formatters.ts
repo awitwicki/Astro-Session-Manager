@@ -43,3 +43,10 @@ export function formatExposure(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
   return `${Math.round(seconds / 60)}m`
 }
+
+export function computeMedian(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}

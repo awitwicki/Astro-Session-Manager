@@ -6,6 +6,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
 import type { SubAnalysisResult, StarsDetailResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
+import { computeMedian } from '../lib/formatters'
 
 interface FitsHeader {
   bayerpat?: string
@@ -276,9 +277,16 @@ export function FitsDetailView() {
     }
   }, [])
 
-  // Reset error when file changes
+  // Reset error and clear overlay canvases when file changes
   useEffect(() => {
     setError(null)
+    for (const ref of [heatmapCanvasRef, tiltCanvasRef]) {
+      const canvas = ref.current
+      if (canvas) {
+        const ctx = canvas.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+      }
+    }
   }, [filePath])
 
   // Show cached analysis if available (no auto-analyze)
@@ -477,15 +485,14 @@ export function FitsDetailView() {
     const scaleY = preview.height / starData.imageHeight
 
     // Accumulate FWHM values per grid cell
-    const grid: { sum: number; count: number }[][] = Array.from({ length: gridRows }, () =>
-      Array.from({ length: gridCols }, () => ({ sum: 0, count: 0 }))
+    const grid: number[][][] = Array.from({ length: gridRows }, () =>
+      Array.from({ length: gridCols }, () => [] as number[])
     )
 
     for (const star of starData.stars) {
       const col = Math.min(Math.floor(star.x / cellW), gridCols - 1)
       const row = Math.min(Math.floor(star.y / cellH), gridRows - 1)
-      grid[row][col].sum += star.fwhm
-      grid[row][col].count += 1
+      grid[row][col].push(star.fwhm)
     }
 
     const medianFwhm = starData.medianFwhm
@@ -495,9 +502,9 @@ export function FitsDetailView() {
     for (let row = 0; row < gridRows; row++) {
       for (let col = 0; col < gridCols; col++) {
         const cell = grid[row][col]
-        if (cell.count === 0) continue
+        if (cell.length === 0) continue
 
-        const avgFwhm = cell.sum / cell.count
+        const avgFwhm = computeMedian(cell)
         const deviation = Math.abs(avgFwhm - medianFwhm) / medianFwhm
 
         // Color: green (0% deviation) -> yellow (25%) -> red (50%+)
@@ -559,30 +566,35 @@ export function FitsDetailView() {
       { name: 'C', xMin: imgW * 0.25, xMax: imgW * 0.75, yMin: imgH * 0.25, yMax: imgH * 0.75 },
     ]
 
-    const regionFwhm: Record<string, { sum: number; count: number }> = {}
+    const regionFwhm: Record<string, number[]> = {}
     for (const r of regions) {
-      regionFwhm[r.name] = { sum: 0, count: 0 }
+      regionFwhm[r.name] = []
     }
 
     // Assign stars to regions
     for (const star of starData.stars) {
       for (const r of regions) {
         if (star.x >= r.xMin && star.x < r.xMax && star.y >= r.yMin && star.y < r.yMax) {
-          regionFwhm[r.name].sum += star.fwhm
-          regionFwhm[r.name].count += 1
+          regionFwhm[r.name].push(star.fwhm)
         }
       }
     }
 
-    // Compute average FWHM per region
+    // Compute median FWHM per region
     const avgFwhm: Record<string, number | null> = {}
     for (const name of Object.keys(regionFwhm)) {
-      const r = regionFwhm[name]
-      avgFwhm[name] = r.count > 0 ? r.sum / r.count : null
+      const values = regionFwhm[name]
+      avgFwhm[name] = values.length > 0 ? computeMedian(values) : null
     }
 
     const centerFwhm = avgFwhm['C']
     if (centerFwhm == null) return
+
+    // Scale fonts relative to canvas size
+    const baseSize = Math.min(canvas.width, canvas.height)
+    const labelFontSize = Math.max(14, Math.round(baseSize * 0.03))
+    const pctFontSize = Math.max(12, Math.round(baseSize * 0.025))
+    const lineWidth = Math.max(2, Math.round(baseSize * 0.004))
 
     // Position labels in preview coordinates
     const margin = 0.12
@@ -612,7 +624,7 @@ export function FitsDetailView() {
       ctx.moveTo(from.x, from.y)
       ctx.lineTo(to.x, to.y)
       ctx.strokeStyle = `rgba(${r}, ${g}, 0, 0.8)`
-      ctx.lineWidth = 2
+      ctx.lineWidth = lineWidth
       ctx.stroke()
 
       // Deviation percentage label on line midpoint
@@ -623,10 +635,12 @@ export function FitsDetailView() {
 
       // Background for readability
       const text = `${sign}${pct}%`
-      ctx.font = 'bold 12px monospace'
+      ctx.font = `bold ${pctFontSize}px monospace`
       const metrics = ctx.measureText(text)
+      const pctPadX = Math.round(pctFontSize * 0.25)
+      const pctPadY = Math.round(pctFontSize * 0.65)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-      ctx.fillRect(midX - metrics.width / 2 - 3, midY - 8, metrics.width + 6, 16)
+      ctx.fillRect(midX - metrics.width / 2 - pctPadX, midY - pctPadY / 2 - pctPadX, metrics.width + pctPadX * 2, pctPadY + pctPadX)
       ctx.fillStyle = `rgb(${r}, ${g}, 0)`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -639,13 +653,13 @@ export function FitsDetailView() {
       if (fwhm == null) continue
 
       const label = fwhm.toFixed(2)
-      ctx.font = 'bold 14px monospace'
+      ctx.font = `bold ${labelFontSize}px monospace`
       const metrics = ctx.measureText(label)
 
       // Background pill
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-      const pw = metrics.width + 12
-      const ph = 22
+      const pw = metrics.width + Math.round(labelFontSize * 0.85)
+      const ph = Math.round(labelFontSize * 1.6)
       ctx.beginPath()
       ctx.roundRect(pos.x - pw / 2, pos.y - ph / 2, pw, ph, 4)
       ctx.fill()
