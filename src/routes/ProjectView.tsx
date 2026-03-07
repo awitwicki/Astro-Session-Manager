@@ -330,7 +330,12 @@ export function ProjectView() {
             </button>
           </div>
 
-          {filterData.sessions.map((session) => (
+          {[...filterData.sessions].sort((a, b) => {
+            const na = a.date.match(/(\d+)/)?.[1]
+            const nb = b.date.match(/(\d+)/)?.[1]
+            if (na != null && nb != null) return parseInt(na) - parseInt(nb)
+            return a.date.localeCompare(b.date)
+          }).map((session) => (
             <SessionAccordion
               key={session.date}
               session={session}
