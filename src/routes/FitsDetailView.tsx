@@ -6,7 +6,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
 import type { SubAnalysisResult, StarsDetailResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
-import { computeMedian } from '../lib/formatters'
+import { computeMedian, getPixelScale } from '../lib/formatters'
 
 interface FitsHeader {
   bayerpat?: string
@@ -33,33 +33,6 @@ interface FitsPreviewResult {
   originalWidth: number
   originalHeight: number
   header: FitsHeader
-}
-
-// Extract pixel scale (arcsec/pixel) from FITS header raw keywords
-function getPixelScale(raw?: Record<string, unknown>): number | null {
-  if (!raw) return null
-
-  const num = (key: string): number | null => {
-    const v = raw[key]
-    if (v == null) return null
-    const n = Number(v)
-    return isFinite(n) && n !== 0 ? n : null
-  }
-
-  // Direct pixel scale keywords (arcsec/pixel)
-  const scale = num('SCALE') ?? num('PIXSCALE') ?? num('SECPIX') ?? num('SECPIX1')
-  if (scale != null) return Math.abs(scale)
-
-  // CDELT1/CDELT2 are in degrees/pixel
-  const cdelt = num('CDELT1') ?? num('CDELT2')
-  if (cdelt != null) return Math.abs(cdelt) * 3600
-
-  // Compute from focal length (mm) + pixel size (microns): scale = 206.265 * pixSize / focalLen
-  const focal = num('FOCALLEN') ?? num('FOCAL') ?? num('FOCUSLEN')
-  const pixSize = num('XPIXSZ') ?? num('PIXSIZE1') ?? num('PIXSIZE')
-  if (focal != null && pixSize != null) return 206.265 * pixSize / focal
-
-  return null
 }
 
 export function FitsDetailView() {
