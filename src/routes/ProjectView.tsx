@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star, Folder, File } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -34,6 +34,15 @@ export function ProjectView() {
   const [excludeConfirm, setExcludeConfirm] = useState<{ name: string; type: 'project' | 'filter' | 'night' } | null>(null)
   const [patternsText, setPatternsText] = useState('')
   const [analyzeModal, setAnalyzeModal] = useState<{ allPaths: string[]; unanalyzed: string[]; analyzed: string[] } | null>(null)
+  const [otherFilesOpen, setOtherFilesOpen] = useState(false)
+
+  const currentFilter = activeFilter || (project?.filters.length ? project.filters[0].name : null)
+  const filterData = project?.filters.find((f) => f.name === currentFilter)
+
+  const nightSessions = useMemo(() => {
+    if (!filterData) return []
+    return filterData.sessions.filter((s) => /^night\s*\d+$/i.test(s.date))
+  }, [filterData])
 
   useEffect(() => {
     invoke<unknown>('get_setting', { key: 'excludePatterns' }).then((val) => {
@@ -86,9 +95,6 @@ export function ProjectView() {
       </div>
     )
   }
-
-  const currentFilter = activeFilter || (project.filters.length > 0 ? project.filters[0].name : null)
-  const filterData = project.filters.find((f) => f.name === currentFilter)
 
   const openNotes = async (folderPath: string, title: string) => {
     setNotesTitle(title)
@@ -246,9 +252,11 @@ export function ProjectView() {
               onClick={() => setActiveFilter(f.name)}
             >
               {f.name}
-              <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
-                {formatIntegrationTime(f.totalIntegrationSeconds)}
-              </span>
+              {f.totalIntegrationSeconds > 0 && (
+                <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  {formatIntegrationTime(f.totalIntegrationSeconds)}
+                </span>
+              )}
               <span
                 style={{ marginLeft: 4, cursor: 'pointer', opacity: 0.5 }}
                 onClick={(e) => {
@@ -271,7 +279,7 @@ export function ProjectView() {
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13, color: 'var(--color-text-muted)', alignItems: 'center', flexShrink: 0 }}>
             <span>{filterData.totalLightFrames} light frames</span>
             <span>{filterData.sessions.length} sessions</span>
-            <span>{formatIntegrationTime(filterData.totalIntegrationSeconds)}</span>
+            {filterData.totalIntegrationSeconds > 0 && <span>{formatIntegrationTime(filterData.totalIntegrationSeconds)}</span>}
             <span>{formatFileSize(filterData.totalSizeBytes)}</span>
             <button
               className="btn btn-sm"
@@ -352,7 +360,7 @@ export function ProjectView() {
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            {[...filterData.sessions].sort((a, b) => {
+            {[...nightSessions].sort((a, b) => {
               const na = a.date.match(/(\d+)/)?.[1]
               const nb = b.date.match(/(\d+)/)?.[1]
               if (na != null && nb != null) return parseInt(na) - parseInt(nb)
@@ -369,6 +377,55 @@ export function ProjectView() {
                 onExclude={(name) => setExcludeConfirm({ name, type: 'night' })}
               />
             ))}
+
+            {(filterData.otherFiles?.length ?? 0) > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  className="btn btn-sm"
+                  style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={() => setOtherFilesOpen(!otherFilesOpen)}
+                >
+                  {otherFilesOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  Other files ({filterData.otherFiles.length})
+                </button>
+                {otherFilesOpen && (
+                  <div style={{ marginTop: 4, border: '1px solid var(--color-border)', borderRadius: 6 }}>
+                    <table className="table" style={{ margin: 0, fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Size</th>
+                          <th style={{ width: 36 }} />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filterData.otherFiles.map((f) => (
+                          <tr key={f.name}>
+                            <td>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                {f.isDir ? <Folder size={14} /> : <File size={14} />}
+                                {f.name}
+                              </span>
+                            </td>
+                            <td>{formatFileSize(f.sizeBytes)}</td>
+                            <td>
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 6px' }}
+                                onClick={() => invoke('show_in_folder', { path: f.path })}
+                                title="Show in Finder"
+                              >
+                                <FolderOpen size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

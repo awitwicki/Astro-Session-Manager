@@ -6,10 +6,12 @@ use std::time::Instant;
 
 use tauri::Emitter;
 
+use regex::Regex;
+
 use crate::cancellation;
 use crate::fits_parser;
 use crate::types::{
-    FilterScanNode, FitsFileRef, FitsHeader, ProjectScanNode, ScanResult, ScanProgress,
+    FilterScanNode, FitsFileRef, FitsHeader, OtherEntry, ProjectScanNode, ScanResult, ScanProgress,
     SessionScanNode,
 };
 use crate::xisf_parser;
@@ -189,6 +191,23 @@ fn scan_session(session_path: &Path, date_name: &str) -> SessionScanNode {
     }
 }
 
+/// Check if a directory name is a night session (e.g. "Night 1", "night2", "Night 10")
+fn is_night_session(name: &str) -> bool {
+    let re = Regex::new(r"(?i)^night\s*\d+$").unwrap();
+    re.is_match(name)
+}
+
+/// Calculate total size of all files in a directory recursively
+fn dir_total_size_recursive(dir_path: &Path) -> u64 {
+    walkdir::WalkDir::new(dir_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| e.metadata().ok())
+        .map(|m| m.len())
+        .sum()
+}
+
 /// Scan a filter directory for session subdirectories
 fn scan_filter(filter_path: &Path, filter_name: &str, exclude_patterns: &[String]) -> FilterScanNode {
     let entries = list_dir_safe(filter_path);
@@ -200,42 +219,60 @@ fn scan_filter(filter_path: &Path, filter_name: &str, exclude_patterns: &[String
         .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
         .collect();
 
+    let mut other_files: Vec<OtherEntry> = Vec::new();
+
     for entry in &dir_entries {
         let name = entry.file_name().to_string_lossy().to_string();
         if matches_exclude_pattern(&name, exclude_patterns) {
             continue;
         }
-        let session = scan_session(&filter_path.join(&name), &name);
-        sessions.push(session);
-    }
-
-    // Check if FITS files are directly in the filter folder
-    // (some structures: project/filter/files.fits without date subfolder)
-    if sessions
-        .iter()
-        .all(|s| s.lights.is_empty() && s.flats.is_empty())
-    {
-        let direct_fits = scan_fits_files(filter_path);
-        if !direct_fits.is_empty() {
-            let total: u64 = direct_fits.iter().map(|f| f.size_bytes).sum();
-            sessions.push(SessionScanNode {
-                date: "unsorted".to_string(),
-                path: filter_path.to_string_lossy().to_string(),
-                lights: direct_fits,
-                flats: Vec::new(),
-                total_size_bytes: total,
-                has_notes: filter_path.join("notes.txt").exists(),
+        let entry_path = filter_path.join(&name);
+        if is_night_session(&name) {
+            let session = scan_session(&entry_path, &name);
+            sessions.push(session);
+        } else {
+            // Non-night directory: add to other_files
+            other_files.push(OtherEntry {
+                name,
+                path: entry_path.to_string_lossy().to_string(),
+                size_bytes: dir_total_size_recursive(&entry_path),
+                is_dir: true,
             });
         }
     }
 
+    // Collect loose files directly in the filter folder
+    for entry in &entries {
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if ft.is_file() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name == ".DS_Store" {
+                continue;
+            }
+            let full_path = filter_path.join(&name);
+            let size_bytes = fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
+            other_files.push(OtherEntry {
+                name,
+                path: full_path.to_string_lossy().to_string(),
+                size_bytes,
+                is_dir: false,
+            });
+        }
+    }
+    other_files.sort_by(|a, b| a.name.cmp(&b.name));
+
     sessions.sort_by(|a, b| a.date.cmp(&b.date));
-    let total_size_bytes: u64 = sessions.iter().map(|s| s.total_size_bytes).sum();
+    let total_size_bytes: u64 = sessions.iter().map(|s| s.total_size_bytes).sum::<u64>()
+        + other_files.iter().map(|f| f.size_bytes).sum::<u64>();
 
     FilterScanNode {
         name: filter_name.to_string(),
         path: filter_path.to_string_lossy().to_string(),
         sessions,
+        other_files,
         total_size_bytes,
         has_notes: filter_path.join("notes.txt").exists(),
     }

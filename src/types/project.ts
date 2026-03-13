@@ -12,10 +12,18 @@ export interface Project {
   hasNotes: boolean
 }
 
+export interface OtherFileEntry {
+  name: string
+  path: string
+  sizeBytes: number
+  isDir: boolean
+}
+
 export interface FilterGroup {
   name: string
   path: string
   sessions: Session[]
+  otherFiles: OtherFileEntry[]
   totalIntegrationSeconds: number
   totalLightFrames: number
   totalSizeBytes: number

@@ -215,6 +215,12 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
         name: f.name,
         path: f.path,
         sessions,
+        otherFiles: (f.otherFiles ?? []).map((o: { name: string; path: string; sizeBytes: number; isDir: boolean }) => ({
+          name: o.name,
+          path: o.path,
+          sizeBytes: o.sizeBytes,
+          isDir: o.isDir,
+        })),
         totalIntegrationSeconds: filterIntegration,
         totalLightFrames: filterLights,
         totalSizeBytes: f.totalSizeBytes,
