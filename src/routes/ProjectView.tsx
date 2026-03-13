@@ -165,8 +165,8 @@ export function ProjectView() {
   }
 
   return (
-    <div>
-      <div className="page-header">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div className="page-header" style={{ flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <h1 className="page-title" style={{ textTransform: 'uppercase' }}>
             {project.name}
@@ -238,7 +238,7 @@ export function ProjectView() {
 
       {/* Filter tabs */}
       {project.filters.length > 0 && (
-        <div className="tabs">
+        <div className="tabs" style={{ flexShrink: 0 }}>
           {project.filters.map((f) => (
             <button
               key={f.name}
@@ -267,8 +267,8 @@ export function ProjectView() {
 
       {/* Sessions for active filter */}
       {filterData && (
-        <div>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13, color: 'var(--color-text-muted)', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13, color: 'var(--color-text-muted)', alignItems: 'center', flexShrink: 0 }}>
             <span>{filterData.totalLightFrames} light frames</span>
             <span>{filterData.sessions.length} sessions</span>
             <span>{formatIntegrationTime(filterData.totalIntegrationSeconds)}</span>
@@ -351,23 +351,25 @@ export function ProjectView() {
             </button>
           </div>
 
-          {[...filterData.sessions].sort((a, b) => {
-            const na = a.date.match(/(\d+)/)?.[1]
-            const nb = b.date.match(/(\d+)/)?.[1]
-            if (na != null && nb != null) return parseInt(na) - parseInt(nb)
-            return a.date.localeCompare(b.date)
-          }).map((session) => (
-            <SessionAccordion
-              key={session.date}
-              session={session}
-              projectName={project.name}
-              filterName={filterData.name}
-              subAnalysis={subAnalysis}
-              onRescan={() => scanProject(project.path)}
-              onOpenNotes={openNotes}
-              onExclude={(name) => setExcludeConfirm({ name, type: 'night' })}
-            />
-          ))}
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {[...filterData.sessions].sort((a, b) => {
+              const na = a.date.match(/(\d+)/)?.[1]
+              const nb = b.date.match(/(\d+)/)?.[1]
+              if (na != null && nb != null) return parseInt(na) - parseInt(nb)
+              return a.date.localeCompare(b.date)
+            }).map((session) => (
+              <SessionAccordion
+                key={session.date}
+                session={session}
+                projectName={project.name}
+                filterName={filterData.name}
+                subAnalysis={subAnalysis}
+                onRescan={() => scanProject(project.path)}
+                onOpenNotes={openNotes}
+                onExclude={(name) => setExcludeConfirm({ name, type: 'night' })}
+              />
+            ))}
+          </div>
         </div>
       )}
 
