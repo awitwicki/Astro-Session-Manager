@@ -20,6 +20,7 @@ interface FilterScanNode {
   name: string
   path: string
   sessions: SessionScanNode[]
+  otherFiles?: { name: string; path: string; sizeBytes: number; isDir: boolean }[]
   totalSizeBytes: number
   hasNotes: boolean
 }
