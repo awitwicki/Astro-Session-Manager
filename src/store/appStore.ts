@@ -273,6 +273,7 @@ interface AppState {
   mergeProjectScan: (raw: ScanResultRaw) => void
   applyExcludePatterns: (patternsText: string) => void
   setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
+  removeSubAnalysis: (paths: string[]) => void
   setAnalyzing: (v: boolean) => void
 }
 
@@ -372,6 +373,12 @@ export const useAppStore = create<AppState>((set) => ({
   setSubAnalysis: (data) => set((state) => ({
     subAnalysis: { ...state.subAnalysis, ...data }
   })),
+
+  removeSubAnalysis: (paths) => set((state) => {
+    const updated = { ...state.subAnalysis }
+    for (const p of paths) delete updated[p]
+    return { subAnalysis: updated }
+  }),
 
   setAnalyzing: (v) => set({ isAnalyzing: v }),
 

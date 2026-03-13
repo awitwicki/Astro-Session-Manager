@@ -16,6 +16,7 @@ export function ProjectView() {
   const removeProject = useAppStore((s) => s.removeProject)
   const subAnalysis = useAppStore((s) => s.subAnalysis)
   const setSubAnalysis = useAppStore((s) => s.setSubAnalysis)
+  const removeSubAnalysis = useAppStore((s) => s.removeSubAnalysis)
   const isAnalyzing = useAppStore((s) => s.isAnalyzing)
   const setAnalyzing = useAppStore((s) => s.setAnalyzing)
   const { scanProject } = useProjects()
@@ -32,6 +33,7 @@ export function ProjectView() {
   const [notesSaving, setNotesSaving] = useState(false)
   const [excludeConfirm, setExcludeConfirm] = useState<{ name: string; type: 'project' | 'filter' | 'night' } | null>(null)
   const [patternsText, setPatternsText] = useState('')
+  const [analyzeModal, setAnalyzeModal] = useState<{ allPaths: string[]; unanalyzed: string[]; analyzed: string[] } | null>(null)
 
   useEffect(() => {
     invoke<unknown>('get_setting', { key: 'excludePatterns' }).then((val) => {
@@ -47,6 +49,32 @@ export function ProjectView() {
     setExcludeConfirm(null)
     if (type === 'project') {
       navigate('/')
+    }
+  }
+
+  const runAnalysis = async (filePaths: string[]) => {
+    if (filePaths.length === 0) return
+    setAnalyzing(true)
+    try {
+      const results = await invoke<Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>>('analyze_subs', { filePaths })
+      setSubAnalysis(results)
+      if (rootFolder) {
+        const merged = { ...subAnalysis, ...results }
+        await invoke('save_cache', { rootFolder, data: { subAnalysis: merged } }).catch(() => {})
+      }
+    } catch (err) {
+      console.error('Analysis failed:', err)
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const clearAnalysis = async (paths: string[]) => {
+    removeSubAnalysis(paths)
+    if (rootFolder) {
+      const updated = { ...subAnalysis }
+      for (const p of paths) delete updated[p]
+      await invoke('save_cache', { rootFolder, data: { subAnalysis: updated } }).catch(() => {})
     }
   }
 
@@ -305,22 +333,15 @@ export function ProjectView() {
             <button
               className="btn btn-sm"
               disabled={isAnalyzing}
-              onClick={async () => {
-                const allLightPaths = filterData.sessions.flatMap((s) => s.lights.map((l) => l.path))
-                const unanalyzed = allLightPaths.filter((p) => !subAnalysis[p])
-                if (unanalyzed.length === 0) return
-                setAnalyzing(true)
-                try {
-                  const results = await invoke<Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>>('analyze_subs', { filePaths: unanalyzed })
-                  setSubAnalysis(results)
-                  if (rootFolder) {
-                    const merged = { ...subAnalysis, ...results }
-                    await invoke('save_cache', { rootFolder, data: { subAnalysis: merged } }).catch(() => {})
-                  }
-                } catch (err) {
-                  console.error('Analysis failed:', err)
-                } finally {
-                  setAnalyzing(false)
+              onClick={() => {
+                const allPaths = filterData.sessions.flatMap((s) => s.lights.map((l) => l.path))
+                if (allPaths.length === 0) return
+                const unanalyzed = allPaths.filter((p) => !subAnalysis[p])
+                const analyzed = allPaths.filter((p) => !!subAnalysis[p])
+                if (analyzed.length > 0) {
+                  setAnalyzeModal({ allPaths, unanalyzed, analyzed })
+                } else {
+                  runAnalysis(unanalyzed)
                 }
               }}
               title="Analyze light frames (FWHM & Eccentricity)"
@@ -443,6 +464,45 @@ export function ProjectView() {
               >
                 {notesSaving ? 'Saving...' : 'Save'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analyze Subs Modal */}
+      {analyzeModal && (
+        <div className="modal-overlay" onClick={() => setAnalyzeModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">Analyze Subs</h3>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '12px 0' }}>
+              {analyzeModal.analyzed.length} images already analyzed{analyzeModal.unanalyzed.length > 0 ? `, ${analyzeModal.unanalyzed.length} new images found` : ''}.
+            </p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setAnalyzeModal(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn"
+                onClick={async () => {
+                  const paths = analyzeModal.allPaths
+                  setAnalyzeModal(null)
+                  await clearAnalysis(paths)
+                }}
+              >
+                Clear Analysis
+              </button>
+              {analyzeModal.unanalyzed.length > 0 && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const paths = analyzeModal.unanalyzed
+                    setAnalyzeModal(null)
+                    runAnalysis(paths)
+                  }}
+                >
+                  Append New
+                </button>
+              )}
             </div>
           </div>
         </div>
