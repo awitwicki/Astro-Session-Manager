@@ -22,6 +22,10 @@ export function ProjectView() {
   const { scanProject } = useProjects()
   const project = projects.find((p) => p.name === decodeURIComponent(projectName || ''))
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  // Reset active filter when navigating to a different project
+  useEffect(() => {
+    setActiveFilter(null)
+  }, [projectName])
   const [renameProject, setRenameProject] = useState(false)
   const [renameProjectName, setRenameProjectName] = useState('')
   const [renameFilter, setRenameFilter] = useState<string | null>(null)
