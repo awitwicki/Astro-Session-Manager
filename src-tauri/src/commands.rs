@@ -403,8 +403,8 @@ pub fn create_project(
 
     for filter_name in &filters {
         let filter_dir = project_dir.join(filter_name);
-        let lights_dir = filter_dir.join("night1").join("lights");
-        let flats_dir = filter_dir.join("night1").join("flats");
+        let lights_dir = filter_dir.join("Night 1").join("lights");
+        let flats_dir = filter_dir.join("Night 1").join("flats");
 
         fs::create_dir_all(&lights_dir)
             .map_err(|e| format!("Failed to create lights directory: {}", e))?;

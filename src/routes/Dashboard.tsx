@@ -11,7 +11,7 @@ type ProjectSortColumn = 'name' | 'integration' | 'size' | 'lastDate' | 'lights'
 type SortDirection = 'asc' | 'desc'
 
 export function Dashboard() {
-  const { projects, isScanning, scanError, rootFolder, selectFolder, scan, init } = useProjects()
+  const { projects, isScanning, scanError, rootFolder, selectFolder, scan, scanProject, init } = useProjects()
   const navigate = useNavigate()
 
   const viewMode = useAppStore((s) => s.dashboardViewMode)
@@ -60,10 +60,12 @@ export function Dashboard() {
         projectName: newProjectName.trim(),
         filters: filters.length > 0 ? filters : ['default']
       })
+      const name = newProjectName.trim()
       setShowNewProject(false)
       setNewProjectName('')
       setNewProjectFilters('')
-      await scan()
+      await scanProject(currentRootFolder + '/' + name)
+      navigate(projectPath(name))
     } finally {
       setCreating(false)
     }
