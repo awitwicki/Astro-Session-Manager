@@ -27,7 +27,7 @@ fn get_pool() -> &'static rayon::ThreadPool {
 fn new_analyzer() -> astroimage::ImageAnalyzer {
     astroimage::ImageAnalyzer::new()
         .without_gaussian_fit()
-        .with_max_stars(200)
+        .with_max_stars(1000)
 }
 
 pub fn analyze_single(file_path: &str) -> Result<SubAnalysis, String> {
