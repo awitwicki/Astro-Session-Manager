@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Project, MastersLibrary, SubAnalysisResult } from '../types'
+import { isDslrFile } from '../lib/dslrUtils'
 
 interface ScanResultRaw {
   rootPath: string
@@ -30,6 +31,8 @@ interface SessionScanNode {
   path: string
   lights: FitsFileRef[]
   flats: FitsFileRef[]
+  darks: FitsFileRef[]
+  biases: FitsFileRef[]
   totalSizeBytes: number
   hasNotes: boolean
 }
@@ -94,6 +97,8 @@ function applyCalibration(projects: Project[], mastersLibrary: MastersLibrary | 
       ...f,
       sessions: f.sessions.map((s) => {
         if (s.lights.length === 0) return s
+        // Skip calibration for DSLR sessions
+        if (isDslrFile(s.lights[0].filename)) return s
 
         const header = s.lights[0].header
         if (!header) return s
@@ -195,6 +200,16 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
             filename: fl.filename,
             path: fl.path,
             sizeBytes: fl.sizeBytes
+          })),
+          darks: s.darks.map((d) => ({
+            filename: d.filename,
+            path: d.path,
+            sizeBytes: d.sizeBytes
+          })),
+          biases: s.biases.map((b) => ({
+            filename: b.filename,
+            path: b.path,
+            sizeBytes: b.sizeBytes
           })),
           integrationSeconds,
           totalSizeBytes: s.totalSizeBytes,

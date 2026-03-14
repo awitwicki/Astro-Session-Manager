@@ -32,6 +32,7 @@ pub fn seed_header_cache(headers: HashMap<String, FitsHeader>) {
 }
 
 const FITS_EXTENSIONS: &[&str] = &[".fits", ".fit", ".fts", ".xisf"];
+const DSLR_EXTENSIONS: &[&str] = &[".cr2", ".cr3", ".arw"];
 
 /// Simple glob matching supporting * (any chars) and ? (single char)
 fn simple_glob_match(text: &[u8], pattern: &[u8]) -> bool {
@@ -77,10 +78,17 @@ fn matches_exclude_pattern(name: &str, patterns: &[String]) -> bool {
     })
 }
 
-/// Check if a filename has a supported FITS/XISF extension
-fn is_fits_file(filename: &str) -> bool {
+/// Check if a filename has a supported image extension (FITS/XISF/DSLR)
+fn is_supported_file(filename: &str) -> bool {
     let lower = filename.to_lowercase();
     FITS_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
+        || DSLR_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
+}
+
+/// Check if a filename is a DSLR raw file
+fn is_dslr_file(filename: &str) -> bool {
+    let lower = filename.to_lowercase();
+    DSLR_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
 }
 
 /// Safely list directory entries, returning empty vec on error
@@ -91,8 +99,8 @@ fn list_dir_safe(dir_path: &Path) -> Vec<fs::DirEntry> {
     }
 }
 
-/// Scan a directory for FITS/XISF files, returning sorted FitsFileRef list
-fn scan_fits_files(dir_path: &Path) -> Vec<FitsFileRef> {
+/// Scan a directory for supported image files (FITS/XISF/DSLR), returning sorted FitsFileRef list
+fn scan_image_files(dir_path: &Path) -> Vec<FitsFileRef> {
     let entries = list_dir_safe(dir_path);
     let mut refs: Vec<FitsFileRef> = Vec::new();
 
@@ -106,7 +114,7 @@ fn scan_fits_files(dir_path: &Path) -> Vec<FitsFileRef> {
         }
 
         let name = entry.file_name().to_string_lossy().to_string();
-        if !is_fits_file(&name) {
+        if !is_supported_file(&name) {
             continue;
         }
 
@@ -151,41 +159,54 @@ fn find_dir_case_insensitive<'a>(
     })
 }
 
-/// Scan a single session directory for lights and flats
+/// Scan a single session directory for lights, flats, darks, and biases
 fn scan_session(session_path: &Path, date_name: &str) -> SessionScanNode {
     let entries = list_dir_safe(session_path);
 
-    // Look for lights/flats subdirectories (case-insensitive)
+    // Look for subdirectories (case-insensitive)
     let lights_dir = find_dir_case_insensitive(&entries, &["lights", "light"]);
     let flats_dir = find_dir_case_insensitive(&entries, &["flats", "flat"]);
+    let darks_dir = find_dir_case_insensitive(&entries, &["darks", "dark"]);
+    let biases_dir = find_dir_case_insensitive(&entries, &["biases", "bias"]);
 
     let mut lights: Vec<FitsFileRef> = Vec::new();
     let mut flats: Vec<FitsFileRef> = Vec::new();
+    let mut darks: Vec<FitsFileRef> = Vec::new();
+    let mut biases: Vec<FitsFileRef> = Vec::new();
 
     if let Some(ld) = lights_dir {
-        lights = scan_fits_files(&session_path.join(ld.file_name()));
+        lights = scan_image_files(&session_path.join(ld.file_name()));
     }
-
     if let Some(fd) = flats_dir {
-        flats = scan_fits_files(&session_path.join(fd.file_name()));
+        flats = scan_image_files(&session_path.join(fd.file_name()));
+    }
+    if let Some(dd) = darks_dir {
+        darks = scan_image_files(&session_path.join(dd.file_name()));
+    }
+    if let Some(bd) = biases_dir {
+        biases = scan_image_files(&session_path.join(bd.file_name()));
     }
 
-    // If no lights subdirectory found, scan FITS files directly in session folder
+    // If no lights subdirectory found, scan files directly in session folder
     if lights.is_empty() {
-        let direct_fits = scan_fits_files(session_path);
-        if !direct_fits.is_empty() {
-            lights = direct_fits;
+        let direct_files = scan_image_files(session_path);
+        if !direct_files.is_empty() {
+            lights = direct_files;
         }
     }
 
     let total_size_bytes: u64 = lights.iter().map(|l| l.size_bytes).sum::<u64>()
-        + flats.iter().map(|f| f.size_bytes).sum::<u64>();
+        + flats.iter().map(|f| f.size_bytes).sum::<u64>()
+        + darks.iter().map(|d| d.size_bytes).sum::<u64>()
+        + biases.iter().map(|b| b.size_bytes).sum::<u64>();
 
     SessionScanNode {
         date: date_name.to_string(),
         path: session_path.to_string_lossy().to_string(),
         lights,
         flats,
+        darks,
+        biases,
         total_size_bytes,
         has_notes: session_path.join("notes.txt").exists(),
     }
@@ -359,12 +380,10 @@ fn enrich_with_headers(
             continue;
         }
 
-        let header_result = if first_light
-            .filename
-            .to_lowercase()
-            .ends_with(".xisf")
-        {
+        let header_result = if first_light.filename.to_lowercase().ends_with(".xisf") {
             xisf_parser::read_xisf_header(&first_light.path)
+        } else if is_dslr_file(&first_light.filename) {
+            crate::dslr_parser::read_dslr_header(&first_light.path)
         } else {
             fits_parser::read_fits_header(&first_light.path)
         };
@@ -428,12 +447,10 @@ fn enrich_with_headers_merge(
             continue;
         }
 
-        let header_result = if first_light
-            .filename
-            .to_lowercase()
-            .ends_with(".xisf")
-        {
+        let header_result = if first_light.filename.to_lowercase().ends_with(".xisf") {
             xisf_parser::read_xisf_header(&first_light.path)
+        } else if is_dslr_file(&first_light.filename) {
+            crate::dslr_parser::read_dslr_header(&first_light.path)
         } else {
             fits_parser::read_fits_header(&first_light.path)
         };

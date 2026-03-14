@@ -30,20 +30,6 @@ fn new_analyzer() -> astroimage::ImageAnalyzer {
         .with_max_stars(1000)
 }
 
-pub fn analyze_single(file_path: &str) -> Result<SubAnalysis, String> {
-    let analyzer = new_analyzer();
-
-    let result = analyzer
-        .analyze(file_path)
-        .map_err(|e| format!("Analysis failed for {}: {}", file_path, e))?;
-
-    Ok(SubAnalysis {
-        median_fwhm: result.median_fwhm,
-        median_eccentricity: result.median_eccentricity,
-        stars_detected: result.stars_detected,
-    })
-}
-
 pub fn analyze_stars_detail(file_path: &str) -> Result<StarsDetailResult, String> {
     let analyzer = new_analyzer();
 

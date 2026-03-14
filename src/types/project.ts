@@ -35,6 +35,8 @@ export interface Session {
   path: string
   lights: LightFrame[]
   flats: FlatFrame[]
+  darks: LightFrame[]
+  biases: LightFrame[]
   integrationSeconds: number
   totalSizeBytes: number
   calibration: CalibrationMatch

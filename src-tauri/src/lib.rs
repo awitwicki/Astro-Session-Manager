@@ -2,6 +2,7 @@ mod analyzer;
 mod cache;
 mod cancellation;
 mod commands;
+mod dslr_parser;
 mod fits_parser;
 mod fits_preview;
 mod masters;
