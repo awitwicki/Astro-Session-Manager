@@ -62,6 +62,8 @@ pub struct SessionScanNode {
     pub path: String,
     pub lights: Vec<FitsFileRef>,
     pub flats: Vec<FitsFileRef>,
+    pub darks: Vec<FitsFileRef>,
+    pub biases: Vec<FitsFileRef>,
     pub total_size_bytes: u64,
     pub has_notes: bool,
 }
@@ -72,6 +74,7 @@ pub struct FilterScanNode {
     pub name: String,
     pub path: String,
     pub sessions: Vec<SessionScanNode>,
+    pub other_files: Vec<OtherEntry>,
     pub total_size_bytes: u64,
     pub has_notes: bool,
 }

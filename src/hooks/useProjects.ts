@@ -75,7 +75,45 @@ export function useProjects() {
     setScanning(true)
     try {
       const result = await invoke('scan_single_project', { projectPath })
+      const scanResult = result as { rootPath: string; projects: unknown[]; projectHeaders: Record<string, unknown>; scanDurationMs: number }
       mergeProjectScan(result as Parameters<typeof mergeProjectScan>[0])
+
+      // Persist to cache: merge the single-project result into existing cached scanResult
+      const currentRootFolder = useAppStore.getState().rootFolder
+      if (currentRootFolder) {
+        try {
+          const cached = await invoke<Record<string, unknown> | null>('load_cache', { rootFolder: currentRootFolder })
+          const existingScan = (cached?.scanResult ?? { rootPath: currentRootFolder, projects: [], projectHeaders: {}, scanDurationMs: 0 }) as {
+            rootPath: string; projects: Array<{ path: string }>; projectHeaders: Record<string, unknown>; scanDurationMs: number
+          }
+
+          // Replace or add the project in the cached projects array
+          const newProject = scanResult.projects[0] as { path: string } | undefined
+          if (newProject) {
+            const idx = existingScan.projects.findIndex((p) => p.path === newProject.path)
+            if (idx >= 0) {
+              existingScan.projects[idx] = newProject
+            } else {
+              existingScan.projects.push(newProject)
+            }
+          }
+
+          // Merge project headers
+          const mergedHeaders = { ...existingScan.projectHeaders, ...scanResult.projectHeaders }
+
+          await invoke('save_cache', {
+            rootFolder: currentRootFolder,
+            data: {
+              scanResult: {
+                ...existingScan,
+                projectHeaders: mergedHeaders
+              }
+            }
+          })
+        } catch {
+          // Cache save is best-effort
+        }
+      }
     } catch {
       // Fall back to full scan on error
       await scan()

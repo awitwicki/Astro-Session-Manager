@@ -113,6 +113,7 @@ input, select, textarea {
 
 .app-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 24px;
 }
@@ -439,7 +440,7 @@ input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 5px;
 }
 
 .page-title {

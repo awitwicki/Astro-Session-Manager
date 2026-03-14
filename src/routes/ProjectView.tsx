@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star, Folder, File } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
 import { useProjects } from '../hooks/useProjects'
 import { formatIntegrationTime, formatFileSize, formatTemperature, formatExposure, getPixelScale } from '../lib/formatters'
 import { projectPath, fitsGalleryPath } from '../lib/constants'
+import { isDslrFile } from '../lib/dslrUtils'
 
 export function ProjectView() {
   const { projectName } = useParams<{ projectName: string }>()
@@ -16,11 +17,16 @@ export function ProjectView() {
   const removeProject = useAppStore((s) => s.removeProject)
   const subAnalysis = useAppStore((s) => s.subAnalysis)
   const setSubAnalysis = useAppStore((s) => s.setSubAnalysis)
+  const removeSubAnalysis = useAppStore((s) => s.removeSubAnalysis)
   const isAnalyzing = useAppStore((s) => s.isAnalyzing)
   const setAnalyzing = useAppStore((s) => s.setAnalyzing)
   const { scanProject } = useProjects()
   const project = projects.find((p) => p.name === decodeURIComponent(projectName || ''))
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  // Reset active filter when navigating to a different project
+  useEffect(() => {
+    setActiveFilter(null)
+  }, [projectName])
   const [renameProject, setRenameProject] = useState(false)
   const [renameProjectName, setRenameProjectName] = useState('')
   const [renameFilter, setRenameFilter] = useState<string | null>(null)
@@ -32,6 +38,16 @@ export function ProjectView() {
   const [notesSaving, setNotesSaving] = useState(false)
   const [excludeConfirm, setExcludeConfirm] = useState<{ name: string; type: 'project' | 'filter' | 'night' } | null>(null)
   const [patternsText, setPatternsText] = useState('')
+  const [analyzeModal, setAnalyzeModal] = useState<{ allPaths: string[]; unanalyzed: string[]; analyzed: string[] } | null>(null)
+  const [otherFilesOpen, setOtherFilesOpen] = useState(false)
+
+  const currentFilter = activeFilter || (project?.filters.length ? project.filters[0].name : null)
+  const filterData = project?.filters.find((f) => f.name === currentFilter)
+
+  const nightSessions = useMemo(() => {
+    if (!filterData) return []
+    return filterData.sessions.filter((s) => /^night\s*\d+$/i.test(s.date))
+  }, [filterData])
 
   useEffect(() => {
     invoke<unknown>('get_setting', { key: 'excludePatterns' }).then((val) => {
@@ -50,6 +66,32 @@ export function ProjectView() {
     }
   }
 
+  const runAnalysis = async (filePaths: string[]) => {
+    if (filePaths.length === 0) return
+    setAnalyzing(true)
+    try {
+      const results = await invoke<Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>>('analyze_subs', { filePaths })
+      setSubAnalysis(results)
+      if (rootFolder) {
+        const merged = { ...subAnalysis, ...results }
+        await invoke('save_cache', { rootFolder, data: { subAnalysis: merged } }).catch(() => {})
+      }
+    } catch (err) {
+      console.error('Analysis failed:', err)
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const clearAnalysis = async (paths: string[]) => {
+    removeSubAnalysis(paths)
+    if (rootFolder) {
+      const updated = { ...subAnalysis }
+      for (const p of paths) delete updated[p]
+      await invoke('save_cache', { rootFolder, data: { subAnalysis: updated } }).catch(() => {})
+    }
+  }
+
   if (!project) {
     return (
       <div className="empty-state">
@@ -58,9 +100,6 @@ export function ProjectView() {
       </div>
     )
   }
-
-  const currentFilter = activeFilter || (project.filters.length > 0 ? project.filters[0].name : null)
-  const filterData = project.filters.find((f) => f.name === currentFilter)
 
   const openNotes = async (folderPath: string, title: string) => {
     setNotesTitle(title)
@@ -137,8 +176,8 @@ export function ProjectView() {
   }
 
   return (
-    <div>
-      <div className="page-header">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div className="page-header" style={{ flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <h1 className="page-title" style={{ textTransform: 'uppercase' }}>
             {project.name}
@@ -210,7 +249,7 @@ export function ProjectView() {
 
       {/* Filter tabs */}
       {project.filters.length > 0 && (
-        <div className="tabs">
+        <div className="tabs" style={{ flexShrink: 0 }}>
           {project.filters.map((f) => (
             <button
               key={f.name}
@@ -218,9 +257,11 @@ export function ProjectView() {
               onClick={() => setActiveFilter(f.name)}
             >
               {f.name}
-              <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
-                {formatIntegrationTime(f.totalIntegrationSeconds)}
-              </span>
+              {f.totalIntegrationSeconds > 0 && (
+                <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  {formatIntegrationTime(f.totalIntegrationSeconds)}
+                </span>
+              )}
               <span
                 style={{ marginLeft: 4, cursor: 'pointer', opacity: 0.5 }}
                 onClick={(e) => {
@@ -239,11 +280,11 @@ export function ProjectView() {
 
       {/* Sessions for active filter */}
       {filterData && (
-        <div>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13, color: 'var(--color-text-muted)', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13, color: 'var(--color-text-muted)', alignItems: 'center', flexShrink: 0 }}>
             <span>{filterData.totalLightFrames} light frames</span>
             <span>{filterData.sessions.length} sessions</span>
-            <span>{formatIntegrationTime(filterData.totalIntegrationSeconds)}</span>
+            {filterData.totalIntegrationSeconds > 0 && <span>{formatIntegrationTime(filterData.totalIntegrationSeconds)}</span>}
             <span>{formatFileSize(filterData.totalSizeBytes)}</span>
             <button
               className="btn btn-sm"
@@ -271,7 +312,7 @@ export function ProjectView() {
             </button>
             {(() => {
               const firstLight = filterData.sessions.flatMap((s) => s.lights)[0]
-              return firstLight ? (
+              return firstLight && !isDslrFile(firstLight.filename) ? (
                 <button
                   className="btn btn-sm"
                   style={{ padding: '2px 6px' }}
@@ -305,22 +346,15 @@ export function ProjectView() {
             <button
               className="btn btn-sm"
               disabled={isAnalyzing}
-              onClick={async () => {
-                const allLightPaths = filterData.sessions.flatMap((s) => s.lights.map((l) => l.path))
-                const unanalyzed = allLightPaths.filter((p) => !subAnalysis[p])
-                if (unanalyzed.length === 0) return
-                setAnalyzing(true)
-                try {
-                  const results = await invoke<Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>>('analyze_subs', { filePaths: unanalyzed })
-                  setSubAnalysis(results)
-                  if (rootFolder) {
-                    const merged = { ...subAnalysis, ...results }
-                    await invoke('save_cache', { rootFolder, data: { subAnalysis: merged } }).catch(() => {})
-                  }
-                } catch (err) {
-                  console.error('Analysis failed:', err)
-                } finally {
-                  setAnalyzing(false)
+              onClick={() => {
+                const allPaths = filterData.sessions.flatMap((s) => s.lights.map((l) => l.path))
+                if (allPaths.length === 0) return
+                const unanalyzed = allPaths.filter((p) => !subAnalysis[p])
+                const analyzed = allPaths.filter((p) => !!subAnalysis[p])
+                if (analyzed.length > 0) {
+                  setAnalyzeModal({ allPaths, unanalyzed, analyzed })
+                } else {
+                  runAnalysis(unanalyzed)
                 }
               }}
               title="Analyze light frames (FWHM & Eccentricity)"
@@ -330,23 +364,74 @@ export function ProjectView() {
             </button>
           </div>
 
-          {[...filterData.sessions].sort((a, b) => {
-            const na = a.date.match(/(\d+)/)?.[1]
-            const nb = b.date.match(/(\d+)/)?.[1]
-            if (na != null && nb != null) return parseInt(na) - parseInt(nb)
-            return a.date.localeCompare(b.date)
-          }).map((session) => (
-            <SessionAccordion
-              key={session.date}
-              session={session}
-              projectName={project.name}
-              filterName={filterData.name}
-              subAnalysis={subAnalysis}
-              onRescan={() => scanProject(project.path)}
-              onOpenNotes={openNotes}
-              onExclude={(name) => setExcludeConfirm({ name, type: 'night' })}
-            />
-          ))}
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {[...nightSessions].sort((a, b) => {
+              const na = a.date.match(/(\d+)/)?.[1]
+              const nb = b.date.match(/(\d+)/)?.[1]
+              if (na != null && nb != null) return parseInt(na) - parseInt(nb)
+              return a.date.localeCompare(b.date)
+            }).map((session) => (
+              <SessionAccordion
+                key={session.date}
+                session={session}
+                projectName={project.name}
+                filterName={filterData.name}
+                subAnalysis={subAnalysis}
+                onRescan={() => scanProject(project.path)}
+                onOpenNotes={openNotes}
+                onExclude={(name) => setExcludeConfirm({ name, type: 'night' })}
+              />
+            ))}
+
+            {(filterData.otherFiles?.length ?? 0) > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  className="btn btn-sm"
+                  style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={() => setOtherFilesOpen(!otherFilesOpen)}
+                >
+                  {otherFilesOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  Other files ({filterData.otherFiles.length})
+                </button>
+                {otherFilesOpen && (
+                  <div style={{ marginTop: 4, border: '1px solid var(--color-border)', borderRadius: 6 }}>
+                    <table className="table" style={{ margin: 0, fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Size</th>
+                          <th style={{ width: 36 }} />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filterData.otherFiles.map((f) => (
+                          <tr key={f.name}>
+                            <td>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                {f.isDir ? <Folder size={14} /> : <File size={14} />}
+                                {f.name}
+                              </span>
+                            </td>
+                            <td>{formatFileSize(f.sizeBytes)}</td>
+                            <td>
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 6px' }}
+                                onClick={() => invoke('show_in_folder', { path: f.path })}
+                                title="Show in Finder"
+                              >
+                                <FolderOpen size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -448,6 +533,45 @@ export function ProjectView() {
         </div>
       )}
 
+      {/* Analyze Subs Modal */}
+      {analyzeModal && (
+        <div className="modal-overlay" onClick={() => setAnalyzeModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">Analyze Subs</h3>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '12px 0' }}>
+              {analyzeModal.analyzed.length} images already analyzed{analyzeModal.unanalyzed.length > 0 ? `, ${analyzeModal.unanalyzed.length} new images found` : ''}.
+            </p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setAnalyzeModal(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn"
+                onClick={async () => {
+                  const paths = analyzeModal.allPaths
+                  setAnalyzeModal(null)
+                  await clearAnalysis(paths)
+                }}
+              >
+                Clear Analysis
+              </button>
+              {analyzeModal.unanalyzed.length > 0 && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const paths = analyzeModal.unanalyzed
+                    setAnalyzeModal(null)
+                    runAnalysis(paths)
+                  }}
+                >
+                  Append New
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Exclude Confirmation Modal */}
       {excludeConfirm && (
         <div className="modal-overlay" onClick={() => setExcludeConfirm(null)}>
@@ -489,6 +613,8 @@ function SessionAccordion({
     path: string
     lights: { filename: string; path: string; sizeBytes: number }[]
     flats: { filename: string; path: string; sizeBytes: number }[]
+    darks: { filename: string; path: string; sizeBytes: number }[]
+    biases: { filename: string; path: string; sizeBytes: number }[]
     integrationSeconds: number
     totalSizeBytes: number
     calibration: {
@@ -512,10 +638,13 @@ function SessionAccordion({
   const [isOpen, setIsOpen] = useState(false)
   const [lightsExpanded, setLightsExpanded] = useState(false)
   const [flatsExpanded, setFlatsExpanded] = useState(false)
+  const [darksExpanded, setDarksExpanded] = useState(false)
+  const [biasesExpanded, setBiasesExpanded] = useState(false)
   const [lightHeaders, setLightHeaders] = useState<Record<string, Record<string, unknown>>>({})
   const [pixelScale, setPixelScale] = useState<number | null>(null)
   const navigate = useNavigate()
   const cal = session.calibration
+  const isDslr = session.lights.length > 0 && isDslrFile(session.lights[0].filename)
 
   // Compute session-level FWHM and ECC from analyzed subs
   const analyzedLights = session.lights
@@ -531,6 +660,7 @@ function SessionAccordion({
   // Load pixel scale from first light's header
   useEffect(() => {
     if (session.lights.length === 0) return
+    if (isDslrFile(session.lights[0].filename)) return
     invoke<Record<string, unknown>>('read_fits_header', { filePath: session.lights[0].path })
       .then((header) => {
         const raw = header?.raw as Record<string, unknown> | undefined
@@ -542,6 +672,7 @@ function SessionAccordion({
   // Lazy-load FITS headers when lights list is expanded
   useEffect(() => {
     if (!lightsExpanded || Object.keys(lightHeaders).length > 0) return
+    if (session.lights.length > 0 && isDslrFile(session.lights[0].filename)) return
     const paths = session.lights.map((l) => l.path)
     if (paths.length === 0) return
     invoke<Record<string, unknown>[]>('batch_read_fits_headers', { filePaths: paths })
@@ -570,34 +701,40 @@ function SessionAccordion({
         )}
         <span style={{ color: 'var(--color-text-muted)', fontSize: 12, marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
           <span>{session.lights.length} lights</span>
+          {session.darks.length > 0 && <span>{session.darks.length} darks</span>}
+          {session.biases.length > 0 && <span>{session.biases.length} biases</span>}
           {session.flats.length > 0 && <span>{session.flats.length} flats</span>}
           <span>{formatIntegrationTime(session.integrationSeconds)}</span>
           <span>{formatFileSize(session.totalSizeBytes)}</span>
 
-          {sessionFwhm != null && (
+          {!isDslr && sessionFwhm != null && (
             <span title="Average median FWHM across subs">FWHM {pixelScale != null ? `${(sessionFwhm * pixelScale).toFixed(1)}"` : `${sessionFwhm.toFixed(2)}px`}</span>
           )}
-          {sessionEcc != null && (
+          {!isDslr && sessionEcc != null && (
             <span title="Average median eccentricity across subs" style={{ color: sessionEcc >= 0.6 ? '#e74c3c' : sessionEcc >= 0.55 ? '#f0ad4e' : undefined }}>ECC {sessionEcc.toFixed(2)}</span>
           )}
 
-          {cal.darksMatched ? (
-            <span className="badge badge-success"><Check size={10} /> Darks</span>
-          ) : session.lights.length === 0 ? (
-            <span className="badge">Darks</span>
-          ) : (
-            <span className="badge badge-warning"><AlertCircle size={10} /> No darks</span>
+          {!isDslr && (
+            <>
+              {cal.darksMatched ? (
+                <span className="badge badge-success"><Check size={10} /> Darks</span>
+              ) : session.lights.length === 0 ? (
+                <span className="badge">Darks</span>
+              ) : (
+                <span className="badge badge-warning"><AlertCircle size={10} /> No darks</span>
+              )}
+
+              {cal.flatsAvailable ? (
+                <span className="badge badge-success"><Check size={10} /> Flats</span>
+              ) : session.lights.length === 0 ? (
+                <span className="badge">Flats</span>
+              ) : (
+                <span className="badge badge-error"><X size={10} /> No flats</span>
+              )}
+            </>
           )}
 
-          {cal.flatsAvailable ? (
-            <span className="badge badge-success"><Check size={10} /> Flats</span>
-          ) : session.lights.length === 0 ? (
-            <span className="badge">Flats</span>
-          ) : (
-            <span className="badge badge-error"><X size={10} /> No flats</span>
-          )}
-
-          {session.lights.length > 0 && (
+          {!isDslr && session.lights.length > 0 && (
             <span
               style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               onClick={(e) => {
@@ -652,13 +789,15 @@ function SessionAccordion({
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {cal.darksMatched && cal.darkGroupName && (
-              <span className="badge badge-success">
-                Dark match from masters library: {cal.darkGroupName}
-              </span>
-            )}
-          </div>
+          {!isDslr && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {cal.darksMatched && cal.darkGroupName && (
+                <span className="badge badge-success">
+                  Dark match from masters library: {cal.darkGroupName}
+                </span>
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <button
@@ -669,6 +808,7 @@ function SessionAccordion({
                   title: 'Import Light Frames',
                   filters: [
                     { name: 'FITS/XISF files', extensions: ['fits', 'fit', 'fts', 'xisf'] },
+                    { name: 'DSLR RAW files', extensions: ['cr2', 'cr3', 'arw'] },
                     { name: 'All files', extensions: ['*'] }
                   ]
                 })
@@ -691,6 +831,7 @@ function SessionAccordion({
                   title: 'Import Flat Frames',
                   filters: [
                     { name: 'FITS/XISF files', extensions: ['fits', 'fit', 'fts', 'xisf'] },
+                    { name: 'DSLR RAW files', extensions: ['cr2', 'cr3', 'arw'] },
                     { name: 'All files', extensions: ['*'] }
                   ]
                 })
@@ -740,7 +881,7 @@ function SessionAccordion({
                     <thead>
                       <tr>
                         <th>Filename</th>
-                        <th>Temperature</th>
+                        {!isDslr && <th>Temperature</th>}
                         <th>Exposure</th>
                         <th>Size</th>
                         <th style={{ width: 36 }} />
@@ -750,18 +891,29 @@ function SessionAccordion({
                       {session.lights.map((light) => (
                         <tr key={light.path}>
                           <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{light.filename}</td>
-                          <td>{lightHeaders[light.path]?.ccdTemp != null ? formatTemperature(lightHeaders[light.path].ccdTemp as number) : '-'}</td>
+                          {!isDslr && <td>{lightHeaders[light.path]?.ccdTemp != null ? formatTemperature(lightHeaders[light.path].ccdTemp as number) : '-'}</td>}
                           <td>{lightHeaders[light.path]?.exptime != null ? formatExposure(lightHeaders[light.path].exptime as number) : '-'}</td>
                           <td>{formatFileSize(light.sizeBytes)}</td>
                           <td>
-                            <button
-                              className="btn btn-sm"
-                              style={{ padding: '2px 6px' }}
-                              onClick={() => navigate(fitsGalleryPath(light.path, 'session', projectName, filterName, session.date))}
-                              title="View details"
-                            >
-                              <Eye size={12} />
-                            </button>
+                            {isDslr ? (
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 6px' }}
+                                onClick={() => invoke('show_in_folder', { path: light.path })}
+                                title="Show in Finder"
+                              >
+                                <FolderOpen size={12} />
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 6px' }}
+                                onClick={() => navigate(fitsGalleryPath(light.path, 'session', projectName, filterName, session.date))}
+                                title="View details"
+                              >
+                                <Eye size={12} />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -804,6 +956,96 @@ function SessionAccordion({
                             </span>
                           </td>
                           <td>{formatFileSize(flat.sizeBytes)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Collapsible Darks list */}
+          {session.darks.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                className="btn btn-sm"
+                style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => setDarksExpanded(!darksExpanded)}
+              >
+                {darksExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                Darks ({session.darks.length})
+              </button>
+              {darksExpanded && (
+                <div style={{ marginTop: 4, maxHeight: 300, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 6 }}>
+                  <table className="table" style={{ margin: 0, fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th>Filename</th>
+                        <th>Size</th>
+                        <th style={{ width: 36 }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {session.darks.map((dark) => (
+                        <tr key={dark.path}>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{dark.filename}</td>
+                          <td>{formatFileSize(dark.sizeBytes)}</td>
+                          <td>
+                            <button
+                              className="btn btn-sm"
+                              style={{ padding: '2px 6px' }}
+                              onClick={() => invoke('show_in_folder', { path: dark.path })}
+                              title="Show in Finder"
+                            >
+                              <FolderOpen size={12} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Collapsible Biases list */}
+          {session.biases.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                className="btn btn-sm"
+                style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => setBiasesExpanded(!biasesExpanded)}
+              >
+                {biasesExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                Biases ({session.biases.length})
+              </button>
+              {biasesExpanded && (
+                <div style={{ marginTop: 4, maxHeight: 300, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 6 }}>
+                  <table className="table" style={{ margin: 0, fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th>Filename</th>
+                        <th>Size</th>
+                        <th style={{ width: 36 }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {session.biases.map((bias) => (
+                        <tr key={bias.path}>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{bias.filename}</td>
+                          <td>{formatFileSize(bias.sizeBytes)}</td>
+                          <td>
+                            <button
+                              className="btn btn-sm"
+                              style={{ padding: '2px 6px' }}
+                              onClick={() => invoke('show_in_folder', { path: bias.path })}
+                              title="Show in Finder"
+                            >
+                              <FolderOpen size={12} />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

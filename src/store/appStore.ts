@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Project, MastersLibrary, SubAnalysisResult } from '../types'
+import { isDslrFile } from '../lib/dslrUtils'
 
 interface ScanResultRaw {
   rootPath: string
@@ -20,6 +21,7 @@ interface FilterScanNode {
   name: string
   path: string
   sessions: SessionScanNode[]
+  otherFiles?: { name: string; path: string; sizeBytes: number; isDir: boolean }[]
   totalSizeBytes: number
   hasNotes: boolean
 }
@@ -29,6 +31,8 @@ interface SessionScanNode {
   path: string
   lights: FitsFileRef[]
   flats: FitsFileRef[]
+  darks: FitsFileRef[]
+  biases: FitsFileRef[]
   totalSizeBytes: number
   hasNotes: boolean
 }
@@ -93,6 +97,8 @@ function applyCalibration(projects: Project[], mastersLibrary: MastersLibrary | 
       ...f,
       sessions: f.sessions.map((s) => {
         if (s.lights.length === 0) return s
+        // Skip calibration for DSLR sessions
+        if (isDslrFile(s.lights[0].filename)) return s
 
         const header = s.lights[0].header
         if (!header) return s
@@ -195,6 +201,16 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
             path: fl.path,
             sizeBytes: fl.sizeBytes
           })),
+          darks: s.darks.map((d) => ({
+            filename: d.filename,
+            path: d.path,
+            sizeBytes: d.sizeBytes
+          })),
+          biases: s.biases.map((b) => ({
+            filename: b.filename,
+            path: b.path,
+            sizeBytes: b.sizeBytes
+          })),
           integrationSeconds,
           totalSizeBytes: s.totalSizeBytes,
           calibration: {
@@ -215,6 +231,12 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
         name: f.name,
         path: f.path,
         sessions,
+        otherFiles: (f.otherFiles ?? []).map((o: { name: string; path: string; sizeBytes: number; isDir: boolean }) => ({
+          name: o.name,
+          path: o.path,
+          sizeBytes: o.sizeBytes,
+          isDir: o.isDir,
+        })),
         totalIntegrationSeconds: filterIntegration,
         totalLightFrames: filterLights,
         totalSizeBytes: f.totalSizeBytes,
@@ -273,6 +295,7 @@ interface AppState {
   mergeProjectScan: (raw: ScanResultRaw) => void
   applyExcludePatterns: (patternsText: string) => void
   setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
+  removeSubAnalysis: (paths: string[]) => void
   setAnalyzing: (v: boolean) => void
 }
 
@@ -372,6 +395,12 @@ export const useAppStore = create<AppState>((set) => ({
   setSubAnalysis: (data) => set((state) => ({
     subAnalysis: { ...state.subAnalysis, ...data }
   })),
+
+  removeSubAnalysis: (paths) => set((state) => {
+    const updated = { ...state.subAnalysis }
+    for (const p of paths) delete updated[p]
+    return { subAnalysis: updated }
+  }),
 
   setAnalyzing: (v) => set({ isAnalyzing: v }),
 
