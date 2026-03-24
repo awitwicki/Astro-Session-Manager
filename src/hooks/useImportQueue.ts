@@ -65,9 +65,8 @@ export function useImportQueue() {
         if (project) {
           invoke('scan_single_project', { projectPath: project.path })
             .then((result) => {
-              useAppStore.getState().mergeProjectScan(
-                result as { rootPath: string; projects: unknown[]; projectHeaders: Record<string, unknown>; scanDurationMs: number }
-              )
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              useAppStore.getState().mergeProjectScan(result as any)
             })
             .catch(() => {})
         }
