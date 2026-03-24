@@ -266,6 +266,15 @@ export interface ImportProgress {
   filename: string
 }
 
+export interface ConverterFile {
+  path: string
+  filename: string
+  format: 'CR2' | 'CR3' | 'ARW'
+  sizeBytes: number
+  status: 'pending' | 'converting' | 'done' | 'skipped' | 'error'
+  error?: string
+}
+
 interface AppState {
   rootFolder: string | null
   projects: Project[]
@@ -297,6 +306,18 @@ interface AppState {
   setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
   removeSubAnalysis: (paths: string[]) => void
   setAnalyzing: (v: boolean) => void
+
+  // Converter
+  converterFiles: ConverterFile[]
+  converterOutputPath: string | null
+  isConverting: boolean
+
+  addConverterFiles: (files: ConverterFile[]) => void
+  removeConverterFile: (path: string) => void
+  clearConverterFiles: () => void
+  setConverterOutputPath: (path: string | null) => void
+  setConverterFileStatus: (path: string, status: ConverterFile['status'], error?: string) => void
+  setIsConverting: (v: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -403,6 +424,36 @@ export const useAppStore = create<AppState>((set) => ({
   }),
 
   setAnalyzing: (v) => set({ isAnalyzing: v }),
+
+  // Converter
+  converterFiles: [],
+  converterOutputPath: null,
+  isConverting: false,
+
+  addConverterFiles: (files) =>
+    set((state) => {
+      const existingPaths = new Set(state.converterFiles.map((f) => f.path))
+      const newFiles = files.filter((f) => !existingPaths.has(f.path))
+      return { converterFiles: [...state.converterFiles, ...newFiles] }
+    }),
+
+  removeConverterFile: (path) =>
+    set((state) => ({
+      converterFiles: state.converterFiles.filter((f) => f.path !== path)
+    })),
+
+  clearConverterFiles: () => set({ converterFiles: [] }),
+
+  setConverterOutputPath: (path) => set({ converterOutputPath: path }),
+
+  setConverterFileStatus: (path, status, error) =>
+    set((state) => ({
+      converterFiles: state.converterFiles.map((f) =>
+        f.path === path ? { ...f, status, error } : f
+      )
+    })),
+
+  setIsConverting: (v) => set({ isConverting: v }),
 
   mergeProjectScan: (raw) =>
     set((state) => {

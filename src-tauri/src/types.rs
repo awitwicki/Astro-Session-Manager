@@ -250,6 +250,8 @@ pub struct AppSettings {
     pub weather_lon: Option<f64>,
     #[serde(default)]
     pub exclude_patterns: String,
+    #[serde(default)]
+    pub converter_output_path: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -263,6 +265,39 @@ impl Default for AppSettings {
             weather_lat: None,
             weather_lon: None,
             exclude_patterns: String::new(),
+            converter_output_path: None,
         }
     }
+}
+
+// ─── Converter Types ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawFileInfo {
+    pub path: String,
+    pub filename: String,
+    pub size_bytes: u64,
+    pub format: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversionResult {
+    pub total: usize,
+    pub succeeded: usize,
+    pub skipped: usize,
+    pub failed: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversionProgress {
+    pub current: usize,
+    pub total: usize,
+    pub filename: String,
+    pub source_path: String,
+    pub success: bool,
+    pub skipped: bool,
+    pub error: Option<String>,
 }

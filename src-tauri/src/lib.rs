@@ -1,10 +1,12 @@
 mod analyzer;
 mod cache;
 mod cancellation;
+mod converter;
 mod commands;
 mod dslr_parser;
 mod fits_parser;
 mod fits_preview;
+mod fits_writer;
 mod masters;
 mod scanner;
 mod settings;
@@ -66,6 +68,9 @@ pub fn run() {
             // Notes
             commands::read_note,
             commands::write_note,
+            // Converter
+            converter::scan_raw_files,
+            converter::convert_dslr_to_fits,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,7 +8,8 @@ import {
   Map,
   CloudSun,
   Search,
-  X
+  X,
+  FileOutput
 } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { useProjects } from '../../hooks/useProjects'
@@ -21,7 +22,7 @@ export function Sidebar() {
   const projects = useAppStore((s) => s.projects)
   const rootFolder = useAppStore((s) => s.rootFolder)
   const isScanning = useAppStore((s) => s.isScanning)
-  const { selectFolder, scan } = useProjects()
+  const { scan } = useProjects()
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredProjects = useMemo(() => {
@@ -65,6 +66,7 @@ export function Sidebar() {
             <CloudSun size={16} />
             Weather
           </button>
+
         </div>
 
         {projects.length > 0 && (
@@ -117,9 +119,12 @@ export function Sidebar() {
           </button>
         )}
 
-        <button className="sidebar-item" onClick={selectFolder}>
-          <FolderOpen size={16} />
-          {rootFolder ? 'Change Folder' : 'Select Folder'}
+        <button
+          className={`sidebar-item ${location.pathname === '/converter' ? 'active' : ''}`}
+          onClick={() => navigate('/converter')}
+        >
+          <FileOutput size={16} />
+          Converter
         </button>
 
         <button

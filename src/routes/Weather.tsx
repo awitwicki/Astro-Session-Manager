@@ -141,7 +141,7 @@ export function Weather() {
   return (
     <div className="weather-page">
       <div className="page-header">
-        <h1 className="page-title">Astro Weather (experimental)</h1>
+        <h1 className="page-title">Astro Weather</h1>
         <div className="weather-coords">
           <button
             className="btn"
