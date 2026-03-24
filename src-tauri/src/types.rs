@@ -238,6 +238,17 @@ pub struct StarsDetailResult {
 
 // ─── Settings ───────────────────────────────────────────────────────────────
 
+fn default_preview_cache_limit_mb() -> u32 {
+    500
+}
+
+fn default_preview_concurrency() -> u32 {
+    std::thread::available_parallelism()
+        .map(|n| n.get() as u32)
+        .unwrap_or(4)
+        .min(8)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -254,6 +265,10 @@ pub struct AppSettings {
     pub converter_output_path: Option<String>,
     #[serde(default)]
     pub new_project_filter_presets: Vec<String>,
+    #[serde(default = "default_preview_cache_limit_mb")]
+    pub preview_cache_limit_mb: u32,
+    #[serde(default = "default_preview_concurrency")]
+    pub preview_concurrency: u32,
 }
 
 impl Default for AppSettings {
@@ -269,6 +284,8 @@ impl Default for AppSettings {
             exclude_patterns: String::new(),
             converter_output_path: None,
             new_project_filter_presets: Vec::new(),
+            preview_cache_limit_mb: default_preview_cache_limit_mb(),
+            preview_concurrency: default_preview_concurrency(),
         }
     }
 }

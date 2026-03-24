@@ -238,8 +238,14 @@ export function FitsDetailView() {
     let unlisten: (() => void) | null = null
 
     const idx = frames.indexOf(filePath)
-    const startIdx = idx >= 0 ? idx : 0
-    const reordered = [...frames.slice(startIdx), ...frames.slice(0, startIdx)]
+    const center = idx >= 0 ? idx : 0
+    const reordered: string[] = [frames[center]]
+    for (let i = 1; i < frames.length; i++) {
+      const before = center - i
+      const after = center + i
+      if (before >= 0) reordered.push(frames[before])
+      if (after < frames.length) reordered.push(frames[after])
+    }
 
     async function run() {
       unlisten = await listen<{ current: number; total: number; filePath: string }>(
@@ -265,17 +271,10 @@ export function FitsDetailView() {
     return () => {
       cancelled = true
       if (unlisten) unlisten()
+      invoke('cancel_operation', { operation: 'preview_batch' }).catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frames])
-
-  // Clear preview cache from RAM only when unmounting
-  useEffect(() => {
-    return () => {
-      invoke('clear_preview_cache').catch(() => {})
-      batchFramesKeyRef.current = ''
-    }
-  }, [])
 
   // Reset error and clear overlay canvases when file changes
   useEffect(() => {
