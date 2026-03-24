@@ -75,12 +75,14 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
 }
 
 /* Day card — flush, no margin */
 .weather-day-card {
   background: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border);
+  transition: background 0.15s;
 }
 
 .weather-day-card:last-child {
@@ -99,7 +101,6 @@
   width: 140px;
   display: flex;
   flex-direction: column;
-  height: 67px;
 }
 
 .weather-day-info {
@@ -111,32 +112,39 @@
   gap: 2px;
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s;
+  transition: background 0.2s, border-color 0.2s;
+  border-left: 3px solid transparent;
+  height: 87px;
+  flex-shrink: 0;
 }
 
 .weather-day-info:hover {
   background: var(--color-bg-tertiary);
+  border-left-color: var(--color-accent);
 }
 
 .weather-day-top {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 5px;
 }
 
 .weather-day-name {
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: 15px;
   color: var(--color-text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  font-family: var(--font-sans);
 }
 
 .weather-day-number {
-  font-size: 28px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--color-text-primary);
-  line-height: 1.1;
+  line-height: 1;
+  font-family: var(--font-sans);
+  opacity: 0.6;
 }
 
 .weather-moon-info {
@@ -156,13 +164,14 @@
 .weather-moon-pct {
   color: var(--color-warning);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .weather-sun-times {
   display: flex;
   gap: 8px;
   font-size: 10px;
+  font-family: var(--font-mono);
   color: var(--color-text-muted);
 }
 

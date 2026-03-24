@@ -359,7 +359,8 @@ function DayCard({ day, collapsed, onToggle }: DayCardProps) {
         <div className="weather-day-left">
           <div className="weather-day-info" onClick={onToggle}>
             <div className="weather-day-top">
-              <span className="weather-day-name">{day.dayName}</span> <div className="weather-day-number">{day.dayNumber}</div>
+              <span className="weather-day-number">{day.dayNumber}</span>
+              <span className="weather-day-name">{day.dayName}</span>
             </div>
 
             <div className="weather-moon-info">
