@@ -51,25 +51,3 @@ export function computeMedian(values: number[]): number {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
 }
 
-export function getPixelScale(raw?: Record<string, unknown>): number | null {
-  if (!raw) return null
-
-  const num = (key: string): number | null => {
-    const v = raw[key]
-    if (v == null) return null
-    const n = Number(v)
-    return Number.isFinite(n) && n !== 0 ? n : null
-  }
-
-  const scale = num('SCALE') ?? num('PIXSCALE') ?? num('SECPIX') ?? num('SECPIX1')
-  if (scale != null) return Math.abs(scale)
-
-  const cdelt = num('CDELT1') ?? num('CDELT2')
-  if (cdelt != null) return Math.abs(cdelt) * 3600
-
-  const focal = num('FOCALLEN') ?? num('FOCAL') ?? num('FOCUSLEN')
-  const pixSize = num('XPIXSZ') ?? num('PIXSIZE1') ?? num('PIXSIZE')
-  if (focal != null && pixSize != null) return 206.265 * pixSize / focal
-
-  return null
-}

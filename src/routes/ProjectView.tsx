@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
 import { useProjects } from '../hooks/useProjects'
-import { formatIntegrationTime, formatFileSize, formatTemperature, formatExposure, getPixelScale } from '../lib/formatters'
+import { formatIntegrationTime, formatFileSize, formatTemperature, formatExposure } from '../lib/formatters'
 import { projectPath, fitsGalleryPath } from '../lib/constants'
 import { isDslrFile } from '../lib/dslrUtils'
 
@@ -641,7 +641,6 @@ function SessionAccordion({
   const [darksExpanded, setDarksExpanded] = useState(false)
   const [biasesExpanded, setBiasesExpanded] = useState(false)
   const [lightHeaders, setLightHeaders] = useState<Record<string, Record<string, unknown>>>({})
-  const [pixelScale, setPixelScale] = useState<number | null>(null)
   const navigate = useNavigate()
   const cal = session.calibration
   const isDslr = session.lights.length > 0 && isDslrFile(session.lights[0].filename)
@@ -656,18 +655,6 @@ function SessionAccordion({
   const sessionEcc = analyzedLights.length > 0
     ? analyzedLights.reduce((sum, a) => sum + a.medianEccentricity, 0) / analyzedLights.length
     : null
-
-  // Load pixel scale from first light's header
-  useEffect(() => {
-    if (session.lights.length === 0) return
-    if (isDslrFile(session.lights[0].filename)) return
-    invoke<Record<string, unknown>>('read_fits_header', { filePath: session.lights[0].path })
-      .then((header) => {
-        const raw = header?.raw as Record<string, unknown> | undefined
-        setPixelScale(getPixelScale(raw))
-      })
-      .catch(() => {})
-  }, [session.lights])
 
   // Lazy-load FITS headers when lights list is expanded
   useEffect(() => {
@@ -708,7 +695,7 @@ function SessionAccordion({
           <span>{formatFileSize(session.totalSizeBytes)}</span>
 
           {!isDslr && sessionFwhm != null && (
-            <span title="Average median FWHM across subs">FWHM {pixelScale != null ? `${(sessionFwhm * pixelScale).toFixed(1)}"` : `${sessionFwhm.toFixed(2)}px`}</span>
+            <span title="Average median FWHM across subs">FWHM {sessionFwhm.toFixed(2)}px</span>
           )}
           {!isDslr && sessionEcc != null && (
             <span title="Average median eccentricity across subs" style={{ color: sessionEcc >= 0.6 ? '#e74c3c' : sessionEcc >= 0.55 ? '#f0ad4e' : undefined }}>ECC {sessionEcc.toFixed(2)}</span>
@@ -784,7 +771,6 @@ function SessionAccordion({
               <SubsChart
                 lights={session.lights}
                 subAnalysis={subAnalysis}
-                pixelScale={pixelScale}
               />
             )}
           </div>
@@ -1063,11 +1049,9 @@ function SessionAccordion({
 function SubsChart({
   lights,
   subAnalysis,
-  pixelScale,
 }: Readonly<{
   lights: { filename: string; path: string }[]
   subAnalysis: Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>
-  pixelScale: number | null
 }>) {
   const [metric, setMetric] = useState<'fwhm' | 'ecc'>('fwhm')
 
@@ -1087,9 +1071,8 @@ function SubsChart({
 
   if (data.length === 0) return null
 
-  const fwhmInUnits = (v: number) => pixelScale != null ? v * pixelScale : v
-  const fwhmUnit = pixelScale != null ? '"' : 'px'
-  const values = data.map((d) => (metric === 'fwhm' ? fwhmInUnits(d.fwhm) : d.ecc))
+  const fwhmUnit = 'px'
+  const values = data.map((d) => (metric === 'fwhm' ? d.fwhm : d.ecc))
   const maxVal = Math.max(...values)
   const minVal = Math.min(...values)
   const avg = values.reduce((s, v) => s + v, 0) / values.length
@@ -1133,8 +1116,8 @@ function SubsChart({
           </button>
         </div>
         <div style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span>avg: {metric === 'fwhm' ? `${avg.toFixed(pixelScale != null ? 1 : 2)}${fwhmUnit}` : avg.toFixed(2)}</span>
-          <span>med: {metric === 'fwhm' ? `${median.toFixed(pixelScale != null ? 1 : 2)}${fwhmUnit}` : median.toFixed(2)}</span>
+          <span>avg: {metric === 'fwhm' ? `${avg.toFixed(2)}${fwhmUnit}` : avg.toFixed(2)}</span>
+          <span>med: {metric === 'fwhm' ? `${median.toFixed(2)}${fwhmUnit}` : median.toFixed(2)}</span>
         </div>
       </div>
       {/* Right: chart */}
@@ -1169,7 +1152,7 @@ function SubsChart({
             />
             {/* Bars */}
             {data.map((d, i) => {
-              const v = metric === 'fwhm' ? fwhmInUnits(d.fwhm) : d.ecc
+              const v = metric === 'fwhm' ? d.fwhm : d.ecc
               const barH = Math.max(((v - minVal) / range) * plotH, 0.5)
               const x = i * 8 + 1
               const y = padTop + plotH - barH
@@ -1177,7 +1160,7 @@ function SubsChart({
                 <rect key={d.filename} x={x} y={y} width={6} height={barH} rx={0.5}
                   fill="var(--color-accent)" opacity={0.75}
                 >
-                  <title>{d.filename}: {metric === 'fwhm' ? `${v.toFixed(pixelScale != null ? 1 : 2)}${fwhmUnit}` : v.toFixed(2)}</title>
+                  <title>{d.filename}: {metric === 'fwhm' ? `${v.toFixed(2)}${fwhmUnit}` : v.toFixed(2)}</title>
                 </rect>
               )
             })}

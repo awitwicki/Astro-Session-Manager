@@ -6,7 +6,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
 import type { SubAnalysisResult, StarsDetailResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
-import { computeMedian, getPixelScale } from '../lib/formatters'
+import { computeMedian } from '../lib/formatters'
 
 interface FitsHeader {
   bayerpat?: string
@@ -689,33 +689,18 @@ export function FitsDetailView() {
       ctx.fillText(pctText, midX, midY)
     }
 
-    // Extract pixel scale for arcsec conversion
-    const displayRaw = (headerData || preview?.header)?.raw as Record<string, unknown> | undefined
-    const pixelScale = getPixelScale(displayRaw)
-
     // Draw FWHM labels at vertices and center
-    const subFontSize = Math.max(10, Math.round(baseSize * 0.02))
     for (const [name, pos] of Object.entries(positions)) {
       const fwhm = avgFwhm[name]
       if (fwhm == null) continue
 
       const pxLabel = `${fwhm.toFixed(2)}px`
-      const arcsecLabel = pixelScale != null ? `${(fwhm * pixelScale).toFixed(1)}"` : null
 
       ctx.font = `bold ${labelFontSize}px monospace`
       const pxMetrics = ctx.measureText(pxLabel)
 
-      let totalW = pxMetrics.width
-      let totalH = Math.round(labelFontSize * 1.5)
-      if (arcsecLabel) {
-        ctx.font = `${subFontSize}px monospace`
-        const arcsecMetrics = ctx.measureText(arcsecLabel)
-        totalW = Math.max(totalW, arcsecMetrics.width)
-        totalH += Math.round(subFontSize * 1.2)
-      }
-
-      const pw = totalW + Math.round(labelFontSize * 0.8)
-      const ph = totalH
+      const pw = pxMetrics.width + Math.round(labelFontSize * 0.8)
+      const ph = Math.round(labelFontSize * 1.5)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
       ctx.beginPath()
       ctx.roundRect(pos.x - pw / 2, pos.y - ph / 2, pw, ph, 4)
@@ -724,22 +709,9 @@ export function FitsDetailView() {
       const textColor = name === 'C' ? '#4fc3f7' : '#ffff00'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-
-      if (arcsecLabel) {
-        // Two lines: px on top, arcsec below
-        const topY = pos.y - Math.round(subFontSize * 0.55)
-        const bottomY = pos.y + Math.round(labelFontSize * 0.55)
-        ctx.font = `bold ${labelFontSize}px monospace`
-        ctx.fillStyle = textColor
-        ctx.fillText(pxLabel, pos.x, topY)
-        ctx.font = `${subFontSize}px monospace`
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
-        ctx.fillText(arcsecLabel, pos.x, bottomY)
-      } else {
-        ctx.font = `bold ${labelFontSize}px monospace`
-        ctx.fillStyle = textColor
-        ctx.fillText(pxLabel, pos.x, pos.y)
-      }
+      ctx.font = `bold ${labelFontSize}px monospace`
+      ctx.fillStyle = textColor
+      ctx.fillText(pxLabel, pos.x, pos.y)
     }
   }, [filePath, preview, showTilt, starsCacheVersion, headerData])
 
