@@ -260,10 +260,16 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
   return applyCalibration(projects, mastersLibrary, tempTolerance)
 }
 
-export interface ImportProgress {
+export interface ImportJob {
+  id: string
+  files: string[]
+  targetDir: string
+  label: string
+  status: 'queued' | 'active' | 'done' | 'cancelled' | 'error'
   current: number
   total: number
   filename: string
+  error?: string
 }
 
 export interface ConverterFile {
@@ -285,7 +291,7 @@ interface AppState {
   theme: 'dark' | 'light'
   darkTempTolerance: number
   dashboardViewMode: 'grid' | 'table'
-  importProgress: ImportProgress | null
+  importQueue: ImportJob[]
   subAnalysis: Record<string, SubAnalysisResult>
   isAnalyzing: boolean
 
@@ -300,7 +306,11 @@ interface AppState {
   updateCalibration: (projectName: string, filterName: string, date: string, calibration: Project['filters'][0]['sessions'][0]['calibration']) => void
   removeLight: (filePath: string) => void
   removeProject: (projectPath: string) => void
-  setImportProgress: (progress: ImportProgress | null) => void
+  enqueueImport: (job: { files: string[]; targetDir: string; label: string }) => void
+  cancelImport: (id: string) => void
+  updateImportProgress: (current: number, total: number, filename: string) => void
+  completeImport: () => void
+  failImport: (error: string) => void
   mergeProjectScan: (raw: ScanResultRaw) => void
   applyExcludePatterns: (patternsText: string) => void
   setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
@@ -331,7 +341,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   dashboardViewMode: 'grid',
   darkTempTolerance: 2,
-  importProgress: null,
+  importQueue: [],
   subAnalysis: {},
   isAnalyzing: false,
 
@@ -387,7 +397,46 @@ export const useAppStore = create<AppState>((set) => ({
       )
     })),
 
-  setImportProgress: (progress) => set({ importProgress: progress }),
+  enqueueImport: (job) =>
+    set((state) => ({
+      importQueue: [
+        ...state.importQueue,
+        {
+          id: crypto.randomUUID(),
+          files: job.files,
+          targetDir: job.targetDir,
+          label: job.label,
+          status: 'queued' as const,
+          current: 0,
+          total: job.files.length,
+          filename: '',
+        },
+      ],
+    })),
+
+  cancelImport: (id) =>
+    set((state) => ({
+      importQueue: state.importQueue.filter((j) => j.id !== id),
+    })),
+
+  updateImportProgress: (current, total, filename) =>
+    set((state) => ({
+      importQueue: state.importQueue.map((j) =>
+        j.status === 'active' ? { ...j, current, total, filename } : j
+      ),
+    })),
+
+  completeImport: () =>
+    set((state) => ({
+      importQueue: state.importQueue.filter((j) => j.status !== 'active'),
+    })),
+
+  failImport: (error) =>
+    set((state) => ({
+      importQueue: state.importQueue.map((j) =>
+        j.status === 'active' ? { ...j, status: 'error' as const, error } : j
+      ).filter((j) => j.status !== 'error'),
+    })),
 
   removeProject: (projectPath) =>
     set((state) => ({

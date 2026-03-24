@@ -377,7 +377,6 @@ export function ProjectView() {
                 projectName={project.name}
                 filterName={filterData.name}
                 subAnalysis={subAnalysis}
-                onRescan={() => scanProject(project.path)}
                 onOpenNotes={openNotes}
                 onExclude={(name) => setExcludeConfirm({ name, type: 'night' })}
               />
@@ -604,7 +603,6 @@ function SessionAccordion({
   projectName,
   filterName,
   subAnalysis,
-  onRescan,
   onOpenNotes,
   onExclude
 }: {
@@ -631,7 +629,6 @@ function SessionAccordion({
   projectName: string
   filterName: string
   subAnalysis: Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>
-  onRescan: () => Promise<void>
   onOpenNotes: (folderPath: string, title: string) => void
   onExclude: (name: string) => void
 }) {
@@ -642,6 +639,7 @@ function SessionAccordion({
   const [biasesExpanded, setBiasesExpanded] = useState(false)
   const [lightHeaders, setLightHeaders] = useState<Record<string, Record<string, unknown>>>({})
   const navigate = useNavigate()
+  const enqueueImport = useAppStore((s) => s.enqueueImport)
   const cal = session.calibration
   const isDslr = session.lights.length > 0 && isDslrFile(session.lights[0].filename)
 
@@ -801,9 +799,11 @@ function SessionAccordion({
                 if (!files || (Array.isArray(files) && files.length === 0)) return
                 const fileList = Array.isArray(files) ? files : [files]
                 const lightsDir = session.path + '/lights'
-                invoke('copy_to_directory', { files: fileList, targetDir: lightsDir })
-                  .then(() => onRescan())
-                  .catch(() => {})
+                enqueueImport({
+                  files: fileList,
+                  targetDir: lightsDir,
+                  label: `Lights → ${session.date}`,
+                })
               }}
             >
               <Plus size={12} />
@@ -824,9 +824,11 @@ function SessionAccordion({
                 if (!files || (Array.isArray(files) && files.length === 0)) return
                 const fileList = Array.isArray(files) ? files : [files]
                 const flatsDir = session.path + '/flats'
-                invoke('copy_to_directory', { files: fileList, targetDir: flatsDir })
-                  .then(() => onRescan())
-                  .catch(() => {})
+                enqueueImport({
+                  files: fileList,
+                  targetDir: flatsDir,
+                  label: `Flats → ${session.date}`,
+                })
               }}
             >
               <Plus size={12} />
