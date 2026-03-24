@@ -1,10 +1,12 @@
 mod analyzer;
 mod cache;
 mod cancellation;
+mod converter;
 mod commands;
 mod dslr_parser;
 mod fits_parser;
 mod fits_preview;
+mod fits_writer;
 mod masters;
 mod scanner;
 mod settings;
@@ -24,6 +26,22 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Initialize preview config from saved settings
+            if let Ok(s) = settings::load_settings(app.handle()) {
+                fits_preview::init_config(s.preview_cache_limit_mb, s.preview_concurrency);
+            }
+
+            // Background sweeper: evict stale preview cache entries every 60s
+            tauri::async_runtime::spawn(async {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                interval.tick().await; // skip immediate first tick
+                loop {
+                    interval.tick().await;
+                    fits_preview::evict_stale();
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -42,6 +60,7 @@ pub fn run() {
             commands::get_fits_preview,
             commands::batch_generate_previews,
             commands::clear_preview_cache,
+            commands::update_preview_config,
             // Analyzer
             commands::analyze_subs,
             commands::analyze_stars_detail,
@@ -66,6 +85,9 @@ pub fn run() {
             // Notes
             commands::read_note,
             commands::write_note,
+            // Converter
+            converter::scan_raw_files,
+            converter::convert_dslr_to_fits,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,6 +8,8 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 
 // Fix Leaflet default marker icon path broken by Vite bundling
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
   iconUrl: markerIcon,
   iconRetinaUrl: markerIcon2x,
@@ -141,7 +143,7 @@ export function Weather() {
   return (
     <div className="weather-page">
       <div className="page-header">
-        <h1 className="page-title">Astro Weather (experimental)</h1>
+        <h1 className="page-title">Astro Weather</h1>
         <div className="weather-coords">
           <button
             className="btn"
@@ -359,7 +361,8 @@ function DayCard({ day, collapsed, onToggle }: DayCardProps) {
         <div className="weather-day-left">
           <div className="weather-day-info" onClick={onToggle}>
             <div className="weather-day-top">
-              <span className="weather-day-name">{day.dayName}</span> <div className="weather-day-number">{day.dayNumber}</div>
+              <span className="weather-day-number">{day.dayNumber}</span>
+              <span className="weather-day-name">{day.dayName}</span>
             </div>
 
             <div className="weather-moon-info">

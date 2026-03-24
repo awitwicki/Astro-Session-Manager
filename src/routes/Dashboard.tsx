@@ -20,6 +20,17 @@ export function Dashboard() {
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectFilters, setNewProjectFilters] = useState('')
+  const [filterPresets, setFilterPresets] = useState<Record<string, boolean>>({
+    ha: false,
+    oiii: false,
+    sii: false,
+    uvircut: false,
+    l: false,
+    r: false,
+    g: false,
+    b: false,
+  })
+  const [presetsLoaded, setPresetsLoaded] = useState(false)
   const [creating, setCreating] = useState(false)
   const [sortColumn, setSortColumn] = useState<ProjectSortColumn>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -45,20 +56,44 @@ export function Dashboard() {
     }
   }, [patternsLoaded])
 
+  useEffect(() => {
+    if (!presetsLoaded) {
+      invoke<unknown>('get_setting', { key: 'newProjectFilterPresets' }).then((val) => {
+        if (Array.isArray(val) && val.length > 0) {
+          const loaded: Record<string, boolean> = { ha: false, oiii: false, sii: false, uvircut: false, l: false, r: false, g: false, b: false }
+          for (const v of val) {
+            if (typeof v === 'string' && v in loaded) loaded[v] = true
+          }
+          setFilterPresets(loaded)
+        }
+        setPresetsLoaded(true)
+      })
+    }
+  }, [presetsLoaded])
+
   const handleCreateProject = async (): Promise<void> => {
     if (!newProjectName.trim()) return
     const currentRootFolder = useAppStore.getState().rootFolder
     if (!currentRootFolder) return
     setCreating(true)
     try {
-      const filters = newProjectFilters
+      const textFilters = newProjectFilters
         .split(',')
         .map((f) => f.trim())
         .filter((f) => f.length > 0)
+      const presetFilters = Object.entries(filterPresets)
+        .filter(([, checked]) => checked)
+        .map(([name]) => name)
+      const allFilters = [...new Set([...presetFilters, ...textFilters])]
+      // Save preset selection for next time
+      await invoke('set_setting', {
+        key: 'newProjectFilterPresets',
+        value: presetFilters,
+      }).catch(() => {})
       await invoke('create_project', {
         rootFolder: currentRootFolder,
         projectName: newProjectName.trim(),
-        filters: filters.length > 0 ? filters : ['default']
+        filters: allFilters.length > 0 ? allFilters : ['default']
       })
       const name = newProjectName.trim()
       setShowNewProject(false)
@@ -471,11 +506,42 @@ export function Dashboard() {
               </div>
               <div>
                 <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
-                  Filters (comma-separated)
+                  Filter Presets
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    {(['ha', 'oiii', 'sii', 'uvircut'] as const).map((name) => (
+                      <label key={name} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={filterPresets[name]}
+                          onChange={() => setFilterPresets((prev) => ({ ...prev, [name]: !prev[name] }))}
+                        />
+                        {name.toUpperCase()}
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    {(['l', 'r', 'g', 'b'] as const).map((name) => (
+                      <label key={name} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={filterPresets[name]}
+                          onChange={() => setFilterPresets((prev) => ({ ...prev, [name]: !prev[name] }))}
+                        />
+                        {name.toUpperCase()}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                  Additional Filters (comma-separated)
                 </label>
                 <input
                   className="settings-input"
-                  placeholder="e.g. ha, oiii, sii"
+                  placeholder="e.g. sii, lum"
                   value={newProjectFilters}
                   onChange={(e) => setNewProjectFilters(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}

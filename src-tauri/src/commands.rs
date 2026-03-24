@@ -85,22 +85,28 @@ pub fn read_xisf_header(file_path: String) -> Result<FitsHeader, String> {
 pub async fn get_fits_preview(
     file_path: String,
 ) -> Result<FitsPreviewResult, String> {
-    tauri::async_runtime::spawn_blocking(move || fits_preview::get_fits_preview(&file_path))
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        fits_preview::get_fits_preview(&file_path)
+            // Clone is required for Tauri IPC serialization — the Arc benefit
+            // is primarily in the batch path where results stay internal.
+            .map(|arc| (*arc).clone())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
 }
 
-/// Batch generate previews using async semaphore pattern (like athenaeum).
-/// Cache hits bypass the semaphore entirely. Only actual processing acquires a permit.
-/// Double-check locking prevents duplicate work when multiple tasks target the same file.
+/// Batch generate previews with cancellation support and file validation.
+/// Cache hits bypass the semaphore. Cancellation is checked inside each task.
 #[tauri::command]
 pub async fn batch_generate_previews(
     window: tauri::Window,
     file_paths: Vec<String>,
-) -> Result<HashMap<String, FitsPreviewResult>, String> {
+) -> Result<(), String> {
     let total = file_paths.len();
     let completed = Arc::new(AtomicUsize::new(0));
     let semaphore = Arc::new(Semaphore::new(fits_preview::concurrent_limit()));
+
+    cancellation::reset_cancel("preview_batch");
 
     let mut handles = Vec::with_capacity(total);
 
@@ -110,73 +116,91 @@ pub async fn batch_generate_previews(
         let completed = Arc::clone(&completed);
 
         handles.push(tokio::spawn(async move {
-            // Fast path: cache hit — no semaphore, returns instantly
-            if let Some(cached) = fits_preview::try_cache(&file_path) {
+            // Fast path: cache hit — no semaphore needed
+            if fits_preview::try_cache(&file_path).is_some() {
                 let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
                 let _ = window.emit(
                     "preview:progress",
                     PreviewProgress {
                         current: done,
                         total,
-                        file_path: file_path.clone(),
+                        file_path,
                     },
                 );
-                return Some((file_path, cached));
+                return;
             }
 
-            // Slow path: acquire semaphore permit for actual processing
-            let _permit = sem.acquire().await.ok()?;
+            // Check cancellation before acquiring semaphore
+            if cancellation::is_cancelled("preview_batch") {
+                return;
+            }
+
+            // Validate file exists before acquiring semaphore
+            if !std::path::Path::new(&file_path).exists() {
+                return;
+            }
+
+            // Acquire semaphore permit
+            let _permit = match sem.acquire().await {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+
+            // Check cancellation after acquiring (may have been cancelled while waiting)
+            if cancellation::is_cancelled("preview_batch") {
+                return;
+            }
 
             // Double-check cache — another task may have filled it while we waited
-            if let Some(cached) = fits_preview::try_cache(&file_path) {
+            if fits_preview::try_cache(&file_path).is_some() {
                 let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
                 let _ = window.emit(
                     "preview:progress",
                     PreviewProgress {
                         current: done,
                         total,
-                        file_path: file_path.clone(),
+                        file_path,
                     },
                 );
-                return Some((file_path, cached));
+                return;
             }
 
-            // Process on blocking thread pool (CPU-intensive FITS work)
+            // Process on blocking thread pool
             let fp = file_path.clone();
             let result = tauri::async_runtime::spawn_blocking(move || {
                 fits_preview::generate_preview(&fp)
             })
-            .await
-            .ok()?
-            .ok()?;
+            .await;
 
-            let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-            let _ = window.emit(
-                "preview:progress",
-                PreviewProgress {
-                    current: done,
-                    total,
-                    file_path: file_path.clone(),
-                },
-            );
-
-            Some((file_path, result))
+            if result.is_ok() {
+                let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                let _ = window.emit(
+                    "preview:progress",
+                    PreviewProgress {
+                        current: done,
+                        total,
+                        file_path,
+                    },
+                );
+            }
         }));
     }
 
-    let mut results = HashMap::new();
     for handle in handles {
-        if let Ok(Some((path, result))) = handle.await {
-            results.insert(path, result);
-        }
+        let _ = handle.await;
     }
 
-    Ok(results)
+    Ok(())
 }
 
 #[tauri::command]
 pub fn clear_preview_cache() {
     fits_preview::clear_preview_cache();
+}
+
+#[tauri::command]
+pub fn update_preview_config(cache_limit_mb: u32, concurrency: u32) {
+    fits_preview::update_config(cache_limit_mb, concurrency);
 }
 
 // ─── Masters Commands ───────────────────────────────────────────────────────

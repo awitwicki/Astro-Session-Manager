@@ -6,7 +6,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
 import type { SubAnalysisResult, StarsDetailResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
-import { computeMedian, getPixelScale } from '../lib/formatters'
+import { computeMedian } from '../lib/formatters'
 
 interface FitsHeader {
   bayerpat?: string
@@ -238,8 +238,14 @@ export function FitsDetailView() {
     let unlisten: (() => void) | null = null
 
     const idx = frames.indexOf(filePath)
-    const startIdx = idx >= 0 ? idx : 0
-    const reordered = [...frames.slice(startIdx), ...frames.slice(0, startIdx)]
+    const center = idx >= 0 ? idx : 0
+    const reordered: string[] = [frames[center]]
+    for (let i = 1; i < frames.length; i++) {
+      const before = center - i
+      const after = center + i
+      if (before >= 0) reordered.push(frames[before])
+      if (after < frames.length) reordered.push(frames[after])
+    }
 
     async function run() {
       unlisten = await listen<{ current: number; total: number; filePath: string }>(
@@ -265,17 +271,10 @@ export function FitsDetailView() {
     return () => {
       cancelled = true
       if (unlisten) unlisten()
+      invoke('cancel_operation', { operation: 'preview_batch' }).catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frames])
-
-  // Clear preview cache from RAM only when unmounting
-  useEffect(() => {
-    return () => {
-      invoke('clear_preview_cache').catch(() => {})
-      batchFramesKeyRef.current = ''
-    }
-  }, [])
 
   // Reset error and clear overlay canvases when file changes
   useEffect(() => {
@@ -376,10 +375,10 @@ export function FitsDetailView() {
   useEffect(() => {
     if (!filePath) return
     let cancelled = false
+    setPreview(null)
     const loadingTimer = setTimeout(() => {
       if (!cancelled) {
         setImageLoading(true)
-        setPreview(null)
       }
     }, 150)
 
@@ -689,33 +688,18 @@ export function FitsDetailView() {
       ctx.fillText(pctText, midX, midY)
     }
 
-    // Extract pixel scale for arcsec conversion
-    const displayRaw = (headerData || preview?.header)?.raw as Record<string, unknown> | undefined
-    const pixelScale = getPixelScale(displayRaw)
-
     // Draw FWHM labels at vertices and center
-    const subFontSize = Math.max(10, Math.round(baseSize * 0.02))
     for (const [name, pos] of Object.entries(positions)) {
       const fwhm = avgFwhm[name]
       if (fwhm == null) continue
 
       const pxLabel = `${fwhm.toFixed(2)}px`
-      const arcsecLabel = pixelScale != null ? `${(fwhm * pixelScale).toFixed(1)}"` : null
 
       ctx.font = `bold ${labelFontSize}px monospace`
       const pxMetrics = ctx.measureText(pxLabel)
 
-      let totalW = pxMetrics.width
-      let totalH = Math.round(labelFontSize * 1.5)
-      if (arcsecLabel) {
-        ctx.font = `${subFontSize}px monospace`
-        const arcsecMetrics = ctx.measureText(arcsecLabel)
-        totalW = Math.max(totalW, arcsecMetrics.width)
-        totalH += Math.round(subFontSize * 1.2)
-      }
-
-      const pw = totalW + Math.round(labelFontSize * 0.8)
-      const ph = totalH
+      const pw = pxMetrics.width + Math.round(labelFontSize * 0.8)
+      const ph = Math.round(labelFontSize * 1.5)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
       ctx.beginPath()
       ctx.roundRect(pos.x - pw / 2, pos.y - ph / 2, pw, ph, 4)
@@ -724,22 +708,9 @@ export function FitsDetailView() {
       const textColor = name === 'C' ? '#4fc3f7' : '#ffff00'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-
-      if (arcsecLabel) {
-        // Two lines: px on top, arcsec below
-        const topY = pos.y - Math.round(subFontSize * 0.55)
-        const bottomY = pos.y + Math.round(labelFontSize * 0.55)
-        ctx.font = `bold ${labelFontSize}px monospace`
-        ctx.fillStyle = textColor
-        ctx.fillText(pxLabel, pos.x, topY)
-        ctx.font = `${subFontSize}px monospace`
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
-        ctx.fillText(arcsecLabel, pos.x, bottomY)
-      } else {
-        ctx.font = `bold ${labelFontSize}px monospace`
-        ctx.fillStyle = textColor
-        ctx.fillText(pxLabel, pos.x, pos.y)
-      }
+      ctx.font = `bold ${labelFontSize}px monospace`
+      ctx.fillStyle = textColor
+      ctx.fillText(pxLabel, pos.x, pos.y)
     }
   }, [filePath, preview, showTilt, starsCacheVersion, headerData])
 
@@ -792,7 +763,7 @@ export function FitsDetailView() {
   const isColor = hasBayer || naxis3 > 1
 
   const headerEntries = displayHeader
-    ? Object.entries((displayHeader.raw as Record<string, unknown>) || {})
+    ? Object.entries((displayHeader.raw as Record<string, unknown>) || {}).sort(([a], [b]) => a.localeCompare(b))
     : []
 
   return (

@@ -260,10 +260,25 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
   return applyCalibration(projects, mastersLibrary, tempTolerance)
 }
 
-export interface ImportProgress {
+export interface ImportJob {
+  id: string
+  files: string[]
+  targetDir: string
+  label: string
+  status: 'queued' | 'active' | 'done' | 'cancelled' | 'error'
   current: number
   total: number
   filename: string
+  error?: string
+}
+
+export interface ConverterFile {
+  path: string
+  filename: string
+  format: 'CR2' | 'CR3' | 'ARW'
+  sizeBytes: number
+  status: 'pending' | 'converting' | 'done' | 'skipped' | 'error'
+  error?: string
 }
 
 interface AppState {
@@ -276,7 +291,7 @@ interface AppState {
   theme: 'dark' | 'light'
   darkTempTolerance: number
   dashboardViewMode: 'grid' | 'table'
-  importProgress: ImportProgress | null
+  importQueue: ImportJob[]
   subAnalysis: Record<string, SubAnalysisResult>
   isAnalyzing: boolean
 
@@ -291,12 +306,28 @@ interface AppState {
   updateCalibration: (projectName: string, filterName: string, date: string, calibration: Project['filters'][0]['sessions'][0]['calibration']) => void
   removeLight: (filePath: string) => void
   removeProject: (projectPath: string) => void
-  setImportProgress: (progress: ImportProgress | null) => void
+  enqueueImport: (job: { files: string[]; targetDir: string; label: string }) => void
+  cancelImport: (id: string) => void
+  updateImportProgress: (current: number, total: number, filename: string) => void
+  completeImport: () => void
+  failImport: (error: string) => void
   mergeProjectScan: (raw: ScanResultRaw) => void
   applyExcludePatterns: (patternsText: string) => void
   setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
   removeSubAnalysis: (paths: string[]) => void
   setAnalyzing: (v: boolean) => void
+
+  // Converter
+  converterFiles: ConverterFile[]
+  converterOutputPath: string | null
+  isConverting: boolean
+
+  addConverterFiles: (files: ConverterFile[]) => void
+  removeConverterFile: (path: string) => void
+  clearConverterFiles: () => void
+  setConverterOutputPath: (path: string | null) => void
+  setConverterFileStatus: (path: string, status: ConverterFile['status'], error?: string) => void
+  setIsConverting: (v: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -310,7 +341,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   dashboardViewMode: 'grid',
   darkTempTolerance: 2,
-  importProgress: null,
+  importQueue: [],
   subAnalysis: {},
   isAnalyzing: false,
 
@@ -366,7 +397,46 @@ export const useAppStore = create<AppState>((set) => ({
       )
     })),
 
-  setImportProgress: (progress) => set({ importProgress: progress }),
+  enqueueImport: (job) =>
+    set((state) => ({
+      importQueue: [
+        ...state.importQueue,
+        {
+          id: crypto.randomUUID(),
+          files: job.files,
+          targetDir: job.targetDir,
+          label: job.label,
+          status: 'queued' as const,
+          current: 0,
+          total: job.files.length,
+          filename: '',
+        },
+      ],
+    })),
+
+  cancelImport: (id) =>
+    set((state) => ({
+      importQueue: state.importQueue.filter((j) => j.id !== id),
+    })),
+
+  updateImportProgress: (current, total, filename) =>
+    set((state) => ({
+      importQueue: state.importQueue.map((j) =>
+        j.status === 'active' ? { ...j, current, total, filename } : j
+      ),
+    })),
+
+  completeImport: () =>
+    set((state) => ({
+      importQueue: state.importQueue.filter((j) => j.status !== 'active'),
+    })),
+
+  failImport: (error) =>
+    set((state) => ({
+      importQueue: state.importQueue.map((j) =>
+        j.status === 'active' ? { ...j, status: 'error' as const, error } : j
+      ).filter((j) => j.status !== 'error'),
+    })),
 
   removeProject: (projectPath) =>
     set((state) => ({
@@ -403,6 +473,36 @@ export const useAppStore = create<AppState>((set) => ({
   }),
 
   setAnalyzing: (v) => set({ isAnalyzing: v }),
+
+  // Converter
+  converterFiles: [],
+  converterOutputPath: null,
+  isConverting: false,
+
+  addConverterFiles: (files) =>
+    set((state) => {
+      const existingPaths = new Set(state.converterFiles.map((f) => f.path))
+      const newFiles = files.filter((f) => !existingPaths.has(f.path))
+      return { converterFiles: [...state.converterFiles, ...newFiles] }
+    }),
+
+  removeConverterFile: (path) =>
+    set((state) => ({
+      converterFiles: state.converterFiles.filter((f) => f.path !== path)
+    })),
+
+  clearConverterFiles: () => set({ converterFiles: [] }),
+
+  setConverterOutputPath: (path) => set({ converterOutputPath: path }),
+
+  setConverterFileStatus: (path, status, error) =>
+    set((state) => ({
+      converterFiles: state.converterFiles.map((f) =>
+        f.path === path ? { ...f, status, error } : f
+      )
+    })),
+
+  setIsConverting: (v) => set({ isConverting: v }),
 
   mergeProjectScan: (raw) =>
     set((state) => {

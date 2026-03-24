@@ -12,6 +12,8 @@ export function Settings() {
 
   const [darkTempTolerance, setDarkTempTolerance] = useState(2)
   const [autoScan, setAutoScan] = useState(true)
+  const [previewCacheLimitMb, setPreviewCacheLimitMb] = useState(500)
+  const [previewConcurrency, setPreviewConcurrency] = useState(4)
 
   useEffect(() => {
     invoke<Record<string, unknown>>('get_all_settings').then((settings) => {
@@ -20,6 +22,12 @@ export function Settings() {
       }
       if (typeof settings.autoScanOnStartup === 'boolean') {
         setAutoScan(settings.autoScanOnStartup)
+      }
+      if (typeof settings.previewCacheLimitMb === 'number') {
+        setPreviewCacheLimitMb(settings.previewCacheLimitMb)
+      }
+      if (typeof settings.previewConcurrency === 'number') {
+        setPreviewConcurrency(settings.previewConcurrency)
       }
     })
   }, [])
@@ -119,6 +127,66 @@ export function Settings() {
           </label>
           <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
             {autoScan ? 'Enabled' : 'Disabled'}
+          </span>
+        </div>
+      </div>
+
+      {/* Preview Cache Limit */}
+      <div className="settings-group">
+        <label className="settings-label">Preview Cache Limit</label>
+        <p className="settings-description">
+          Maximum RAM used for caching image previews. Higher values keep more previews in memory for faster navigation.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <input
+            type="range"
+            min="100"
+            max="2000"
+            step="100"
+            value={previewCacheLimitMb}
+            onChange={(e) => {
+              const val = Number(e.target.value)
+              setPreviewCacheLimitMb(val)
+              saveSetting('previewCacheLimitMb', val)
+              invoke('update_preview_config', {
+                cacheLimitMb: val,
+                concurrency: previewConcurrency,
+              }).catch(() => {})
+            }}
+            style={{ width: 200 }}
+          />
+          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 60 }}>
+            {previewCacheLimitMb} MB
+          </span>
+        </div>
+      </div>
+
+      {/* Preview Concurrency */}
+      <div className="settings-group">
+        <label className="settings-label">Preview Concurrency</label>
+        <p className="settings-description">
+          Number of images processed simultaneously. Lower values reduce CPU/RAM pressure.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <input
+            type="range"
+            min="1"
+            max="16"
+            step="1"
+            value={previewConcurrency}
+            onChange={(e) => {
+              const val = Number(e.target.value)
+              setPreviewConcurrency(val)
+              saveSetting('previewConcurrency', val)
+              invoke('update_preview_config', {
+                cacheLimitMb: previewCacheLimitMb,
+                concurrency: val,
+              }).catch(() => {})
+            }}
+            style={{ width: 200 }}
+          />
+          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 20 }}>
+            {previewConcurrency}
           </span>
         </div>
       </div>

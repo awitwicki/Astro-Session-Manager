@@ -238,6 +238,17 @@ pub struct StarsDetailResult {
 
 // ─── Settings ───────────────────────────────────────────────────────────────
 
+fn default_preview_cache_limit_mb() -> u32 {
+    500
+}
+
+fn default_preview_concurrency() -> u32 {
+    std::thread::available_parallelism()
+        .map(|n| n.get() as u32)
+        .unwrap_or(4)
+        .min(8)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -250,6 +261,14 @@ pub struct AppSettings {
     pub weather_lon: Option<f64>,
     #[serde(default)]
     pub exclude_patterns: String,
+    #[serde(default)]
+    pub converter_output_path: Option<String>,
+    #[serde(default)]
+    pub new_project_filter_presets: Vec<String>,
+    #[serde(default = "default_preview_cache_limit_mb")]
+    pub preview_cache_limit_mb: u32,
+    #[serde(default = "default_preview_concurrency")]
+    pub preview_concurrency: u32,
 }
 
 impl Default for AppSettings {
@@ -263,6 +282,42 @@ impl Default for AppSettings {
             weather_lat: None,
             weather_lon: None,
             exclude_patterns: String::new(),
+            converter_output_path: None,
+            new_project_filter_presets: Vec::new(),
+            preview_cache_limit_mb: default_preview_cache_limit_mb(),
+            preview_concurrency: default_preview_concurrency(),
         }
     }
+}
+
+// ─── Converter Types ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawFileInfo {
+    pub path: String,
+    pub filename: String,
+    pub size_bytes: u64,
+    pub format: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversionResult {
+    pub total: usize,
+    pub succeeded: usize,
+    pub skipped: usize,
+    pub failed: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversionProgress {
+    pub current: usize,
+    pub total: usize,
+    pub filename: String,
+    pub source_path: String,
+    pub success: bool,
+    pub skipped: bool,
+    pub error: Option<String>,
 }
