@@ -252,6 +252,8 @@ pub struct AppSettings {
     pub exclude_patterns: String,
     #[serde(default)]
     pub converter_output_path: Option<String>,
+    #[serde(default)]
+    pub new_project_filter_presets: Vec<String>,
 }
 
 impl Default for AppSettings {
@@ -266,6 +268,7 @@ impl Default for AppSettings {
             weather_lon: None,
             exclude_patterns: String::new(),
             converter_output_path: None,
+            new_project_filter_presets: Vec::new(),
         }
     }
 }
