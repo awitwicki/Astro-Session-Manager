@@ -375,10 +375,10 @@ export function FitsDetailView() {
   useEffect(() => {
     if (!filePath) return
     let cancelled = false
+    setPreview(null)
     const loadingTimer = setTimeout(() => {
       if (!cancelled) {
         setImageLoading(true)
-        setPreview(null)
       }
     }, 150)
 
@@ -763,7 +763,7 @@ export function FitsDetailView() {
   const isColor = hasBayer || naxis3 > 1
 
   const headerEntries = displayHeader
-    ? Object.entries((displayHeader.raw as Record<string, unknown>) || {})
+    ? Object.entries((displayHeader.raw as Record<string, unknown>) || {}).sort(([a], [b]) => a.localeCompare(b))
     : []
 
   return (
