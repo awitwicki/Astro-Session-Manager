@@ -176,39 +176,6 @@
   box-shadow: 0 0 0 2px rgba(91, 155, 213, 0.15);
 }
 
-/* ---- Legend ---- */
-
-.skymap-legend {
-  position: absolute;
-  bottom: 16px;
-  left: 16px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  z-index: 10;
-  padding: 10px 14px;
-  background: rgba(10, 13, 20, 0.75);
-  border-radius: 8px;
-  border: 1px solid rgba(46, 49, 66, 0.5);
-  backdrop-filter: blur(8px);
-}
-
-.skymap-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: #6b7085;
-  letter-spacing: 0.3px;
-}
-
-.skymap-legend-color {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  box-shadow: 0 0 6px currentColor;
-}
-
 /* ---- Empty state ---- */
 
 .skymap-empty {
