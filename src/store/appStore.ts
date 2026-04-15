@@ -281,6 +281,12 @@ export interface ConverterFile {
   error?: string
 }
 
+export interface PreviewQueueState {
+  completed: number
+  total: number
+  active: boolean
+}
+
 interface AppState {
   rootFolder: string | null
   projects: Project[]
@@ -294,6 +300,7 @@ interface AppState {
   importQueue: ImportJob[]
   subAnalysis: Record<string, SubAnalysisResult>
   isAnalyzing: boolean
+  previewQueue: PreviewQueueState
 
   setRootFolder: (path: string | null) => void
   setDashboardViewMode: (mode: 'grid' | 'table') => void
@@ -316,6 +323,7 @@ interface AppState {
   setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
   removeSubAnalysis: (paths: string[]) => void
   setAnalyzing: (v: boolean) => void
+  setPreviewQueueState: (state: PreviewQueueState) => void
 
   // Converter
   converterFiles: ConverterFile[]
@@ -344,6 +352,7 @@ export const useAppStore = create<AppState>((set) => ({
   importQueue: [],
   subAnalysis: {},
   isAnalyzing: false,
+  previewQueue: { completed: 0, total: 0, active: false },
 
   setRootFolder: (path) => set({ rootFolder: path }),
 
@@ -473,6 +482,8 @@ export const useAppStore = create<AppState>((set) => ({
   }),
 
   setAnalyzing: (v) => set({ isAnalyzing: v }),
+
+  setPreviewQueueState: (state) => set({ previewQueue: state }),
 
   // Converter
   converterFiles: [],

@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Astro Session Manager — organize your astrophotography sessions</title>
+<meta name="description" content="A desktop app that reads your existing astrophotography files in place, calculates integration time per project, and matches calibration frames — without moving or importing anything into a database.">
+<link rel="icon" type="image/png" href="assets/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-0: #0a0c12;
+    --bg-1: #0f1117;
+    --bg-2: #1a1d27;
+    --bg-3: #252836;
+    --bg-hover: #2e3142;
+    --text-1: #e4e6eb;
+    --text-2: #a8abbe;
+    --text-3: #6b7085;
+    --border: #2e3142;
+    --border-2: #4a4f65;
+    --accent: #5b9bd5;
+    --accent-bright: #7cb3e0;
+    --accent-muted: #2a3f5a;
+    --ok: #4caf50;
+    --ok-muted: #1b3a1d;
+    --warn: #ff9800;
+    --warn-muted: #3d2e0a;
+    --err: #f44336;
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.5);
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html {
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-0);
+    color: var(--text-1);
+    line-height: 1.6;
+    font-size: 16px;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ── Star field background ──────────────────────────────────────── */
+  .stars {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 60% 80% at 50% 0%, rgba(91,155,213,0.12), transparent 70%),
+      linear-gradient(180deg, #0a0c12 0%, #0f1117 60%, #0a0c12 100%);
+    background-size: 100% 100%, 100% 100%;
+    background-repeat: no-repeat, no-repeat;
+  }
+
+  .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── Top nav ────────────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(10, 12, 18, 0.72);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .container {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600; font-size: 15px; letter-spacing: -0.01em;
+    color: var(--text-1);
+    text-decoration: none;
+  }
+  .brand-mark {
+    width: 24px; height: 24px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 10px rgba(91,155,213,0.45));
+  }
+  nav ul { list-style: none; display: flex; gap: 28px; }
+  nav a {
+    color: var(--text-2); text-decoration: none; font-size: 14px;
+    transition: color 150ms ease;
+  }
+  nav a:hover { color: var(--text-1); }
+
+  /* ── Buttons ────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px;
+    font-family: inherit; font-size: 14px; font-weight: 500;
+    border-radius: var(--radius-md);
+    cursor: pointer; text-decoration: none;
+    border: 1px solid transparent;
+    transition: background 150ms ease, transform 150ms ease, border-color 150ms ease;
+  }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    box-shadow: 0 4px 14px rgba(91,155,213,0.35);
+  }
+  .btn-primary:hover { background: var(--accent-bright); transform: translateY(-1px); }
+  .btn-secondary {
+    background: transparent; color: var(--text-1);
+    border-color: var(--border-2);
+  }
+  .btn-secondary:hover { background: var(--bg-2); border-color: var(--accent); }
+  .btn-lg { padding: 14px 24px; font-size: 15px; }
+  .btn svg { width: 16px; height: 16px; }
+  .btn-lg svg { width: 18px; height: 18px; }
+
+  /* ── Hero ───────────────────────────────────────────────────────── */
+  .hero { padding: 88px 0 72px; text-align: center; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px;
+    background: var(--accent-muted); color: var(--accent-bright);
+    font-size: 13px; font-weight: 500;
+    border-radius: 999px;
+    border: 1px solid rgba(91,155,213,0.25);
+    margin-bottom: 24px;
+  }
+  .eyebrow-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-bright);
+    box-shadow: 0 0 8px var(--accent-bright);
+  }
+  h1 {
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 700; letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 20px;
+    padding-bottom: 0.15em;
+    background: linear-gradient(180deg, #ffffff 0%, #a8abbe 140%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p.lede {
+    font-size: clamp(16px, 2vw, 19px);
+    color: var(--text-2); max-width: 680px;
+    margin: 0 auto 36px;
+  }
+  .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  /* ── Hero carousel ──────────────────────────────────────────────── */
+  .carousel {
+    position: relative;
+    margin-top: 64px;
+    overflow: hidden;
+  }
+  .carousel-track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .carousel-track::-webkit-scrollbar { display: none; }
+  .carousel-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    min-width: 0;
+  }
+  .carousel-slide img {
+    display: block; width: 100%; height: auto;
+  }
+  .carousel-slide .screenshot-placeholder {
+    min-height: 440px;
+  }
+  .carousel-arrow {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(15, 17, 23, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border-2);
+    color: var(--text-1);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px; line-height: 1;
+    transition: background 150ms ease, border-color 150ms ease;
+    z-index: 2;
+  }
+  .carousel-arrow:hover { background: rgba(91, 155, 213, 0.25); border-color: var(--accent); }
+  .carousel-arrow.prev { left: 14px; }
+  .carousel-arrow.next { right: 14px; }
+  .carousel-arrow:disabled { opacity: 0.35; cursor: default; }
+  .carousel-arrow:disabled:hover { background: rgba(15, 17, 23, 0.7); border-color: var(--border-2); }
+
+  .carousel-dots {
+    position: absolute; bottom: 14px; left: 0; right: 0;
+    display: flex; justify-content: center; gap: 8px;
+    z-index: 2;
+  }
+  .carousel-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    border: none; padding: 0;
+    cursor: pointer;
+    transition: background 150ms ease, transform 150ms ease;
+  }
+  .carousel-dot:hover { background: rgba(255, 255, 255, 0.5); }
+  .carousel-dot.active {
+    background: var(--accent);
+    transform: scale(1.3);
+  }
+
+  .carousel-caption {
+    position: absolute; top: 14px; left: 14px;
+    padding: 4px 10px;
+    background: rgba(15, 17, 23, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 11.5px; font-family: var(--font-mono);
+    color: var(--text-2);
+    z-index: 1;
+  }
+
+  /* ── Sections ───────────────────────────────────────────────────── */
+  section { padding: 96px 0; }
+  section.tight { padding: 56px 0; }
+  .section-head { max-width: 680px; margin: 0 auto 48px; text-align: center; }
+  .section-kicker {
+    font-size: 13px; font-weight: 500; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 16px; line-height: 1.15;
+  }
+  h2 + p { color: var(--text-2); font-size: 17px; }
+
+  /* Features grid */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  .feature {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    transition: border-color 200ms ease, transform 200ms ease;
+  }
+  .feature:hover { border-color: var(--border-2); transform: translateY(-2px); }
+  .feature-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-muted), rgba(91,155,213,0.08));
+    border: 1px solid rgba(91,155,213,0.25);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent-bright);
+    margin-bottom: 20px;
+  }
+  .feature-icon svg { width: 20px; height: 20px; }
+  .feature h3 { font-size: 17px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.01em; }
+  .feature p { font-size: 14px; color: var(--text-2); line-height: 1.55; }
+
+  /* ── Files stay yours (big highlighted section) ─────────────────── */
+  .highlight {
+    background: linear-gradient(180deg, rgba(91,155,213,0.04), transparent 70%);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .two-col {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 64px;
+    align-items: center;
+  }
+  @media (max-width: 860px) {
+    .two-col { grid-template-columns: 1fr; gap: 40px; }
+  }
+  .two-col h2 { text-align: left; }
+  .two-col p { color: var(--text-2); margin-bottom: 16px; font-size: 16px; }
+  .two-col p:last-child { margin-bottom: 0; }
+
+  /* File-tree mock */
+  .tree {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px 22px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--text-2);
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .tree .folder { color: var(--accent-bright); }
+  .tree .file { color: var(--text-2); }
+  .tree .annotation {
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    color: var(--text-3);
+    margin-left: 8px;
+    font-style: italic;
+  }
+
+  /* ── Compatibility strip ────────────────────────────────────────── */
+  .compat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 36px;
+  }
+  .compat-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+  }
+  .compat-card .label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-3); margin-bottom: 8px; font-weight: 600;
+  }
+  .compat-card ul { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+  .compat-card li {
+    padding: 4px 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    color: var(--text-1);
+    font-family: var(--font-mono);
+  }
+
+  /* ── Footer / CTA ───────────────────────────────────────────────── */
+  .closing {
+    text-align: center;
+    padding: 96px 0;
+    border-top: 1px solid var(--border);
+  }
+  .closing h2 { margin-bottom: 14px; }
+  .closing p { color: var(--text-2); margin-bottom: 32px; font-size: 17px; }
+  .closing-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  footer {
+    padding: 40px 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg-1);
+    font-size: 13px;
+    color: var(--text-3);
+  }
+  footer .container {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 24px; flex-wrap: wrap;
+  }
+  footer a { color: var(--text-2); text-decoration: none; transition: color 150ms ease; }
+  footer a:hover { color: var(--accent-bright); }
+  .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
+
+  /* ── Screenshot frame (used for SkyMap + Weather) ───────────────── */
+  .screenshot-frame {
+    max-width: 1040px; margin: 0 auto;
+    overflow: hidden;
+  }
+  .screenshot-frame img {
+    display: block; width: 100%; height: auto;
+  }
+  .screenshot-placeholder {
+    display: flex; align-items: center; justify-content: center;
+    padding: 80px 40px;
+    min-height: 360px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 13px; font-family: var(--font-mono);
+    background:
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.8), transparent 60%),
+      radial-gradient(1px 1px at 25% 60%, rgba(255,255,255,0.6), transparent 60%),
+      radial-gradient(1px 1px at 45% 30%, rgba(255,255,255,0.7), transparent 60%),
+      radial-gradient(1px 1px at 65% 70%, rgba(255,255,255,0.6), transparent 60%),
+      radial-gradient(1px 1px at 85% 40%, rgba(255,255,255,0.8), transparent 60%),
+      radial-gradient(1px 1px at 32% 82%, rgba(255,255,255,0.5), transparent 60%),
+      radial-gradient(1px 1px at 72% 15%, rgba(255,255,255,0.7), transparent 60%),
+      radial-gradient(1px 1px at 55% 50%, rgba(255,255,255,0.6), transparent 60%),
+      radial-gradient(ellipse at center, #0d1a2e 0%, #050810 80%);
+  }
+  .screenshot-placeholder .hint {
+    color: var(--text-2); font-family: var(--font-sans);
+    font-size: 14px; margin-bottom: 8px;
+  }
+  .screenshot-placeholder code {
+    display: inline-block; margin-top: 4px;
+    padding: 4px 10px;
+    background: rgba(91,155,213,0.15);
+    border: 1px solid rgba(91,155,213,0.3);
+    color: var(--accent-bright);
+    border-radius: var(--radius-sm);
+  }
+
+  /* ── Responsive ─────────────────────────────────────────────────── */
+  @media (max-width: 760px) {
+    nav ul { display: none; }
+    section { padding: 64px 0; }
+    .hero { padding: 56px 0 40px; }
+  }
+</style>
+</head>
+<body>
+<div class="stars" aria-hidden="true"></div>
+
+<nav>
+  <div class="container">
+    <a href="#" class="brand">
+      <img class="brand-mark" src="assets/icon.png" alt="">
+      Astro Session Manager
+    </a>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#files">Your files</a></li>
+      <li><a href="#compat">Compatibility</a></li>
+      <li><a href="https://github.com/awitwicki/Astro-Session-Manager" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ═══ HERO ═══════════════════════════════════════════════════ -->
+<header class="hero">
+  <div class="container">
+    <h1>See your astrophotography<br>projects at a glance.</h1>
+    <p class="lede">
+      A desktop app that reads your existing FITS, XISF, and DSLR raw files in place —
+      calculates integration time, finds matching calibration frames, and analyzes
+      sub-frames without ever moving or copying your data.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary btn-lg" href="https://github.com/awitwicki/Astro-Session-Manager/releases" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download latest release
+      </a>
+      <a class="btn btn-secondary btn-lg" href="https://github.com/awitwicki/Astro-Session-Manager" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        View on GitHub
+      </a>
+    </div>
+
+    <div class="carousel" data-carousel>
+      <div class="carousel-track" data-carousel-track>
+
+        <div class="carousel-slide">
+          <img src="assets/dashboard.png" alt="Dashboard — projects list with integration time and calibration status">
+        </div>
+
+        <div class="carousel-slide">
+          <img src="assets/projectDetail.png" alt="Project view — filters, sessions, and per-filter frame breakdown">
+        </div>
+
+        <div class="carousel-slide">
+          <img src="assets/fitsDetail.png" alt="FITS detail — frame inspection with star metrics and header data">
+        </div>
+
+        <div class="carousel-slide">
+          <img src="assets/masters.png" alt="Masters library — darks, biases, and flats with calibration matching">
+        </div>
+
+      </div>
+
+      <button class="carousel-arrow prev" data-carousel-prev aria-label="Previous slide">‹</button>
+      <button class="carousel-arrow next" data-carousel-next aria-label="Next slide">›</button>
+      <div class="carousel-dots" data-carousel-dots></div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ FEATURES ═══════════════════════════════════════════════ -->
+<section id="features">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-kicker">What it does</div>
+      <h2>Designed for the messy reality of capture sessions.</h2>
+      <p>You come home, copy cards, stash frames in a dated folder — and then, a week later, try to remember which calibration matches what. This is the tool that remembers for you.</p>
+    </div>
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+        <h3>Reads your files in place</h3>
+        <p>No import, no database, no copying. Point it at your capture folder and it indexes what's there. Your files stay exactly where they are, with the names and paths you gave them.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3>Integration time, automatically</h3>
+        <p>Each project, filter, and session gets its total exposure calculated from FITS headers. No spreadsheets. No arithmetic. Just the number, updated as you add frames.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg></div>
+        <h3>Matches calibration frames</h3>
+        <p>Tells you which projects have darks, bias, and flats ready — matching by exposure (±0.5 s), sensor temperature, and resolution. You see at a glance what's missing.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+        <h3>Sub-frame star analysis</h3>
+        <p>Per-frame FWHM, eccentricity, star count, and HFR. Built-in heatmap and tilt visualization help you spot collimation drift or a bad night before you stack.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+        <h3>Fast preview browser</h3>
+        <p>JPEG previews generated on demand with a bounded in-memory cache. A priority queue means clicking a new filter jumps straight to those frames — previous work keeps cooking in the background.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+        <h3>DSLR raw support</h3>
+        <p>Reads Canon CR2/CR3 and Sony ARW directly — including EXIF exposure data. Convert to FITS when you want to mix DSLR nights with CMOS data in your stacking pipeline.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FILES STAY YOURS ══════════════════════════════════════ -->
+<section id="files" class="highlight">
+  <div class="container">
+    <div class="two-col">
+      <div>
+        <div class="section-kicker">Your files, untouched</div>
+        <h2>It's a reader, not a vault.</h2>
+        <p>
+          Some catalog apps suck your data into a proprietary database.
+          When the app goes away, so does the structure — sometimes the files themselves.
+        </p>
+        <p>
+          This one doesn't. It reads whatever naming scheme you already use,
+          parses FITS and XISF headers directly off disk, and builds its view on top.
+          Delete the app and your library is exactly where you left it.
+        </p>
+        <p>
+          Nothing is encrypted, re-encoded, or moved behind your back.
+          Your 2 TB of lights from the last three years stay as folders and files you can open in PixInsight, Siril, APP, or anything else whenever you want.
+        </p>
+      </div>
+      <div class="tree">
+<span class="folder">📁 Astro/</span>
+<span style="color: var(--text-3);">├──</span> <span class="folder">NGC_7822/</span>
+<span style="color: var(--text-3);">│   ├──</span> <span class="folder">Ha/</span>
+<span style="color: var(--text-3);">│   │   ├──</span> <span class="folder">Night 1/</span>
+<span style="color: var(--text-3);">│   │   │   ├──</span> <span class="folder">Lights/</span>
+<span style="color: var(--text-3);">│   │   │   │   ├──</span> <span class="file">Light_001.fits</span>
+<span style="color: var(--text-3);">│   │   │   │   ├──</span> <span class="file">Light_002.fits</span>
+<span style="color: var(--text-3);">│   │   │   │   └──</span> <span class="file">…</span>
+<span style="color: var(--text-3);">│   │   │   └──</span> <span class="folder">Flats/</span>
+<span style="color: var(--text-3);">│   │   │       ├──</span> <span class="file">Flat_001.fits</span>
+<span style="color: var(--text-3);">│   │   │       └──</span> <span class="file">…</span>
+<span style="color: var(--text-3);">│   │   └──</span> <span class="folder">Night 2/</span>
+<span style="color: var(--text-3);">│   │       ├──</span> <span class="folder">Lights/</span>
+<span style="color: var(--text-3);">│   │       └──</span> <span class="folder">Flats/</span>
+<span style="color: var(--text-3);">│   └──</span> <span class="folder">OIII/</span>
+<span style="color: var(--text-3);">├──</span> <span class="folder">M31/</span>
+<span style="color: var(--text-3);">└──</span> <span class="folder">Masters/</span>
+<span style="color: var(--text-3);">    ├──</span> <span class="folder">Darks/</span>
+<span style="color: var(--text-3);">    └──</span> <span class="folder">Bias/</span>
+
+<span class="annotation">↑ your actual layout. the app just reads it.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FITS DETAIL ═════════════════════════════════════════════ -->
+<section class="tight">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-kicker">Inspection</div>
+      <h2>Open a frame, see what matters.</h2>
+      <p>Headers, star metrics, and a preview — without launching anything else.</p>
+    </div>
+
+    <div class="screenshot-frame">
+      <img src="assets/fitsDetail.png" alt="FITS detail — frame with header, star metrics (FWHM, eccentricity, HFR), and calibration match info">
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SKY MAP ═════════════════════════════════════════════════ -->
+<section id="skymap" class="tight">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-kicker">Planning</div>
+      <h2>Every frame you've captured, on the sky.</h2>
+      <p>All your project FOVs plotted on a deep-sky survey background. Useful for choosing the next target, remembering what you already framed, or spotting gaps in a mosaic.</p>
+    </div>
+
+    <div class="screenshot-frame">
+      <img src="assets/skymap.png" alt="Sky Map — captured project frames plotted on a HiPS deep-sky survey background">
+    </div>
+  </div>
+</section>
+
+<!-- ═══ WEATHER ═════════════════════════════════════════════════ -->
+<section id="weather" class="highlight tight">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-kicker">Planning</div>
+      <h2>Will it be clear tonight?</h2>
+      <p>Seven-day hourly forecast focused on what matters for imaging: low/mid/high cloud layers, humidity, dew point, wind, visibility, and precipitation probability — with moon illumination and sun/moon position bars. Click a day to expand the full hourly breakdown.</p>
+    </div>
+
+    <div class="carousel" data-carousel>
+      <div class="carousel-track" data-carousel-track>
+        <div class="carousel-slide">
+          <div class="carousel-caption">Forecast overview</div>
+          <img src="assets/weather.png" alt="Weather forecast — seven-day overview with sun, moon, and cloud summary bars">
+        </div>
+        <div class="carousel-slide">
+          <div class="carousel-caption">Hourly detail</div>
+          <img src="assets/weatherDetail.png" alt="Weather detail — hourly clouds, temperature, humidity, wind, and precipitation">
+        </div>
+      </div>
+      <button class="carousel-arrow prev" data-carousel-prev aria-label="Previous slide">‹</button>
+      <button class="carousel-arrow next" data-carousel-next aria-label="Next slide">›</button>
+      <div class="carousel-dots" data-carousel-dots></div>
+    </div>
+
+    <p style="text-align: center; color: var(--text-3); font-size: 13px; margin-top: 20px;">
+      Forecast data via <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color: var(--accent-bright);">Open-Meteo</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ═══ COMPATIBILITY ════════════════════════════════════════════ -->
+<section id="compat" class="tight">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-kicker">Compatibility</div>
+      <h2>Works with the tools you already have.</h2>
+      <p>If your capture software writes standard FITS headers, this reads them.</p>
+    </div>
+    <div class="compat-grid">
+      <div class="compat-card">
+        <div class="label">Capture software</div>
+        <ul>
+          <li>N.I.N.A.</li>
+          <li>ASIAIR</li>
+          <li>SGPro</li>
+          <li>SharpCap</li>
+        </ul>
+      </div>
+      <div class="compat-card">
+        <div class="label">Formats</div>
+        <ul>
+          <li>FITS</li>
+          <li>XISF</li>
+          <li>CR2</li>
+          <li>CR3</li>
+          <li>ARW</li>
+        </ul>
+      </div>
+      <div class="compat-card">
+        <div class="label">Platforms</div>
+        <ul>
+          <li>macOS</li>
+          <li>Windows</li>
+          <li>Linux</li>
+        </ul>
+      </div>
+      <div class="compat-card">
+        <div class="label">Built with</div>
+        <ul>
+          <li>Rust</li>
+          <li>Tauri</li>
+          <li>React</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CLOSING ═════════════════════════════════════════════════ -->
+<section class="closing">
+  <div class="container">
+    <h2>Give it a night.</h2>
+    <p>It's free, it's open source, and it won't touch your files.<br>If it helps, great. If not, it's a single uninstall away.</p>
+    <div class="closing-actions">
+      <a class="btn btn-primary btn-lg" href="https://github.com/awitwicki/Astro-Session-Manager/releases" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download for macOS, Windows, Linux
+      </a>
+      <a class="btn btn-secondary btn-lg" href="https://github.com/awitwicki/Astro-Session-Manager" target="_blank" rel="noopener">
+        Browse the source
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div>© 2026 Astro Session Manager — built by <a href="https://github.com/awitwicki" target="_blank" rel="noopener">@awitwicki</a>. Clear skies.</div>
+    <div class="footer-links">
+      <a href="https://github.com/awitwicki/Astro-Session-Manager" target="_blank" rel="noopener">Repository</a>
+      <a href="https://github.com/awitwicki/Astro-Session-Manager/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/awitwicki/Astro-Session-Manager/issues" target="_blank" rel="noopener">Issues</a>
+      <a href="https://github.com/awitwicki/Astro-Session-Manager/blob/main/README.md" target="_blank" rel="noopener">README</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Minimal carousel: scroll-snap + prev/next arrows + auto-generated dots.
+  // Each .carousel element is independent; more can be added without JS changes.
+  document.querySelectorAll('[data-carousel]').forEach((root) => {
+    const track = root.querySelector('[data-carousel-track]');
+    const prevBtn = root.querySelector('[data-carousel-prev]');
+    const nextBtn = root.querySelector('[data-carousel-next]');
+    const dotsHost = root.querySelector('[data-carousel-dots]');
+    const slides = track.querySelectorAll('.carousel-slide');
+
+    // Build dots
+    const dots = Array.from(slides).map((_, i) => {
+      const b = document.createElement('button');
+      b.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+      b.setAttribute('aria-label', `Go to slide ${i + 1}`);
+      b.addEventListener('click', () => scrollToIndex(i));
+      dotsHost.appendChild(b);
+      return b;
+    });
+
+    function currentIndex() {
+      return Math.round(track.scrollLeft / track.clientWidth);
+    }
+    function scrollToIndex(i) {
+      const clamped = Math.max(0, Math.min(slides.length - 1, i));
+      track.scrollTo({ left: clamped * track.clientWidth, behavior: 'smooth' });
+    }
+    function updateUI() {
+      const i = currentIndex();
+      dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
+      prevBtn.disabled = i === 0;
+      nextBtn.disabled = i === slides.length - 1;
+    }
+
+    prevBtn.addEventListener('click', () => scrollToIndex(currentIndex() - 1));
+    nextBtn.addEventListener('click', () => scrollToIndex(currentIndex() + 1));
+    track.addEventListener('scroll', () => { requestAnimationFrame(updateUI); }, { passive: true });
+    globalThis.addEventListener('resize', updateUI);
+    updateUI();
+  });
+</script>
+
+</body>
+</html>

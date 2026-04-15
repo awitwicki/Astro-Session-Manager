@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import { AppShell } from './components/layout/AppShell'
@@ -9,8 +10,15 @@ import { Settings } from './routes/Settings'
 import { SkyMap } from './routes/SkyMap'
 import { Weather } from './routes/Weather'
 import { Converter } from './routes/Converter'
+import { initPreviewQueueListener } from './lib/previewQueue'
 
 export default function App() {
+  useEffect(() => {
+    initPreviewQueueListener().catch(() => {
+      // listener failure is non-fatal — progress bar simply won't update
+    })
+  }, [])
+
   return (
     <ThemeProvider>
       <HashRouter>

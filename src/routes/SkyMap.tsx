@@ -14,14 +14,6 @@ import '../styles/skymap.css'
 
 const HIPS_SURVEYS: HiPSConfig[] = [NSNS_RGB, NSNS_OHS, NSNS_HA]
 
-const LEGEND_ITEMS = [
-  { label: 'Ha', color: '#ff4444' },
-  { label: 'OIII', color: '#44ddaa' },
-  { label: 'SII', color: '#ff8844' },
-  { label: 'L', color: '#8888cc' },
-  { label: 'RGB', color: '#5b9bd5' },
-]
-
 // Load d3-celestial via script tags (not ES modules).
 // d3 v3 uses `this.d3 = d3` which needs `this === window` (non-strict mode).
 // Vite's ESM pre-bundling runs code in strict mode, breaking this.
@@ -377,18 +369,6 @@ export function SkyMap() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="skymap-legend">
-        {LEGEND_ITEMS.map((item) => (
-          <div key={item.label} className="skymap-legend-item">
-            <span
-              className="skymap-legend-color"
-              style={{ backgroundColor: item.color, color: item.color }}
-            />
-            {item.label}
-          </div>
-        ))}
-      </div>
       {/* Pointer coordinates */}
       {pointerCoords && (
         <div className="skymap-pointer-coords">
