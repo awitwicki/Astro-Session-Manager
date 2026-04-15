@@ -496,7 +496,7 @@
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
         <h3>Reads your files in place</h3>
-        <p>No import, no database, no copying. Point it at your capture folder and it indexes what's there. Your files stay exactly where they are, with the names and paths you gave them.</p>
+        <p>Point it at your capture folder and it indexes what's there — your files stay where you put them. The scan is cached in a small <span class="code-inline">.json</span> next to your library; delete it any time and the next scan rebuilds it.</p>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -520,8 +520,8 @@
       </div>
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
-        <h3>DSLR raw support</h3>
-        <p>Reads Canon CR2/CR3 and Sony ARW directly — including EXIF exposure data. Convert to FITS when you want to mix DSLR nights with CMOS data in your stacking pipeline.</p>
+        <h3>Guided import, no drag-drop</h3>
+        <p>Pick the frames you want (e.g. straight from ASIAIR) and the app copies them into the right <span class="code-inline">Project/Filter/Session</span> subfolder for you — no hunting through Finder or Explorer, no manual moves, no misfiled nights.</p>
       </div>
     </div>
   </div>
@@ -533,19 +533,20 @@
     <div class="two-col">
       <div>
         <div class="section-kicker">Your files, untouched</div>
-        <h2>It's a reader, not a vault.</h2>
+        <h2>A structure that keeps itself tidy.</h2>
         <p>
           Some catalog apps suck your data into a proprietary database.
           When the app goes away, so does the structure — sometimes the files themselves.
         </p>
         <p>
-          This one doesn't. It reads whatever naming scheme you already use,
-          parses FITS and XISF headers directly off disk, and builds its view on top.
-          Delete the app and your library is exactly where you left it.
+          This one doesn't. It expects a simple, predictable folder layout —
+          <span class="code-inline">Project / Filter / Session / Lights · Flats</span> — and reads FITS and XISF headers
+          directly off disk to build its view on top. The convention is the contract: follow it and
+          the app does the rest; ignore it and nothing is hidden from you — the files are still just files.
         </p>
         <p>
           Nothing is encrypted, re-encoded, or moved behind your back.
-          Your 2 TB of lights from the last three years stay as folders and files you can open in PixInsight, Siril, APP, or anything else whenever you want.
+          Delete the app and your 2 TB of lights stay exactly where you left them, ready for PixInsight, Siril, APP, or anything else.
         </p>
       </div>
       <div class="tree">
