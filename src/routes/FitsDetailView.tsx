@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, FolderOpen, Eye } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
 import type { SubAnalysisResult, StarsDetailResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
@@ -47,6 +46,7 @@ export function FitsDetailView() {
 
   const projects = useAppStore((s) => s.projects)
   const subAnalysis = useAppStore((s) => s.subAnalysis)
+  const previewQueue = useAppStore((s) => s.previewQueue)
 
   const [analysisResult, setAnalysisResult] = useState<SubAnalysisResult | null>(null)
   const [analysisLoading, setAnalysisLoading] = useState(false)
@@ -222,21 +222,19 @@ export function FitsDetailView() {
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [imageUrl, setImageUrl] = useState<string>('')
-  const [previewProgress, setPreviewProgress] = useState<{ current: number; total: number } | null>(null)
   const initialFitDoneRef = useRef(false)
   const lastPreviewSizeRef = useRef<{ w: number; h: number } | null>(null)
   const batchFramesKeyRef = useRef<string>('')
 
-  // Batch preview generation
+  // Enqueue previews for this filter. The queue is global and persistent —
+  // no cleanup on unmount; the worker keeps draining in the background.
   useEffect(() => {
     if (frames.length === 0) return
     const framesKey = frames.join('|')
     if (batchFramesKeyRef.current === framesKey) return
     batchFramesKeyRef.current = framesKey
 
-    let cancelled = false
-    let unlisten: (() => void) | null = null
-
+    // Center-weighted ordering around the current file.
     const idx = frames.indexOf(filePath)
     const center = idx >= 0 ? idx : 0
     const reordered: string[] = [frames[center]]
@@ -247,32 +245,9 @@ export function FitsDetailView() {
       if (after < frames.length) reordered.push(frames[after])
     }
 
-    async function run() {
-      unlisten = await listen<{ current: number; total: number; filePath: string }>(
-        'preview:progress',
-        (event) => {
-          if (!cancelled) {
-            setPreviewProgress({ current: event.payload.current, total: event.payload.total })
-          }
-        }
-      )
-      try {
-        await invoke('batch_generate_previews', { filePaths: reordered })
-      } catch {
-        // ignore batch errors
-      } finally {
-        if (unlisten) unlisten()
-        if (!cancelled) setPreviewProgress(null)
-      }
-    }
-
-    run()
-
-    return () => {
-      cancelled = true
-      if (unlisten) unlisten()
-      invoke('cancel_operation', { operation: 'preview_batch' }).catch(() => {})
-    }
+    invoke('enqueue_previews', { filePaths: reordered }).catch(() => {
+      // fire-and-forget — progress comes via store listener
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frames])
 
@@ -941,14 +916,14 @@ export function FitsDetailView() {
         </div>
 
         {/* Preview generation progress */}
-        {previewProgress && (
+        {previewQueue.active && previewQueue.total > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 12, color: 'var(--color-text-muted)', padding: '0 8px' }}>
             <div className="spinner" style={{ width: 12, height: 12 }} />
-            <span>Generating previews: {previewProgress.current}/{previewProgress.total}</span>
+            <span>Generating previews: {previewQueue.completed}/{previewQueue.total}</span>
             <div className="progress-bar" style={{ flex: 1, height: 3 }}>
               <div
                 className="progress-bar-fill"
-                style={{ width: `${(previewProgress.current / previewProgress.total) * 100}%` }}
+                style={{ width: `${(previewQueue.completed / previewQueue.total) * 100}%` }}
               />
             </div>
           </div>

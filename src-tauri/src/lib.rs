@@ -8,6 +8,7 @@ mod fits_parser;
 mod fits_preview;
 mod fits_writer;
 mod masters;
+mod preview_queue;
 mod scanner;
 mod settings;
 mod types;
@@ -58,7 +59,8 @@ pub fn run() {
             commands::read_xisf_header,
             // FITS Preview
             commands::get_fits_preview,
-            commands::batch_generate_previews,
+            commands::enqueue_previews,
+            commands::clear_preview_queue,
             commands::clear_preview_cache,
             commands::update_preview_config,
             // Analyzer

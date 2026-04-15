@@ -158,14 +158,14 @@ pub struct ScanProgress {
     pub file_path: String,
 }
 
-// ─── Preview Types ──────────────────────────────────────────────────────────
+// ─── Preview Queue Types ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PreviewProgress {
-    pub current: usize,
+pub struct PreviewQueueState {
+    pub completed: usize,
     pub total: usize,
-    pub file_path: String,
+    pub active: bool,
 }
 
 // ─── FITS Preview Types ─────────────────────────────────────────────────────

@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter};
-use tokio::sync::Semaphore;
 
 use crate::analyzer;
 use crate::cache;
@@ -13,6 +10,7 @@ use crate::cancellation;
 use crate::fits_parser;
 use crate::fits_preview;
 use crate::masters;
+use crate::preview_queue;
 use crate::scanner;
 use crate::settings;
 use crate::types::*;
@@ -95,101 +93,22 @@ pub async fn get_fits_preview(
     .map_err(|e| format!("Task join error: {}", e))?
 }
 
-/// Batch generate previews with cancellation support and file validation.
-/// Cache hits bypass the semaphore. Cancellation is checked inside each task.
+/// Enqueue paths for preview generation. Fire-and-forget: this returns as soon
+/// as the paths are appended to the front of the persistent preview queue.
+/// Progress is delivered via `preview:queue_state` events.
 #[tauri::command]
-pub async fn batch_generate_previews(
+pub async fn enqueue_previews(
     window: tauri::Window,
     file_paths: Vec<String>,
 ) -> Result<(), String> {
-    let total = file_paths.len();
-    let completed = Arc::new(AtomicUsize::new(0));
-    let semaphore = Arc::new(Semaphore::new(fits_preview::concurrent_limit()));
+    preview_queue::enqueue(&window, file_paths);
+    Ok(())
+}
 
-    cancellation::reset_cancel("preview_batch");
-
-    let mut handles = Vec::with_capacity(total);
-
-    for file_path in file_paths {
-        let sem = Arc::clone(&semaphore);
-        let window = window.clone();
-        let completed = Arc::clone(&completed);
-
-        handles.push(tokio::spawn(async move {
-            // Fast path: cache hit — no semaphore needed
-            if fits_preview::try_cache(&file_path).is_some() {
-                let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-                let _ = window.emit(
-                    "preview:progress",
-                    PreviewProgress {
-                        current: done,
-                        total,
-                        file_path,
-                    },
-                );
-                return;
-            }
-
-            // Check cancellation before acquiring semaphore
-            if cancellation::is_cancelled("preview_batch") {
-                return;
-            }
-
-            // Validate file exists before acquiring semaphore
-            if !std::path::Path::new(&file_path).exists() {
-                return;
-            }
-
-            // Acquire semaphore permit
-            let _permit = match sem.acquire().await {
-                Ok(p) => p,
-                Err(_) => return,
-            };
-
-            // Check cancellation after acquiring (may have been cancelled while waiting)
-            if cancellation::is_cancelled("preview_batch") {
-                return;
-            }
-
-            // Double-check cache — another task may have filled it while we waited
-            if fits_preview::try_cache(&file_path).is_some() {
-                let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-                let _ = window.emit(
-                    "preview:progress",
-                    PreviewProgress {
-                        current: done,
-                        total,
-                        file_path,
-                    },
-                );
-                return;
-            }
-
-            // Process on blocking thread pool
-            let fp = file_path.clone();
-            let result = tauri::async_runtime::spawn_blocking(move || {
-                fits_preview::generate_preview(&fp)
-            })
-            .await;
-
-            if result.is_ok() {
-                let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-                let _ = window.emit(
-                    "preview:progress",
-                    PreviewProgress {
-                        current: done,
-                        total,
-                        file_path,
-                    },
-                );
-            }
-        }));
-    }
-
-    for handle in handles {
-        let _ = handle.await;
-    }
-
+/// Drain the pending preview queue. In-flight items continue to completion.
+#[tauri::command]
+pub async fn clear_preview_queue(window: tauri::Window) -> Result<(), String> {
+    preview_queue::clear(&window);
     Ok(())
 }
 

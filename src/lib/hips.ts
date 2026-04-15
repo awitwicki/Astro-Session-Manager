@@ -36,11 +36,29 @@ export const NSNS_HA: HiPSConfig = {
 
 const tileCache = new Map<string, HTMLImageElement>()
 const failedTiles = new Set<string>()
-const loadingTiles = new Set<string>()
+const loadingTiles = new Map<string, HTMLImageElement>() // key → Image (for abort)
 let redrawCallback: (() => void) | null = null
+let redrawScheduled = false
+
+// Concurrency control
+const MAX_CONCURRENT = 6
+let activeRequests = 0
+const requestQueue: Array<{ config: HiPSConfig; order: number; ipix: number; key: string }> = []
+
+// Track current render generation to cancel stale requests
+let renderGeneration = 0
 
 export function setHiPSRedrawCallback(cb: () => void) {
   redrawCallback = cb
+}
+
+function scheduleRedraw() {
+  if (redrawScheduled) return
+  redrawScheduled = true
+  requestAnimationFrame(() => {
+    redrawScheduled = false
+    redrawCallback?.()
+  })
 }
 
 export function getHiPSCacheInfo(surveyId?: string): { count: number; loading: number; failed: number } {
@@ -50,7 +68,7 @@ export function getHiPSCacheInfo(surveyId?: string): { count: number; loading: n
   const prefix = `${surveyId}:`
   let count = 0, loading = 0, failed = 0
   for (const key of tileCache.keys()) if (key.startsWith(prefix)) count++
-  for (const key of loadingTiles) if (key.startsWith(prefix)) loading++
+  for (const key of loadingTiles.keys()) if (key.startsWith(prefix)) loading++
   for (const key of failedTiles) if (key.startsWith(prefix)) failed++
   return { count, loading, failed }
 }
@@ -66,17 +84,67 @@ export function clearHiPSCache(surveyId?: string) {
     const prefix = `${surveyId}:`
     deleteByPrefix(tileCache, prefix)
     deleteByPrefix(failedTiles, prefix)
-    deleteByPrefix(loadingTiles, prefix)
+    abortByPrefix(prefix)
   } else {
     tileCache.clear()
     failedTiles.clear()
-    loadingTiles.clear()
+    abortAll()
   }
+}
+
+function abortByPrefix(prefix: string) {
+  for (const [key, img] of loadingTiles) {
+    if (key.startsWith(prefix)) {
+      img.src = '' // abort the request
+      loadingTiles.delete(key)
+      activeRequests = Math.max(0, activeRequests - 1)
+    }
+  }
+}
+
+function abortAll() {
+  for (const img of loadingTiles.values()) {
+    img.src = '' // abort the request
+  }
+  loadingTiles.clear()
+  activeRequests = 0
+  requestQueue.length = 0
 }
 
 function tileUrl(config: HiPSConfig, order: number, ipix: number): string {
   const dir = Math.floor(ipix / 10000) * 10000
   return `${config.baseUrl}/Norder${order}/Dir${dir}/Npix${ipix}.${config.tileFormat}`
+}
+
+function processQueue() {
+  while (activeRequests < MAX_CONCURRENT && requestQueue.length > 0) {
+    const req = requestQueue.shift()!
+    // Skip if already resolved while queued
+    if (tileCache.has(req.key) || failedTiles.has(req.key) || loadingTiles.has(req.key)) continue
+    startTileLoad(req.config, req.order, req.ipix, req.key)
+  }
+}
+
+function startTileLoad(config: HiPSConfig, order: number, ipix: number, key: string) {
+  const gen = renderGeneration
+  activeRequests++
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  img.onload = () => {
+    tileCache.set(key, img)
+    loadingTiles.delete(key)
+    activeRequests = Math.max(0, activeRequests - 1)
+    if (gen === renderGeneration) scheduleRedraw()
+    processQueue()
+  }
+  img.onerror = () => {
+    failedTiles.add(key)
+    loadingTiles.delete(key)
+    activeRequests = Math.max(0, activeRequests - 1)
+    processQueue()
+  }
+  loadingTiles.set(key, img)
+  img.src = tileUrl(config, order, ipix)
 }
 
 function loadTile(config: HiPSConfig, order: number, ipix: number): HTMLImageElement | null {
@@ -85,19 +153,19 @@ function loadTile(config: HiPSConfig, order: number, ipix: number): HTMLImageEle
   if (tileCache.has(key)) return tileCache.get(key)!
   if (failedTiles.has(key) || loadingTiles.has(key)) return null
 
-  loadingTiles.add(key)
-  const img = new Image()
-  img.crossOrigin = 'anonymous'
-  img.onload = () => {
-    tileCache.set(key, img)
-    loadingTiles.delete(key)
-    redrawCallback?.()
+  // Queue the request instead of firing immediately
+  requestQueue.push({ config, order, ipix, key })
+  return null
+}
+
+// Find the best cached lower order that has visible tiles to use as background
+function findBestCachedOrder(config: HiPSConfig, targetOrder: number): number | null {
+  for (let o = targetOrder - 1; o >= 1; o--) {
+    const prefix = `${config.id}:${o}/`
+    for (const key of tileCache.keys()) {
+      if (key.startsWith(prefix)) return o
+    }
   }
-  img.onerror = () => {
-    failedTiles.add(key)
-    loadingTiles.delete(key)
-  }
-  img.src = tileUrl(config, order, ipix)
   return null
 }
 
@@ -135,6 +203,77 @@ function chooseOrder(
   return Math.max(1, Math.min(order, maxOrder, 4))
 }
 
+function isQuadOnScreen(verts: [number, number][], w: number, h: number): boolean {
+  for (const [px, py] of verts) {
+    if (px >= 0 && px <= w && py >= 0 && py <= h) return true
+  }
+  // No vertex on screen — check bounding box overlap
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  for (const [px, py] of verts) {
+    if (px < minX) minX = px
+    if (px > maxX) maxX = px
+    if (py < minY) minY = py
+    if (py > maxY) maxY = py
+  }
+  return maxX >= 0 && minX <= w && maxY >= 0 && minY <= h
+}
+
+// Project tile vertices and return them if the tile is visible on screen, or null to skip
+function projectTile(
+  nside: number,
+  ipix: number,
+  proj: (coords: [number, number]) => [number, number] | null,
+  canvasWidth: number,
+  canvasHeight: number,
+  maxTileDiag: number,
+): [number, number][] | null {
+  const verts = pix2vertices_nest(nside, ipix)
+  const projVerts: [number, number][] = []
+  for (const [vra, vdec] of verts) {
+    const p = proj([raToCelestial(vra), vdec])
+    if (!p) return null
+    projVerts.push(p)
+  }
+  if (projVerts.length < 4) return null
+
+  const diag = Math.hypot(projVerts[2][0] - projVerts[0][0], projVerts[2][1] - projVerts[0][1])
+  if (diag < 2 || diag > maxTileDiag) return null
+  if (signedArea(projVerts) < 0) return null
+  if (!isQuadOnScreen(projVerts, canvasWidth, canvasHeight)) return null
+
+  return projVerts
+}
+
+// Render a single order's cached tiles
+function renderOrder(
+  ctx: CanvasRenderingContext2D,
+  proj: (coords: [number, number]) => [number, number] | null,
+  config: HiPSConfig,
+  order: number,
+  viewport: { w: number; h: number; maxDiag: number },
+  queueMissing: boolean,
+) {
+  const nside = 1 << order
+  const npix = nside2npix(nside)
+
+  for (let ipix = 0; ipix < npix; ipix++) {
+    const projVerts = projectTile(nside, ipix, proj, viewport.w, viewport.h, viewport.maxDiag)
+    if (!projVerts) continue
+
+    const img = queueMissing
+      ? loadTile(config, order, ipix) // queues fetch if missing
+      : getCachedTile(config, order, ipix) // cache-only, no fetch
+    if (img) {
+      drawTile(ctx, img, projVerts)
+    }
+  }
+}
+
+function getCachedTile(config: HiPSConfig, order: number, ipix: number): HTMLImageElement | null {
+  const key = `${config.id}:${order}/${ipix}`
+  return tileCache.get(key) ?? null
+}
+
 export function renderHiPSTiles(
   ctx: CanvasRenderingContext2D,
   proj: (coords: [number, number]) => [number, number] | null,
@@ -143,66 +282,29 @@ export function renderHiPSTiles(
   canvasHeight: number,
   alpha: number
 ) {
+  // Bump generation — stale tile loads won't trigger redraws
+  renderGeneration++
+
+  // Cancel queued (not yet started) requests from previous render
+  requestQueue.length = 0
+
   const order = chooseOrder(proj, config.maxOrder)
-  const nside = 1 << order
-  const npix = nside2npix(nside)
-  // Max plausible tile diagonal — tiles larger than this are wrap-around artifacts
-  const maxTileDiag = Math.max(canvasWidth, canvasHeight) * 0.8
+  const viewport = { w: canvasWidth, h: canvasHeight, maxDiag: Math.max(canvasWidth, canvasHeight) * 0.8 }
 
   ctx.save()
   ctx.globalAlpha = alpha
 
-  for (let ipix = 0; ipix < npix; ipix++) {
-
-    // Get diamond vertices [S, E, N, W] and project them
-    const verts = pix2vertices_nest(nside, ipix)
-    const projVerts: [number, number][] = []
-    let allValid = true
-    for (const [vra, vdec] of verts) {
-      const p = proj([raToCelestial(vra), vdec])
-      if (!p) { allValid = false; break }
-      projVerts.push(p)
-    }
-    if (!allValid || projVerts.length < 4) continue
-
-    // Skip degenerate diamonds
-    const dx = projVerts[2][0] - projVerts[0][0]
-    const dy = projVerts[2][1] - projVerts[0][1]
-    const diag = Math.sqrt(dx * dx + dy * dy)
-    if (diag < 2) continue
-
-    // Back-face culling: skip tiles on the far side of the sphere
-    // Front-facing tiles have positive signed area in screen coords (y-down)
-    if (signedArea(projVerts) < 0) continue
-
-    // Skip tiles that are too large (wrap-around artifacts on back side)
-    if (diag > maxTileDiag) continue
-
-    // Skip tiles fully outside the canvas (check if any vertex is on screen)
-    let anyOnScreen = false
-    for (const [px, py] of projVerts) {
-      if (px >= 0 && px <= canvasWidth && py >= 0 && py <= canvasHeight) {
-        anyOnScreen = true
-        break
-      }
-    }
-    // Also check if the tile's bounding box overlaps the canvas
-    if (!anyOnScreen) {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-      for (const [px, py] of projVerts) {
-        if (px < minX) minX = px
-        if (px > maxX) maxX = px
-        if (py < minY) minY = py
-        if (py > maxY) maxY = py
-      }
-      if (maxX < 0 || minX > canvasWidth || maxY < 0 || minY > canvasHeight) continue
-    }
-
-    const img = loadTile(config, order, ipix)
-    if (!img) continue
-
-    drawTile(ctx, img, projVerts)
+  // Pass 1: render cached lower-order tiles as low-res background (no fetching)
+  const fallbackOrder = findBestCachedOrder(config, order)
+  if (fallbackOrder !== null) {
+    renderOrder(ctx, proj, config, fallbackOrder, viewport, false)
   }
+
+  // Pass 2: render target-order tiles on top (fetches missing tiles)
+  renderOrder(ctx, proj, config, order, viewport, true)
+
+  // Flush queued tile requests
+  processQueue()
 
   ctx.restore()
 }
