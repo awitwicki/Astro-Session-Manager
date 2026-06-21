@@ -6,7 +6,7 @@ authors = ["you"]
 license = ""
 repository = ""
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.88.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -31,12 +31,11 @@ image = "0.25"
 walkdir = "2"
 trash = "5"
 regex = "1"
-dirs = "5"
 chrono = "0.4"
 base64 = "0.22"
 tokio = { version = "1", features = ["sync", "time"] }
-rustafits = "0.9.3"
+rustafits = "1.0.1"
 rayon = "1"
-nom-exif = "2"
+nom-exif = "3"
 rawler = "0.7"
-lru = "0.12"
+lru = "0.18"

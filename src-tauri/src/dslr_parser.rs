@@ -13,7 +13,7 @@ pub fn read_dslr_header(path: &str) -> Result<FitsHeader, String> {
     let reader = BufReader::new(file);
     let ms = MediaSource::unseekable(reader)
         .map_err(|e| format!("Failed to create media source: {}", e))?;
-    let iter: ExifIter = parser.parse(ms)
+    let iter: ExifIter = parser.parse_exif(ms)
         .map_err(|e| format!("Failed to parse EXIF data: {}", e))?;
     let exif: Exif = iter.into();
 
@@ -23,7 +23,7 @@ pub fn read_dslr_header(path: &str) -> Result<FitsHeader, String> {
     if let Some(val) = exif.get(ExifTag::ExposureTime) {
         match val {
             EntryValue::URational(r) => {
-                header.exptime = Some(r.0 as f64 / r.1 as f64);
+                header.exptime = Some(r.numerator() as f64 / r.denominator() as f64);
             }
             EntryValue::F64(v) => {
                 header.exptime = Some(*v);

@@ -161,13 +161,23 @@ fn read_header(file_path: &str) -> Result<crate::types::FitsHeader, String> {
 }
 
 /// Encode a ProcessedImage as JPEG in memory and return base64 string.
-fn encode_jpeg_base64(processed: ProcessedImage) -> Result<(String, u32, u32), String> {
+///
+/// When `flip_vertical` is set the rows are mirrored top-to-bottom before
+/// encoding — used to undo rustafits' FITS row-order flip (see `generate_preview`).
+fn encode_jpeg_base64(
+    processed: ProcessedImage,
+    flip_vertical: bool,
+) -> Result<(String, u32, u32), String> {
     let width = processed.width as u32;
     let height = processed.height as u32;
 
-    let img: ImageBuffer<Rgb<u8>, Vec<u8>> =
+    let mut img: ImageBuffer<Rgb<u8>, Vec<u8>> =
         ImageBuffer::from_raw(width, height, processed.data)
             .ok_or("Failed to create image buffer from processed data")?;
+
+    if flip_vertical {
+        image::imageops::flip_vertical_in_place(&mut img);
+    }
 
     let mut buf = Cursor::new(Vec::new());
     let encoder = JpegEncoder::new_with_quality(&mut buf, JPEG_QUALITY);
@@ -226,7 +236,16 @@ pub fn generate_preview(file_path: &str) -> Result<Arc<FitsPreviewResult>, Strin
         .process(file_path)
         .map_err(|e| format!("Failed to process image: {}", e))?;
 
-    let (image_data, width, height) = encode_jpeg_base64(processed)?;
+    // rustafits 1.0 changed the default FITS row order: a file with no ROWORDER
+    // keyword is now treated as bottom-up and flipped vertically to match
+    // PixInsight, whereas 0.9.x left it unflipped. Undo that flip for FITS so
+    // previews keep their pre-1.0 orientation and stay aligned with the
+    // star-detection coordinates the detail view overlays (the analyzer always
+    // works in raw, unflipped pixel space). XISF orientation is unchanged across
+    // versions, so leave it as produced.
+    let undo_flip = processed.flip_vertical && !file_path.to_lowercase().ends_with(".xisf");
+
+    let (image_data, width, height) = encode_jpeg_base64(processed, undo_flip)?;
 
     let result = FitsPreviewResult {
         image_data,
