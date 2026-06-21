@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Map,
   CloudSun,
+  Calculator,
   Search,
   X,
   FileOutput
@@ -66,6 +67,14 @@ export function Sidebar() {
           >
             <CloudSun size={16} />
             Weather
+          </button>
+
+          <button
+            className={`sidebar-item ${location.pathname === '/calculators' ? 'active' : ''}`}
+            onClick={() => navigate('/calculators')}
+          >
+            <Calculator size={16} />
+            Bortle Calculator
           </button>
 
         </div>

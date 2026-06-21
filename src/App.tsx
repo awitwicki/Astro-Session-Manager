@@ -9,6 +9,7 @@ import { MastersLibrary } from './routes/MastersLibrary'
 import { Settings } from './routes/Settings'
 import { SkyMap } from './routes/SkyMap'
 import { Weather } from './routes/Weather'
+import { Calculators } from './routes/Calculators'
 import { Converter } from './routes/Converter'
 import { initPreviewQueueListener } from './lib/previewQueue'
 
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/masters" element={<MastersLibrary />} />
             <Route path="/skymap" element={<SkyMap />} />
             <Route path="/weather" element={<Weather />} />
+            <Route path="/calculators" element={<Calculators />} />
             <Route path="/converter" element={<Converter />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
