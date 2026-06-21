@@ -1,0 +1,12 @@
+# Local build tuning.
+#
+# Cap the number of parallel `rustc` jobs so a from-scratch compile of the
+# Tauri backend doesn't exhaust memory on a RAM-constrained machine. By default
+# cargo runs one job per CPU core (10 here), and a cold build of many heavy
+# crates at once can OOM ("Cannot allocate memory", os error 12).
+#
+# Raise or remove this on machines/CI with more headroom — there it only slows
+# builds for no benefit. For an even tighter cap on a one-off run, override with
+# the environment variable: `CARGO_BUILD_JOBS=2 yarn tauri dev`.
+[build]
+jobs = 4
