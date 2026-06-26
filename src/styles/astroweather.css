@@ -12,8 +12,10 @@
 .weather-coords {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 
 .weather-coord-label {
@@ -321,4 +323,42 @@
 
 [data-theme='light'] .weather-day-info:hover {
   background: #ececee;
+}
+
+/* Seasonal Daylight Chart */
+.daylight-chart {
+  margin-top: 18px;
+  max-width: 760px;
+}
+
+.daylight-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.daylight-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.daylight-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.daylight-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid var(--color-border);
 }

@@ -200,3 +200,76 @@
   margin-top: 2px;
   min-height: 14px;
 }
+
+/* ─── Filter calculator ──────────────────────────────────────────────────── */
+.calc-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+
+.calc-result-card-lg {
+  min-width: 220px;
+}
+
+.calc-result-card-lg .calc-result-value {
+  font-size: 28px;
+}
+
+@media (max-width: 640px) {
+  .calc-fields-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Filter profile chart ───────────────────────────────────────────────── */
+.calc-chart {
+  margin-top: 18px;
+  max-width: 560px;
+}
+
+.calc-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.calc-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.calc-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.calc-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+}
+
+.calc-swatch-dash {
+  border-top-style: dashed;
+  border-top-color: var(--color-text-muted);
+}
+
+.calc-swatch-accent {
+  border-top-color: var(--color-accent);
+}
+
+.calc-swatch-target {
+  border-top-style: dashed;
+  border-top-color: var(--color-error);
+}

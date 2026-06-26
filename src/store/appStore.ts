@@ -301,6 +301,9 @@ interface AppState {
   subAnalysis: Record<string, SubAnalysisResult>
   isAnalyzing: boolean
   previewQueue: PreviewQueueState
+  weatherLat: number | null
+  weatherLon: number | null
+  weatherShowMap: boolean
 
   setRootFolder: (path: string | null) => void
   setDashboardViewMode: (mode: 'grid' | 'table') => void
@@ -324,6 +327,8 @@ interface AppState {
   removeSubAnalysis: (paths: string[]) => void
   setAnalyzing: (v: boolean) => void
   setPreviewQueueState: (state: PreviewQueueState) => void
+  setWeatherLocation: (lat: number | null, lon: number | null) => void
+  setWeatherShowMap: (v: boolean) => void
 
   // Converter
   converterFiles: ConverterFile[]
@@ -353,6 +358,9 @@ export const useAppStore = create<AppState>((set) => ({
   subAnalysis: {},
   isAnalyzing: false,
   previewQueue: { completed: 0, total: 0, active: false },
+  weatherLat: null,
+  weatherLon: null,
+  weatherShowMap: false,
 
   setRootFolder: (path) => set({ rootFolder: path }),
 
@@ -484,6 +492,10 @@ export const useAppStore = create<AppState>((set) => ({
   setAnalyzing: (v) => set({ isAnalyzing: v }),
 
   setPreviewQueueState: (state) => set({ previewQueue: state }),
+
+  setWeatherLocation: (lat, lon) => set({ weatherLat: lat, weatherLon: lon }),
+
+  setWeatherShowMap: (v) => set({ weatherShowMap: v }),
 
   // Converter
   converterFiles: [],
