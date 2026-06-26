@@ -12,6 +12,7 @@ import {
   type DayForecast,
   type HourData,
 } from '../../lib/weather'
+import { altitudeCrossing, dayOfYear } from '../../lib/sun'
 
 interface WeatherForecastProps {
   lat: number | null
@@ -70,6 +71,7 @@ export function WeatherForecast({ lat, lon }: WeatherForecastProps) {
             <DayCard
               key={day.date}
               day={day}
+              lat={lat}
               collapsed={!expandedDays.has(day.date)}
               onToggle={() => toggleCollapse(day.date)}
             />
@@ -108,33 +110,81 @@ const ROWS: RowDef[] = [
 
 const SUMMARY_ROW = ROWS[0]
 
-function buildSunBarGradient(sunrise: string, sunset: string): string {
-  if (sunrise === '--:--' || sunset === '--:--') return '#0d1117'
+// High-contrast day → twilight → night palette (distinct lightness steps).
+const TW_DAY = '#e8b830'
+const TW_CIVIL = '#6f9ad0'
+const TW_NAUTICAL = '#3f6196'
+const TW_ASTRO = '#22324f'
+const TW_NIGHT = '#0a0d14'
 
-  const parseTime = (t: string) => {
-    const [h, m] = t.split(':').map(Number)
-    return ((h * 60 + m) / (24 * 60)) * 100
+// Day/twilight/night bar for one calendar day (00:00–24:00). Twilight bands come
+// from real solar geometry (sun.ts altitude thresholds 0/-6/-12/-18°), anchored to
+// the API's accurate sunrise/sunset. Only depths the sun ACTUALLY reaches produce a
+// band; the deepest reached band fills across solar midnight — so e.g. a location
+// with no true astronomical darkness shows astronomical twilight at midnight, never
+// a night band. Rendered as hard-edged bands (each stop repeated) for crisp contrast.
+function buildTwilightBar(lat: number | null, date: string, sunrise: string, sunset: string): string {
+  if (lat === null || sunrise === '--:--' || sunset === '--:--') {
+    // No location, or polar day/night (no sun events): solid fill, no fake gradient.
+    return sunrise === '--:--' && sunset === '--:--' ? TW_NIGHT : TW_DAY
   }
 
-  const rise = parseTime(sunrise)
-  const set = parseTime(sunset)
-  const tw = 4
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    return h * 60 + m
+  }
+  const sunriseMin = toMin(sunrise)
+  const sunsetMin = toMin(sunset)
+  const doy = dayOfYear(new Date(date + 'T12:00:00'))
 
-  const night = '#0d1117'
-  const twilight = '#1a3a5c'
-  const day = '#e8b830'
+  const horizon = altitudeCrossing(lat, doy, 0)
+  if (horizon.kind !== 'crosses') {
+    return horizon.kind === 'alwaysAbove' ? TW_DAY : TW_NIGHT
+  }
 
-  const p = (v: number) => `${v.toFixed(1)}%`
+  // Depths below each twilight threshold, deepening. For each depth the sun reaches,
+  // record minutes from sunset to that depth (= minutes before sunrise, by symmetry).
+  // Once a depth is never reached, the deeper ones can't be either, so stop.
+  const DEPTHS = [
+    { alt: -6, color: TW_NAUTICAL },
+    { alt: -12, color: TW_ASTRO },
+    { alt: -18, color: TW_NIGHT },
+  ]
+  const reached: { offset: number; color: string }[] = []
+  for (const d of DEPTHS) {
+    const c = altitudeCrossing(lat, doy, d.alt)
+    if (c.kind !== 'crosses') break
+    reached.push({ offset: (c.evening - horizon.evening) * 60, color: d.color })
+  }
 
-  const riseStart = rise - tw
-  const riseEnd = rise + tw
-  const setStart = set - tw
-  const setEnd = set + tw
+  const deepest = reached.length ? reached[reached.length - 1] : null
+  const centerColor = deepest ? deepest.color : TW_CIVIL
+  const centerOffset = deepest ? deepest.offset : 0
 
-  const noon = (rise + set) / 2
-  const noonW = 0.3
+  const pct = (min: number) => Math.max(0, Math.min(100, (min / 1440) * 100)).toFixed(2)
+  const stops: string[] = []
+  const band = (color: string, fromMin: number, toMin2: number) => {
+    stops.push(`${color} ${pct(fromMin)}%`, `${color} ${pct(toMin2)}%`)
+  }
 
-  return `linear-gradient(to right, ${night} ${p(riseStart)}, ${twilight} ${p(rise)}, ${day} ${p(riseEnd)}, ${day} ${p(noon - noonW)}, ${night} ${p(noon)}, ${day} ${p(noon + noonW)}, ${day} ${p(setStart)}, ${twilight} ${p(set)}, ${night} ${p(setEnd)})`
+  // Pre-dawn: deepest band from midnight, lightening up to sunrise.
+  band(centerColor, 0, sunriseMin - centerOffset)
+  for (let i = reached.length - 1; i >= 1; i--) {
+    band(reached[i - 1].color, sunriseMin - reached[i].offset, sunriseMin - reached[i - 1].offset)
+  }
+  if (reached.length) band(TW_CIVIL, sunriseMin - reached[0].offset, sunriseMin)
+
+  // Daylight.
+  band(TW_DAY, sunriseMin, sunsetMin)
+
+  // Dusk: darken from sunset to the deepest band, which then runs to midnight.
+  if (reached.length) band(TW_CIVIL, sunsetMin, sunsetMin + reached[0].offset)
+  for (let i = 1; i < reached.length; i++) {
+    band(reached[i - 1].color, sunsetMin + reached[i - 1].offset, sunsetMin + reached[i].offset)
+  }
+  band(centerColor, sunsetMin + centerOffset, 1440)
+
+  return `linear-gradient(to right, ${stops.join(', ')})`
 }
 
 function buildMoonBarGradient(date: string, sunrise: string, illumination: number): string {
@@ -184,11 +234,12 @@ function buildMoonBarGradient(date: string, sunrise: string, illumination: numbe
 
 interface DayCardProps {
   day: DayForecast
+  lat: number | null
   collapsed: boolean
   onToggle: () => void
 }
 
-function DayCard({ day, collapsed, onToggle }: DayCardProps) {
+function DayCard({ day, lat, collapsed, onToggle }: DayCardProps) {
   if (day.hours.length === 0) return null
 
   return (
@@ -232,7 +283,7 @@ function DayCard({ day, collapsed, onToggle }: DayCardProps) {
               ))}
             </div>
           </div>
-          <div className="weather-sun-bar" style={{ background: buildSunBarGradient(day.sunrise, day.sunset) }} />
+          <div className="weather-sun-bar" style={{ background: buildTwilightBar(lat, day.date, day.sunrise, day.sunset) }} />
           <div className="weather-sun-bar" style={{ background: buildMoonBarGradient(day.date, day.sunrise, day.moonIllumination) }} />
           {!collapsed && (
             <div className="weather-data-rows">
