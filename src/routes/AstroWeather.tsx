@@ -131,7 +131,7 @@ export function AstroWeather() {
 
       {tab === 'weather' && <WeatherForecast lat={lat} lon={lon} />}
       {tab === 'daylight' && <SeasonalDaylightChart lat={lat} lon={lon} />}
-      {tab === 'lightpollution' && <LightPollutionMap />}
+      {tab === 'lightpollution' && <LightPollutionMap lat={lat} lon={lon} />}
     </div>
   )
 }

@@ -46,19 +46,22 @@
 }
 
 /* Fix Leaflet controls for dark theme */
-.weather-map .leaflet-control-zoom a {
+.weather-map .leaflet-control-zoom a,
+.lp-map .leaflet-control-zoom a {
   background: var(--color-bg-tertiary);
   color: var(--color-text-primary);
   border-color: var(--color-border);
 }
 
-.weather-map .leaflet-control-attribution {
+.weather-map .leaflet-control-attribution,
+.lp-map .leaflet-control-attribution {
   background: var(--color-bg-secondary) !important;
   color: var(--color-text-muted) !important;
   font-size: 10px;
 }
 
-.weather-map .leaflet-control-attribution a {
+.weather-map .leaflet-control-attribution a,
+.lp-map .leaflet-control-attribution a {
   color: var(--color-accent) !important;
 }
 
@@ -359,6 +362,112 @@
   display: inline-block;
   width: 12px;
   height: 12px;
+  border-radius: 2px;
+  border: 1px solid var(--color-border);
+}
+
+/* Light Pollution Map */
+.lp-root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lp-map-container {
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* Definite height (not a flex/percentage chain, which collapses Leaflet to 0px).
+   Fills the content area: 100vh minus topbar, statusbar, .app-content padding, and the tab bar. */
+.lp-map {
+  height: calc(100vh - var(--topbar-height) - 130px);
+  min-height: 400px;
+  width: 100%;
+}
+
+.lp-hint {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* Year selector overlay (top-right; opposite the zoom control) */
+.lp-year {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+}
+
+.lp-year-label {
+  color: var(--color-text-muted);
+  margin-right: 2px;
+}
+
+.lp-year-btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lp-year-btn:hover {
+  color: var(--color-text-primary);
+}
+
+.lp-year-btn.active {
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* Bortle legend overlay (bottom-left; opposite the attribution) */
+.lp-legend {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.lp-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.lp-legend-label {
+  margin: 0 4px;
+}
+
+.lp-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
   border-radius: 2px;
   border: 1px solid var(--color-border);
 }
