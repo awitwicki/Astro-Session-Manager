@@ -4,7 +4,7 @@ export const ROUTES = {
   FITS_DETAIL: '/fits',
   MASTERS: '/masters',
   SKYMAP: '/skymap',
-  WEATHER: '/weather',
+  WEATHER: '/astroweather',
   SETTINGS: '/settings'
 } as const
 

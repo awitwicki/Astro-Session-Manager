@@ -62,11 +62,11 @@ export function Sidebar() {
           </button>
 
           <button
-            className={`sidebar-item ${location.pathname === '/weather' ? 'active' : ''}`}
-            onClick={() => navigate('/weather')}
+            className={`sidebar-item ${location.pathname === '/astroweather' ? 'active' : ''}`}
+            onClick={() => navigate('/astroweather')}
           >
             <CloudSun size={16} />
-            Weather
+            Astro Weather
           </button>
 
           <button
@@ -74,7 +74,7 @@ export function Sidebar() {
             onClick={() => navigate('/calculators')}
           >
             <Calculator size={16} />
-            Bortle Calculator
+            Calculators
           </button>
 
         </div>

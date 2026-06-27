@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { Sun, Moon, ArrowUpCircle } from 'lucide-react'
+import { Sun, Moon, ArrowUpCircle, MapPin } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useTheme } from '../../context/ThemeContext'
+import { useAppStore } from '../../store/appStore'
 
 declare const __APP_VERSION__: string
 
@@ -23,6 +24,11 @@ export function TopBar() {
   const location = useLocation()
   const { theme, toggleTheme } = useTheme()
   const [latestVersion, setLatestVersion] = useState<string | null>(null)
+  const weatherLat = useAppStore((s) => s.weatherLat)
+  const weatherLon = useAppStore((s) => s.weatherLon)
+  const weatherShowMap = useAppStore((s) => s.weatherShowMap)
+  const setWeatherShowMap = useAppStore((s) => s.setWeatherShowMap)
+  const isAstroWeather = location.pathname === '/astroweather'
 
   useEffect(() => {
     fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`)
@@ -70,6 +76,18 @@ export function TopBar() {
         </button>
       )}
 
+      {isAstroWeather && (
+        <button
+          className="btn btn-sm titlebar-no-drag"
+          onClick={() => setWeatherShowMap(!weatherShowMap)}
+          title="Set location"
+          style={{ gap: 4 }}
+        >
+          <MapPin size={14} />
+          {weatherLat !== null ? `${weatherLat}, ${weatherLon}` : 'Set Location'}
+        </button>
+      )}
+
       <button
         className="btn btn-sm titlebar-no-drag"
         onClick={toggleTheme}
@@ -97,9 +115,8 @@ function buildBreadcrumbs(pathname: string): Breadcrumb[] {
   } else if (pathname === '/settings') {
     crumbs.push({ label: 'Dashboard', path: '/' })
     crumbs.push({ label: 'Settings' })
-  } else if (pathname === '/weather') {
-    crumbs.push({ label: 'Dashboard', path: '/' })
-    crumbs.push({ label: 'Weather' })
+  } else if (pathname === '/astroweather') {
+    crumbs.push({ label: 'Astro Weather' })
   } else if (pathname.startsWith('/project/')) {
     crumbs.push({ label: 'Dashboard', path: '/' })
     const parts = pathname.split('/').filter(Boolean)
