@@ -260,6 +260,8 @@ pub struct AppSettings {
     pub weather_lat: Option<f64>,
     pub weather_lon: Option<f64>,
     #[serde(default)]
+    pub daylight_timezone: Option<String>,
+    #[serde(default)]
     pub exclude_patterns: String,
     #[serde(default)]
     pub converter_output_path: Option<String>,
@@ -281,6 +283,7 @@ impl Default for AppSettings {
             auto_scan_on_startup: true,
             weather_lat: None,
             weather_lon: None,
+            daylight_timezone: None,
             exclude_patterns: String::new(),
             converter_output_path: None,
             new_project_filter_presets: Vec::new(),
