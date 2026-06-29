@@ -481,7 +481,7 @@ input, select, textarea {
   display: flex;
   gap: 2px;
   border-bottom: 1px solid var(--color-border);
-  margin-bottom: 16px;
+  margin-bottom: 5px;
 }
 
 .tab {

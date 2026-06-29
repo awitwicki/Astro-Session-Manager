@@ -15,7 +15,7 @@
   justify-content: flex-end;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 5px;
 }
 
 .weather-coord-label {
