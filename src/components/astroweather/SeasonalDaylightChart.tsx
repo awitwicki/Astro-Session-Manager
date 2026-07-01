@@ -43,6 +43,11 @@ const toWindow = (clock: number) => (clock < 12 ? clock + 24 : clock)
 const xForIndex = (i: number) => PAD_L + (i / (DAYS - 1)) * PLOT_W
 const xForDay = (v: number) => xForIndex(v - 1)
 const yScale = (win: number) => PAD_T + ((win - Y_MIN) / (Y_MAX - Y_MIN)) * PLOT_H
+// Inverse of yScale, folded back to a clock hour in [0,24).
+const clockForY = (y: number) => {
+  const win = Y_MIN + ((y - PAD_T) / PLOT_H) * (Y_MAX - Y_MIN)
+  return win >= 24 ? win - 24 : win
+}
 
 // Per-threshold dusk/dawn lookups (index aligns with REGIONS and bandKinds).
 const DUSK = [
@@ -89,6 +94,7 @@ export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) 
   const refYear = useMemo(() => new Date().getFullYear(), [])
   const [tz, setTz] = useState<string>(AUTO_TZ)
   const [hoverDay, setHoverDay] = useState<number | null>(null)
+  const [hoverY, setHoverY] = useState<number | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
   // Load the saved timezone once.
@@ -125,8 +131,10 @@ export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) 
     if (!svg) return
     const rect = svg.getBoundingClientRect()
     const vx = ((e.clientX - rect.left) / rect.width) * W
+    const vy = ((e.clientY - rect.top) / rect.height) * H
     const i = Math.round(((vx - PAD_L) / PLOT_W) * (DAYS - 1))
     setHoverDay(i >= 0 && i < DAYS ? i : null)
+    setHoverY(vy >= PAD_T && vy <= H - PAD_B ? vy : null)
   }
 
   const tzOptions = tz === AUTO_TZ || zones.includes(tz) ? zones : [tz, ...zones]
@@ -180,7 +188,7 @@ export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) 
         role="img"
         aria-label="Seasonal daylight and astronomical darkness across the year (local time)"
         onMouseMove={onMove}
-        onMouseLeave={() => setHoverDay(null)}
+        onMouseLeave={() => { setHoverDay(null); setHoverY(null) }}
       >
         <rect x={PAD_L} y={PAD_T} width={PLOT_W} height={PLOT_H} fill={DAYLIGHT} />
 
@@ -213,6 +221,20 @@ export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) 
             {m.l}
           </text>
         ))}
+
+        {hoverY !== null && (
+          <g>
+            <line
+              x1={PAD_L} y1={hoverY} x2={W - PAD_R} y2={hoverY}
+              stroke="var(--color-text-primary)" strokeWidth={1} strokeDasharray="2 2" opacity={0.7}
+            />
+            {/* Masks the tick label underneath so the hover time stays readable. */}
+            <rect x={0} y={hoverY - 7} width={PAD_L - 2} height={14} fill="var(--color-bg-secondary)" />
+            <text x={PAD_L - 6} y={hoverY + 3} textAnchor="end" fontSize={10} fontWeight={600} fill="var(--color-text-primary)">
+              {fmtClock(clockForY(hoverY))}
+            </text>
+          </g>
+        )}
       </svg>
 
       {hovered && hoverDay !== null && (
