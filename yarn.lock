@@ -415,6 +415,11 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@photostructure/tz-lookup@^11.5.0":
+  version "11.5.0"
+  resolved "https://registry.yarnpkg.com/@photostructure/tz-lookup/-/tz-lookup-11.5.0.tgz#dacfb2861a8428f87714bf84606231f0d49835ec"
+  integrity sha512-0DVFriinZ7TeOnm9ytXeSL3NMFU87ZqMjgbPNkd8LgHFLcPg1BDyM1eewFYs+pPM+62S4fSP9Mtgijmn+6y95w==
+
 "@rolldown/pluginutils@1.0.0-rc.3":
   version "1.0.0-rc.3"
   resolved "https://registry.yarnpkg.com/@rolldown/pluginutils/-/pluginutils-1.0.0-rc.3.tgz#8a88cc92a0f741befc7bc109cb1a4c6b9408e1c5"

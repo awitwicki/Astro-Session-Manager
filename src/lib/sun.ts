@@ -1,6 +1,7 @@
 // Solar-position math for the Seasonal Daylight Chart.
-// Pure, no I/O. All times are LOCAL SOLAR TIME with solar noon fixed at 12:00
-// (equation-of-time, longitude, and DST are intentionally ignored — see spec).
+// Pure, no I/O. altitudeCrossing works in LOCAL SOLAR TIME (solar noon = 12:00);
+// dayPhases converts to clock time via equation-of-time, longitude, and the
+// caller-supplied DST-aware timezone offset (see timezone.ts).
 
 const DEG = Math.PI / 180
 

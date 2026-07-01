@@ -1,5 +1,7 @@
 // Browser-Intl timezone helpers. Kept separate from sun.ts so the astronomy stays pure.
 
+import tzLookup from '@photostructure/tz-lookup'
+
 const FALLBACK_ZONES = [
   'UTC', 'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York',
   'America/Sao_Paulo', 'Europe/London', 'Europe/Berlin', 'Europe/Moscow', 'Africa/Johannesburg',
@@ -28,6 +30,22 @@ export function detectTimeZone(): string {
     /* return UTC fallback */
   }
   return 'UTC'
+}
+
+/**
+ * IANA zone containing the coordinates (nautical Etc/GMT± zones at sea), so the
+ * location's own DST rules apply regardless of the machine's zone. Null when the
+ * lookup fails or the runtime's Intl doesn't know the zone.
+ */
+export function zoneFromCoords(lat: number, lon: number): string | null {
+  try {
+    const zone = tzLookup(lat, lon)
+    // Throws for a zone this runtime's tz database doesn't know.
+    new Intl.DateTimeFormat('en-US', { timeZone: zone })
+    return zone
+  } catch {
+    return null
+  }
 }
 
 /** DST-aware offset in hours (east-positive) of `timeZone` at the instant `date`. */

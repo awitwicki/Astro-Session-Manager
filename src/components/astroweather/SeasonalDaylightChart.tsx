@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { dayPhases, dayOfYear, type DayPhases } from '../../lib/sun'
-import { listTimeZones, detectTimeZone, tzOffsetHours } from '../../lib/timezone'
+import { listTimeZones, detectTimeZone, tzOffsetHours, zoneFromCoords } from '../../lib/timezone'
 
 interface SeasonalDaylightChartProps {
   lat: number | null
@@ -65,6 +65,12 @@ function regionBoundary(p: DayPhases, idx: number): { up: number; down: number }
   return { up: toWindow(dusk), down: toWindow(dawn) }
 }
 
+// Sentinel select value: resolve the zone from the chart's coordinates.
+const AUTO_TZ = 'auto'
+
+// tzdata renamed the zone; ICU keeps listing the old spelling.
+const zoneLabel = (z: string) => (z === 'Europe/Kiev' ? 'Europe/Kyiv' : z)
+
 const pad2 = (n: number) => String(n).padStart(2, '0')
 function fmtClock(h: number | null): string {
   if (h === null) return '—'
@@ -81,7 +87,7 @@ function fmtDur(hours: number): string {
 export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) {
   const zones = useMemo(() => listTimeZones(), [])
   const refYear = useMemo(() => new Date().getFullYear(), [])
-  const [tz, setTz] = useState<string>(() => detectTimeZone())
+  const [tz, setTz] = useState<string>(AUTO_TZ)
   const [hoverDay, setHoverDay] = useState<number | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -92,12 +98,19 @@ export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) 
     }).catch(() => {})
   }, [])
 
+  // In auto mode the location's own zone (and thus its DST rules) wins; the
+  // machine's zone is only the no-location fallback.
+  const effectiveTz = useMemo(() => {
+    if (tz !== AUTO_TZ) return tz
+    return (lat !== null && lon !== null ? zoneFromCoords(lat, lon) : null) ?? detectTimeZone()
+  }, [tz, lat, lon])
+
   // Per-day DST-aware offset (recomputed when the zone changes).
   const offsets = useMemo(() => {
     const arr: number[] = []
-    for (let d = 1; d <= DAYS; d++) arr.push(tzOffsetHours(tz, new Date(Date.UTC(refYear, 0, d, 12))))
+    for (let d = 1; d <= DAYS; d++) arr.push(tzOffsetHours(effectiveTz, new Date(Date.UTC(refYear, 0, d, 12))))
     return arr
-  }, [tz, refYear])
+  }, [effectiveTz, refYear])
 
   // Per-day phases (clock time).
   const cols = useMemo(() => {
@@ -116,7 +129,7 @@ export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) 
     setHoverDay(i >= 0 && i < DAYS ? i : null)
   }
 
-  const tzOptions = zones.includes(tz) ? zones : [tz, ...zones]
+  const tzOptions = tz === AUTO_TZ || zones.includes(tz) ? zones : [tz, ...zones]
 
   function onTz(e: React.ChangeEvent<HTMLSelectElement>) {
     const v = e.target.value
@@ -153,8 +166,9 @@ export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) 
       <div className="daylight-toolbar">
         <label htmlFor="daylight-tz">Timezone</label>
         <select id="daylight-tz" className="daylight-tz-select" value={tz} onChange={onTz}>
+          <option value={AUTO_TZ}>Auto — {zoneLabel(effectiveTz)}</option>
           {tzOptions.map((z) => (
-            <option key={z} value={z}>{z === 'Europe/Kiev' ? 'Europe/Kyiv' : z}</option>
+            <option key={z} value={z}>{zoneLabel(z)}</option>
           ))}
         </select>
       </div>
