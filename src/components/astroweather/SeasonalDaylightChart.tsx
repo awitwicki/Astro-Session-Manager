@@ -154,7 +154,7 @@ export function SeasonalDaylightChart({ lat, lon }: SeasonalDaylightChartProps) 
         <label htmlFor="daylight-tz">Timezone</label>
         <select id="daylight-tz" className="daylight-tz-select" value={tz} onChange={onTz}>
           {tzOptions.map((z) => (
-            <option key={z} value={z}>{z}</option>
+            <option key={z} value={z}>{z === 'Europe/Kiev' ? 'Europe/Kyiv' : z}</option>
           ))}
         </select>
       </div>
