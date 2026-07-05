@@ -1,11 +1,14 @@
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
+use lru::LruCache;
 use rayon::prelude::*;
 use tauri::Emitter;
 
 use crate::cancellation;
+use crate::single_flight::SingleFlight;
 use crate::types::{AnalyzeProgress, StarDetail, StarsDetailResult, SubAnalysis};
 
 /// Dedicated thread pool for analysis — avoids contention with the global rayon
@@ -29,7 +32,56 @@ fn new_analyzer() -> astroimage::ImageAnalyzer {
         .with_max_stars(1000)
 }
 
-pub fn analyze_stars_detail(file_path: &str) -> Result<StarsDetailResult, String> {
+// ─── Stars detail cache ─────────────────────────────────────────────────────
+//
+// Per-star detail (heatmap / tilt overlays) is expensive — a full star
+// detection pass over the file. Cache results by path so navigating back to a
+// frame (or prefetching neighbors via the preview queue) is instant, and
+// single-flight the computation so the queue worker and a direct
+// `analyze_stars_detail` command never analyze the same file twice at once.
+// ~32 KB per entry worst case (1000 stars) → 256 entries ≤ 8 MB.
+
+const STARS_CACHE_ENTRIES: usize = 256;
+
+static STARS_CACHE: OnceLock<Mutex<LruCache<String, Arc<StarsDetailResult>>>> = OnceLock::new();
+static STARS_FLIGHT: OnceLock<SingleFlight<Result<Arc<StarsDetailResult>, String>>> =
+    OnceLock::new();
+
+fn stars_cache() -> &'static Mutex<LruCache<String, Arc<StarsDetailResult>>> {
+    STARS_CACHE.get_or_init(|| {
+        Mutex::new(LruCache::new(NonZeroUsize::new(STARS_CACHE_ENTRIES).unwrap()))
+    })
+}
+
+fn stars_flight() -> &'static SingleFlight<Result<Arc<StarsDetailResult>, String>> {
+    STARS_FLIGHT.get_or_init(SingleFlight::new)
+}
+
+/// Fast path for the preview-queue worker: cache check only, with LRU promotion.
+pub fn try_stars_cache(file_path: &str) -> Option<Arc<StarsDetailResult>> {
+    stars_cache().lock().unwrap().get(file_path).cloned()
+}
+
+/// Cached + single-flighted star detail. Used by both the queue worker
+/// (prefetch) and the `analyze_stars_detail` command (on demand).
+pub fn stars_detail_cached(file_path: &str) -> Result<Arc<StarsDetailResult>, String> {
+    if let Some(hit) = try_stars_cache(file_path) {
+        return Ok(hit);
+    }
+    stars_flight().run(file_path, || {
+        if let Some(hit) = try_stars_cache(file_path) {
+            return Ok(hit);
+        }
+        let result = Arc::new(analyze_stars_detail_inner(file_path)?);
+        stars_cache()
+            .lock()
+            .unwrap()
+            .put(file_path.to_string(), Arc::clone(&result));
+        Ok(result)
+    })
+}
+
+fn analyze_stars_detail_inner(file_path: &str) -> Result<StarsDetailResult, String> {
     let analyzer = new_analyzer();
 
     let result = analyzer

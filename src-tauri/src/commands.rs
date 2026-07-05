@@ -83,6 +83,8 @@ pub fn read_xisf_header(file_path: String) -> Result<FitsHeader, String> {
 pub async fn get_fits_preview(
     file_path: String,
 ) -> Result<FitsPreviewResult, String> {
+    // Foreground: pause queue admissions so the visible frame gets the CPU.
+    let _foreground = preview_queue::foreground_guard();
     tauri::async_runtime::spawn_blocking(move || {
         fits_preview::get_fits_preview(&file_path)
             // Clone is required for Tauri IPC serialization — the Arc benefit
@@ -93,15 +95,17 @@ pub async fn get_fits_preview(
     .map_err(|e| format!("Task join error: {}", e))?
 }
 
-/// Enqueue paths for preview generation. Fire-and-forget: this returns as soon
-/// as the paths are appended to the front of the persistent preview queue.
-/// Progress is delivered via `preview:queue_state` events.
+/// Replace pending prefetch work with the window around the selected frame
+/// (paths ordered nearest-first): a preview job per path, each followed by a
+/// star-detail job when `include_stars` is set. Fire-and-forget: progress is
+/// delivered via `preview:queue_state` events.
 #[tauri::command]
-pub async fn enqueue_previews(
+pub async fn enqueue_prefetch_window(
     window: tauri::Window,
     file_paths: Vec<String>,
+    include_stars: bool,
 ) -> Result<(), String> {
-    preview_queue::enqueue(&window, file_paths);
+    preview_queue::prefetch_window(&window, file_paths, include_stars);
     Ok(())
 }
 
@@ -176,8 +180,14 @@ pub async fn analyze_subs(
 pub async fn analyze_stars_detail(
     file_path: String,
 ) -> Result<StarsDetailResult, String> {
+    // Foreground: pause queue admissions so the visible frame's overlay
+    // analysis doesn't finish last behind a batch of prefetch jobs.
+    let _foreground = preview_queue::foreground_guard();
     tauri::async_runtime::spawn_blocking(move || {
-        analyzer::analyze_stars_detail(&file_path)
+        analyzer::stars_detail_cached(&file_path)
+            // Clone is required for Tauri IPC serialization — the Arc benefit
+            // is in the cache/prefetch path where results stay internal.
+            .map(|arc| (*arc).clone())
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?

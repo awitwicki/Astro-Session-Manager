@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, FolderOpen, Eye } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { useAppStore } from '../store/appStore'
-import type { SubAnalysisResult, StarsDetailResult } from '../types'
+import type { StarsDetailResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
 import { computeMedian } from '../lib/formatters'
 
@@ -48,8 +48,8 @@ export function FitsDetailView() {
   const subAnalysis = useAppStore((s) => s.subAnalysis)
   const previewQueue = useAppStore((s) => s.previewQueue)
 
-  const [analysisResult, setAnalysisResult] = useState<SubAnalysisResult | null>(null)
-  const [analysisLoading, setAnalysisLoading] = useState(false)
+  // Cached analysis for this frame (no auto-analyze) — derived from the store.
+  const analysisResult = subAnalysis[filePath] ?? null
 
   const starsCacheRef = useRef<Map<string, StarsDetailResult>>(new Map())
   const starsFailedRef = useRef<Set<string>>(new Set())
@@ -224,56 +224,13 @@ export function FitsDetailView() {
   const [imageUrl, setImageUrl] = useState<string>('')
   const initialFitDoneRef = useRef(false)
   const lastPreviewSizeRef = useRef<{ w: number; h: number } | null>(null)
-  const batchFramesKeyRef = useRef<string>('')
 
-  // Enqueue previews for this filter. The queue is global and persistent —
-  // no cleanup on unmount; the worker keeps draining in the background.
-  useEffect(() => {
-    if (frames.length === 0) return
-    const framesKey = frames.join('|')
-    if (batchFramesKeyRef.current === framesKey) return
-    batchFramesKeyRef.current = framesKey
-
-    // Center-weighted ordering around the current file.
-    const idx = frames.indexOf(filePath)
-    const center = idx >= 0 ? idx : 0
-    const reordered: string[] = [frames[center]]
-    for (let i = 1; i < frames.length; i++) {
-      const before = center - i
-      const after = center + i
-      if (before >= 0) reordered.push(frames[before])
-      if (after < frames.length) reordered.push(frames[after])
-    }
-
-    invoke('enqueue_previews', { filePaths: reordered }).catch(() => {
-      // fire-and-forget — progress comes via store listener
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frames])
-
-  // Reset error and clear overlay canvases when file changes
+  // Reset error when file changes. The overlay canvases are owned entirely
+  // by their draw effects below — they clear themselves while the new
+  // frame's preview/star data loads.
   useEffect(() => {
     setError(null)
-    for (const ref of [heatmapCanvasRef, tiltCanvasRef]) {
-      const canvas = ref.current
-      if (canvas) {
-        const ctx = canvas.getContext('2d')
-        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
-      }
-    }
   }, [filePath])
-
-  // Show cached analysis if available (no auto-analyze)
-  useEffect(() => {
-    if (!filePath) return
-    const cached = subAnalysis[filePath]
-    if (cached) {
-      setAnalysisResult(cached)
-    } else {
-      setAnalysisResult(null)
-    }
-    setAnalysisLoading(false)
-  }, [filePath, subAnalysis])
 
   // Fetch per-star detail when heatmap or tilt is enabled
   useEffect(() => {
@@ -386,6 +343,29 @@ export function FitsDetailView() {
     }
   }, [filePath])
 
+  // Prefetch the frames around the selected one: the frame itself, then ±3
+  // neighbors nearest-first — previews, plus star details when the
+  // heatmap/tilt overlays are on. Each navigation *replaces* the pending
+  // queue, so prefetch follows the user instead of sweeping the whole list.
+  // Declared after the direct preview/stars effects so their foreground
+  // requests reach the backend before the queue starts on the window.
+  useEffect(() => {
+    if (frames.length === 0) return
+    const idx = frames.indexOf(filePath)
+    if (idx < 0) return
+    const windowPaths: string[] = [frames[idx]]
+    for (let i = 1; i <= 3; i++) {
+      if (idx + i < frames.length) windowPaths.push(frames[idx + i])
+      if (idx - i >= 0) windowPaths.push(frames[idx - i])
+    }
+    invoke('enqueue_prefetch_window', {
+      filePaths: windowPaths,
+      includeStars: showHeatmap || showTilt,
+    }).catch(() => {
+      // fire-and-forget — progress comes via store listener
+    })
+  }, [frames, filePath, showHeatmap, showTilt])
+
   // Mouse handlers for pan
   const handleMouseDown = (e: React.MouseEvent): void => {
     if (e.button === 0) {
@@ -440,7 +420,11 @@ export function FitsDetailView() {
     }
 
     const starData = starsCacheRef.current.get(filePath)
-    if (!starData || starData.stars.length === 0) return
+    if (!starData || starData.stars.length === 0) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+      return
+    }
 
     canvas.width = preview.width
     canvas.height = preview.height
@@ -518,7 +502,11 @@ export function FitsDetailView() {
     }
 
     const starData = starsCacheRef.current.get(filePath)
-    if (!starData || starData.stars.length === 0) return
+    if (!starData || starData.stars.length === 0) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+      return
+    }
 
     canvas.width = preview.width
     canvas.height = preview.height
@@ -1036,7 +1024,6 @@ export function FitsDetailView() {
                 {displayHeader.bayerpat != null && <HeaderChip label="Bayer" value={String(displayHeader.bayerpat)} />}
                 <HeaderChip label="Size" value={`${String(displayHeader.naxis1)}x${String(displayHeader.naxis2)}`} />
                 <HeaderChip label="Bits" value={`${String(displayHeader.bitpix)}`} />
-                {analysisLoading && <span style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>Analyzing...</span>}
                 {analysisResult && (
                   <>
                     <HeaderChip label="FWHM" value={analysisResult.medianFwhm.toFixed(2)} />

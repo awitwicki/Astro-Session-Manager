@@ -11,6 +11,7 @@ use image::{ImageBuffer, Rgb};
 use lru::LruCache;
 
 use crate::fits_parser;
+use crate::single_flight::SingleFlight;
 use crate::types::FitsPreviewResult;
 use crate::xisf_parser;
 
@@ -205,9 +206,32 @@ fn try_cache_promote(file_path: &str) -> Option<Arc<FitsPreviewResult>> {
     cache.lru.get(file_path).map(|entry| Arc::clone(&entry.result))
 }
 
+static GENERATION_FLIGHT: OnceLock<SingleFlight<Result<Arc<FitsPreviewResult>, String>>> =
+    OnceLock::new();
+
+fn generation_flight() -> &'static SingleFlight<Result<Arc<FitsPreviewResult>, String>> {
+    GENERATION_FLIGHT.get_or_init(SingleFlight::new)
+}
+
 /// Slow path: process FITS/XISF → JPEG base64, insert into cache.
 /// Caller is responsible for concurrency control (semaphore).
+///
+/// Single-flight per path: the queue worker and a direct `get_fits_preview`
+/// command frequently request the same file at the same time (the detail view
+/// enqueues the selected frame *and* fetches it directly) — the second caller
+/// waits for the first generation instead of duplicating it.
 pub fn generate_preview(file_path: &str) -> Result<Arc<FitsPreviewResult>, String> {
+    generation_flight().run(file_path, || {
+        // A follower that arrives just after the leader finished lands here
+        // on a fresh flight — the cache check keeps that from regenerating.
+        if let Some(cached) = try_cache(file_path) {
+            return Ok(cached);
+        }
+        generate_preview_inner(file_path)
+    })
+}
+
+fn generate_preview_inner(file_path: &str) -> Result<Arc<FitsPreviewResult>, String> {
     // Validate file exists before doing expensive work
     if !Path::new(file_path).exists() {
         return Err(format!("File not found: {}", file_path));

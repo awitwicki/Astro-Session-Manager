@@ -79,7 +79,7 @@ yarn lint         # frontend lint
 - Long operations emit progress events via Tauri window events; the preview queue emits state snapshots (`preview:queue_state`) while holding its mutex so events are ordered.
 - FITS parsing handles keyword aliases for N.I.N.A., ASIAIR, SGPro, SharpCap.
 - Preview generation: FITS → JPEG (max 1920×1080, quality 90), SHA256-based cache keys, bounded LRU (default 500 MB, 30 min TTL, runtime-adjustable concurrency).
-- Preview generation scheduling uses a persistent global priority queue (`preview_queue.rs`): `enqueue_previews` prepends paths to the front with dedup; clicking a new filter preempts previous work without cancelling it.
+- Preview/star-analysis prefetch uses a persistent global queue (`preview_queue.rs`): navigating frames calls `enqueue_prefetch_window`, which replaces pending work with the selected frame ±3 (preview job per path, plus star-detail job when heatmap/tilt overlays are on). Direct `get_fits_preview` / `analyze_stars_detail` commands hold a foreground guard that pauses new queue admissions so the visible frame renders first; per-path single-flight (`single_flight.rs`) prevents duplicate concurrent generation.
 - Masters matching: by exposure (±0.5 s), temperature (configurable tolerance), resolution.
 - Supported formats: FITS (`.fits`, `.fit`, `.fts`), XISF (`.xisf`), DSLR RAW (`.cr2`, `.cr3`, `.arw`).
 - Error handling: `Result<T, String>` across the IPC boundary — Rust errors become plain strings for the frontend.

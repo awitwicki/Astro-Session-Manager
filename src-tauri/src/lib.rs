@@ -11,6 +11,7 @@ mod masters;
 mod preview_queue;
 mod scanner;
 mod settings;
+mod single_flight;
 mod types;
 mod xisf_parser;
 
@@ -59,7 +60,7 @@ pub fn run() {
             commands::read_xisf_header,
             // FITS Preview
             commands::get_fits_preview,
-            commands::enqueue_previews,
+            commands::enqueue_prefetch_window,
             commands::clear_preview_queue,
             commands::clear_preview_cache,
             commands::update_preview_config,
