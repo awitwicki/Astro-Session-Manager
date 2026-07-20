@@ -1,0 +1,10 @@
+{
+  "name": "AstroWeather",
+  "short_name": "AstroWeather",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "icons": [{ "src": "icon.png", "sizes": "256x256", "type": "image/png" }]
+}

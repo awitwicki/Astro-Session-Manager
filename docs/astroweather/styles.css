@@ -1,0 +1,535 @@
+/* AstroWeather static page — dark theme only.
+   Variables: dark values from src/styles/variables.css.
+   Components: ported from src/styles/global.css and astroweather.css. */
+
+:root {
+  --color-bg-primary: #0f1117;
+  --color-bg-secondary: #1a1d27;
+  --color-bg-tertiary: #252836;
+  --color-bg-hover: #2e3142;
+  --color-text-primary: #e4e6eb;
+  --color-text-secondary: #a8abbe;
+  --color-text-muted: #6b7085;
+  --color-border: #2e3142;
+  --color-border-active: #4a4f65;
+  --color-accent: #5b9bd5;
+  --color-accent-hover: #7cb3e0;
+  --color-accent-text: #ffffff;
+  --color-warning: #ff9800;
+  --color-error: #f44336;
+  --color-error-muted: #3d1414;
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --transition-fast: 150ms ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0 auto;
+  padding: 12px;
+  max-width: 900px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+}
+
+h1 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Buttons (global.css) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-active);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.btn-primary:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Tabs (global.css) */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 12px;
+}
+
+.tab {
+  padding: 2px 16px 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+
+.tab:hover {
+  color: var(--color-text-primary);
+}
+
+.tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* Empty state (global.css) */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 0 0 8px;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+/* Location bar */
+.loc-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.loc-coords {
+  flex: 1;
+  min-width: 140px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.loc-msg {
+  font-size: 12px;
+  color: var(--color-error);
+}
+
+/* Leaflet map (astroweather.css) */
+.weather-map-container {
+  margin-bottom: 12px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.weather-map {
+  height: 300px;
+  width: 100%;
+}
+
+.weather-map .leaflet-control-zoom a {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+.weather-map .leaflet-control-attribution {
+  background: var(--color-bg-secondary) !important;
+  color: var(--color-text-muted) !important;
+  font-size: 10px;
+}
+
+.weather-map .leaflet-control-attribution a {
+  color: var(--color-accent) !important;
+}
+
+/* Error */
+.weather-error {
+  background: var(--color-error-muted);
+  color: var(--color-error);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+/* Refresh row */
+.weather-coords {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+
+/* Day cards */
+.weather-days {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+}
+
+.weather-day-card {
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.weather-day-card:last-child {
+  border-bottom: none;
+}
+
+.weather-day-row {
+  display: flex;
+  min-height: 0;
+}
+
+.weather-day-left {
+  flex-shrink: 0;
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+}
+
+.weather-day-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  gap: 2px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.2s, border-color 0.2s;
+  border-left: 3px solid transparent;
+  height: 87px;
+  flex-shrink: 0;
+}
+
+.weather-day-info:hover {
+  background: var(--color-bg-tertiary);
+  border-left-color: var(--color-accent);
+}
+
+.weather-day-top {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.weather-day-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.weather-day-number {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.weather-moon-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  justify-content: center;
+}
+
+.weather-moon-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.weather-moon-pct {
+  color: var(--color-warning);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.weather-sun-times {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}
+
+.weather-sun-rise {
+  color: var(--color-warning);
+}
+
+.weather-sun-set {
+  color: var(--color-accent);
+}
+
+/* Right: scrollable grid area. Desktop keeps 24 flexible columns; on narrow
+   screens the inner wrapper's min-width forces horizontal scrolling while the
+   left info/labels column stays put. */
+.weather-day-grid {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.weather-grid-inner {
+  display: flex;
+  flex-direction: column;
+  min-width: 528px;
+}
+
+.weather-summary-bar {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 67px;
+}
+
+.weather-summary-hours {
+  display: flex;
+  flex: 1;
+}
+
+.weather-summary-cell {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  border-right: 1px solid rgba(0, 0, 0, 1);
+}
+
+.weather-summary-cell:last-child {
+  border-right: none;
+}
+
+.weather-summary-hour {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  padding-bottom: 2px;
+  line-height: 1;
+}
+
+.weather-sun-bar {
+  height: 10px;
+  width: 100%;
+}
+
+.weather-labels-col {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border);
+}
+
+.weather-label-cell {
+  padding: 0 8px;
+  height: 21px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+.weather-data-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.weather-data-row {
+  display: flex;
+  border-top: 1px solid rgba(0, 0, 0, 1);
+}
+
+.weather-cell {
+  flex: 1;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  border-right: 1px solid rgba(0, 0, 0, 1);
+}
+
+.weather-cell:last-child {
+  border-right: none;
+}
+
+.weather-summary-cell.past,
+.weather-cell.past {
+  filter: saturate(0.5) brightness(0.5);
+}
+
+.weather-summary-cell.past .weather-summary-hour {
+  opacity: 0.4;
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 8px;
+  }
+
+  .weather-day-left {
+    width: 104px;
+  }
+
+  .weather-day-name {
+    font-size: 12px;
+  }
+
+  .weather-day-number {
+    font-size: 15px;
+  }
+
+  .weather-label-cell {
+    font-size: 9px;
+    padding: 0 4px;
+  }
+
+  .weather-summary-hour {
+    font-size: 10px;
+  }
+}
+
+/* Daylight chart (astroweather.css). Hover panel is in normal flow (not an
+   absolute overlay) so a finger on the chart never hides it; min-height stops
+   layout jumping when content appears. touch-action: pan-y keeps vertical page
+   scroll working while horizontal drags scrub the chart. */
+.daylight-chart {
+  margin-top: 6px;
+  max-width: 760px;
+}
+
+.daylight-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  touch-action: pan-y;
+}
+
+.daylight-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.daylight-tz-select {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  max-width: 280px;
+}
+
+.daylight-hover-panel {
+  margin-top: 8px;
+  min-height: 76px;
+  padding: 8px 10px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.daylight-hover-date {
+  margin-bottom: 2px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.daylight-hover-dark {
+  color: var(--color-accent);
+}
+
+.daylight-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.daylight-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.daylight-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid var(--color-border);
+}
