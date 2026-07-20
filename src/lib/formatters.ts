@@ -51,3 +51,26 @@ export function computeMedian(values: number[]): number {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
 }
 
+export function formatRA(raDeg: number): string {
+  const totalSec = Math.round((((raDeg % 360) + 360) % 360 / 15) * 3600)
+  const h = Math.floor(totalSec / 3600) % 24
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
+}
+
+export function formatDec(decDeg: number): string {
+  const sign = decDeg < 0 ? '-' : '+'
+  const totalSec = Math.round(Math.abs(decDeg) * 3600)
+  const d = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  return `${sign}${String(d).padStart(2, '0')}° ${String(m).padStart(2, '0')}' ${String(s).padStart(2, '0')}"`
+}
+
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+
+export function azToCompass(azDeg: number): string {
+  return COMPASS[Math.round((((azDeg % 360) + 360) % 360) / 45) % 8]
+}
+

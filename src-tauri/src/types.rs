@@ -262,6 +262,10 @@ pub struct AppSettings {
     #[serde(default)]
     pub daylight_timezone: Option<String>,
     #[serde(default)]
+    pub planner_targets: Option<serde_json::Value>,
+    #[serde(default)]
+    pub horizon_profile: Option<serde_json::Value>,
+    #[serde(default)]
     pub exclude_patterns: String,
     #[serde(default)]
     pub converter_output_path: Option<String>,
@@ -284,6 +288,8 @@ impl Default for AppSettings {
             weather_lat: None,
             weather_lon: None,
             daylight_timezone: None,
+            planner_targets: None,
+            horizon_profile: None,
             exclude_patterns: String::new(),
             converter_output_path: None,
             new_project_filter_presets: Vec::new(),
@@ -323,4 +329,46 @@ pub struct ConversionProgress {
     pub success: bool,
     pub skipped: bool,
     pub error: Option<String>,
+}
+
+#[cfg(test)]
+mod app_settings_tests {
+    use super::AppSettings;
+
+    // Mirrors set_setting's merge logic (serialize -> insert key -> deserialize)
+    // without needing a Tauri AppHandle. Guards against a key silently vanishing
+    // because AppSettings has no matching field for it (the plannerTargets bug).
+    #[test]
+    fn arbitrary_key_round_trips_through_app_settings() {
+        let mut obj = serde_json::to_value(AppSettings::default()).unwrap();
+        obj.as_object_mut()
+            .unwrap()
+            .insert("plannerTargets".to_string(), serde_json::json!([{"id": "NGC 224"}]));
+
+        let settings: AppSettings = serde_json::from_value(obj).unwrap();
+
+        assert_eq!(
+            settings.planner_targets,
+            Some(serde_json::json!([{"id": "NGC 224"}]))
+        );
+    }
+
+    #[test]
+    fn horizon_profile_round_trips_through_app_settings() {
+        let mut obj = serde_json::to_value(AppSettings::default()).unwrap();
+        obj.as_object_mut().unwrap().insert(
+            "horizonProfile".to_string(),
+            serde_json::json!({ "points": [{ "az": 0, "alt": 14 }, { "az": 90, "alt": 7 }], "name": "home.hrz" }),
+        );
+
+        let settings: AppSettings = serde_json::from_value(obj).unwrap();
+
+        assert_eq!(
+            settings.horizon_profile,
+            Some(serde_json::json!({
+                "points": [{ "az": 0, "alt": 14 }, { "az": 90, "alt": 7 }],
+                "name": "home.hrz"
+            }))
+        );
+    }
 }

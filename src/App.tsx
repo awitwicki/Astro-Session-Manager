@@ -8,6 +8,8 @@ import { FitsDetailView } from './routes/FitsDetailView'
 import { MastersLibrary } from './routes/MastersLibrary'
 import { Settings } from './routes/Settings'
 import { SkyMap } from './routes/SkyMap'
+import { Planner } from './routes/Planner'
+import { PlannerDetail } from './routes/PlannerDetail'
 import { AstroWeather } from './routes/AstroWeather'
 import { Calculators } from './routes/Calculators'
 import { Converter } from './routes/Converter'
@@ -30,6 +32,8 @@ export default function App() {
             <Route path="/fits" element={<FitsDetailView />} />
             <Route path="/masters" element={<MastersLibrary />} />
             <Route path="/skymap" element={<SkyMap />} />
+            <Route path="/planner" element={<Planner />} />
+            <Route path="/planner/:targetId" element={<PlannerDetail />} />
             <Route path="/astroweather" element={<AstroWeather />} />
             <Route path="/calculators" element={<Calculators />} />
             <Route path="/converter" element={<Converter />} />
