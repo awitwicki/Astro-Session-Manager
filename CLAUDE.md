@@ -11,7 +11,7 @@ Desktop application for managing astrophotography imaging sessions and master ca
 
 ## Tech Stack
 
-**Frontend:** React 19.2, TypeScript 5.9, Vite 7, Zustand 5 (state), React Router DOM 7 (hash routing), Lucide React (icons), `d3-celestial` (SkyMap), `leaflet` (Weather map), Babel React Compiler plugin, custom CSS with CSS variables (dark/light themes via `data-theme` attribute).
+**Frontend:** React 19.2, TypeScript 5.9, Vite 7, Zustand 5 (state), React Router DOM 7 (hash routing), Lucide React (icons), `d3-celestial` (SkyMap), `leaflet` (Weather map), `astronomy-engine` (Planner ephemerides), Babel React Compiler plugin, custom CSS with CSS variables (dark/light themes via `data-theme` attribute).
 
 **Backend:** Tauri 2.10, Rust edition 2021 (MSRV 1.77.2). Key crates:
 - `rustafits` 0.9 — FITS parsing (imported as `astroimage` — this is the crate's `[lib] name`, not a separate dep)
@@ -32,8 +32,13 @@ Desktop application for managing astrophotography imaging sessions and master ca
 ```
 src/                          # Frontend (React + TypeScript)
   routes/                     # Dashboard, ProjectView, FitsDetailView,
-                              # MastersLibrary, Settings, SkyMap, Weather, Converter
+                              # MastersLibrary, Settings, SkyMap, Weather,
+                              # Converter, Planner, PlannerDetail
   components/layout/          # AppShell, TopBar, Sidebar, StatusBar
+  components/astroweather/    # WeatherForecast, SeasonalDaylightChart,
+                              # LightPollutionMap, HorizonEditor
+  components/skymap/          # ClassicSkyView, PlannerSkyView,
+                              # PlannerTimeToolbar, PlannerTargetPanel
   store/appStore.ts           # Zustand store (scan state, analysis, queues,
                               # previewQueue slice mirrored from backend)
   context/ThemeContext.tsx    # Theme provider
@@ -71,6 +76,7 @@ yarn tauri build  # production build
 cargo test --lib  # Rust unit tests (from src-tauri/)
 yarn tsc --noEmit # frontend typecheck
 yarn lint         # frontend lint
+yarn test:web     # frontend unit tests (node:test via tsx)
 ```
 
 ## Key Patterns
@@ -85,6 +91,17 @@ yarn lint         # frontend lint
 - Error handling: `Result<T, String>` across the IPC boundary — Rust errors become plain strings for the frontend.
 - Async: `tauri::async_runtime::spawn_blocking` for CPU-intensive work; `tokio::spawn` for I/O-bound or long-running tasks (e.g. preview worker, background cache sweeper).
 - Cancellation: `cancellation::request_cancel("scan" | "analyze" | "import" | "convert")` — global atomic booleans polled by cooperating jobs.
+- Custom horizon: the observing site's skyline is stored as an azimuth/altitude
+  profile (`src/lib/horizon.ts`), imported from and exported to N.I.N.A.'s
+  `.hrz` format, and applied to the Planner's altitude charts (terrain fill),
+  list flags, and the Sky Map planner mode's ground. Persisted via the
+  `horizonProfile` setting.
+- Sky Map modes: the SkyMap route hosts two exclusive views — the classic
+  equatorial map and a Stellarium-like Planner mode (`skymapMode` setting)
+  with a ground-fixed alt-az view (`src/lib/altAzView.ts`), a simulated
+  clock (`useSimTime`), Sun/Moon + sky-brightness overlays, and Planner
+  targets with night trajectories (`src/lib/trajectory.ts`). PlannerDetail
+  deep-links into it via `/skymap?target=<id>`.
 
 ## Documentation Conventions
 

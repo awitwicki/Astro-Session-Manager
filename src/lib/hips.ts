@@ -48,7 +48,7 @@ const requestQueue: Array<{ config: HiPSConfig; order: number; ipix: number; key
 // Track current render generation to cancel stale requests
 let renderGeneration = 0
 
-export function setHiPSRedrawCallback(cb: () => void) {
+export function setHiPSRedrawCallback(cb: (() => void) | null) {
   redrawCallback = cb
 }
 

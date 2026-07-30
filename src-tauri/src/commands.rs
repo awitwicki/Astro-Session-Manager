@@ -473,3 +473,21 @@ pub fn write_note(folder_path: String, content: String) -> Result<(), String> {
     fs::write(&note_path, &content)
         .map_err(|e| format!("Failed to write note: {}", e))
 }
+
+// ─── Horizon Commands ───────────────────────────────────────────────────────
+
+/// Read a user-chosen custom-horizon (.hrz) file. Deliberately narrow: the app
+/// has no filesystem plugin, and this feature needs exactly one read and one
+/// write, so a general-purpose file API would grant far more than it needs.
+#[tauri::command]
+pub fn read_horizon_file(file_path: String) -> Result<String, String> {
+    fs::read_to_string(Path::new(&file_path))
+        .map_err(|e| format!("Failed to read horizon file: {}", e))
+}
+
+/// Write a custom-horizon (.hrz) file to a user-chosen path.
+#[tauri::command]
+pub fn write_horizon_file(file_path: String, contents: String) -> Result<(), String> {
+    fs::write(Path::new(&file_path), &contents)
+        .map_err(|e| format!("Failed to write horizon file: {}", e))
+}

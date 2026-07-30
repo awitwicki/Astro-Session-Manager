@@ -8,6 +8,7 @@ import {
   Map,
   CloudSun,
   Calculator,
+  CalendarClock,
   Search,
   X,
   FileOutput
@@ -59,6 +60,14 @@ export function Sidebar() {
           >
             <Map size={16} />
             Sky Map
+          </button>
+
+          <button
+            className={`sidebar-item ${location.pathname.startsWith('/planner') ? 'active' : ''}`}
+            onClick={() => navigate('/planner')}
+          >
+            <CalendarClock size={16} />
+            Planner
           </button>
 
           <button

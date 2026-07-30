@@ -88,6 +88,9 @@ pub fn run() {
             // Notes
             commands::read_note,
             commands::write_note,
+            // Horizon
+            commands::read_horizon_file,
+            commands::write_horizon_file,
             // Converter
             converter::scan_raw_files,
             converter::convert_dslr_to_fits,

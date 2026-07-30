@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { Project, MastersLibrary, SubAnalysisResult } from '../types'
+import type { PlannerTarget } from '../types/planner'
+import type { HorizonProfile } from '../lib/horizon'
 import { isDslrFile } from '../lib/dslrUtils'
 
 interface ScanResultRaw {
@@ -304,6 +306,12 @@ interface AppState {
   weatherLat: number | null
   weatherLon: number | null
   weatherShowMap: boolean
+  plannerTargets: PlannerTarget[]
+  plannerHydrated: boolean
+  horizonProfile: HorizonProfile | null
+  // Session-only (not persisted): previews Planner/SkyMap as if no custom
+  // horizon were set, without touching the saved profile.
+  flatHorizonPreview: boolean
 
   setRootFolder: (path: string | null) => void
   setDashboardViewMode: (mode: 'grid' | 'table') => void
@@ -329,6 +337,11 @@ interface AppState {
   setPreviewQueueState: (state: PreviewQueueState) => void
   setWeatherLocation: (lat: number | null, lon: number | null) => void
   setWeatherShowMap: (v: boolean) => void
+  setPlannerTargets: (targets: PlannerTarget[]) => void
+  addPlannerTarget: (target: PlannerTarget) => void
+  removePlannerTarget: (id: string) => void
+  setHorizonProfile: (profile: HorizonProfile | null) => void
+  setFlatHorizonPreview: (v: boolean) => void
 
   // Converter
   converterFiles: ConverterFile[]
@@ -361,6 +374,10 @@ export const useAppStore = create<AppState>((set) => ({
   weatherLat: null,
   weatherLon: null,
   weatherShowMap: false,
+  plannerTargets: [],
+  plannerHydrated: false,
+  horizonProfile: null,
+  flatHorizonPreview: false,
 
   setRootFolder: (path) => set({ rootFolder: path }),
 
@@ -496,6 +513,17 @@ export const useAppStore = create<AppState>((set) => ({
   setWeatherLocation: (lat, lon) => set({ weatherLat: lat, weatherLon: lon }),
 
   setWeatherShowMap: (v) => set({ weatherShowMap: v }),
+
+  setPlannerTargets: (targets) => set({ plannerTargets: targets, plannerHydrated: true }),
+  addPlannerTarget: (target) => set((state) =>
+    state.plannerTargets.some((t) => t.id === target.id)
+      ? {}
+      : { plannerTargets: [...state.plannerTargets, target] }),
+  removePlannerTarget: (id) => set((state) => ({
+    plannerTargets: state.plannerTargets.filter((t) => t.id !== id),
+  })),
+  setHorizonProfile: (profile) => set({ horizonProfile: profile }),
+  setFlatHorizonPreview: (v) => set({ flatHorizonPreview: v }),
 
   // Converter
   converterFiles: [],
