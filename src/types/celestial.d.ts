@@ -136,21 +136,6 @@ interface CelestialMetrics {
   scale: number
 }
 
-interface CelestialProjection {
-  (coords: [number, number]): [number, number] | null
-  rotate(): [number, number, number]
-  rotate(angles: [number, number, number]): CelestialProjection
-  center(): [number, number]
-  center(center: [number, number]): CelestialProjection
-  translate(): [number, number]
-  translate(t: [number, number]): CelestialProjection
-  scale(): number
-  scale(s: number): CelestialProjection
-  invert(point: [number, number]): [number, number] | null
-  clipAngle(): number
-  clipAngle(angle: number): CelestialProjection
-}
-
 interface CelestialObject {
   version: string
   container: any
@@ -186,6 +171,24 @@ interface CelestialObject {
 declare global {
   // eslint-disable-next-line no-var
   var Celestial: CelestialObject
+
+  // Referenced by name (function parameter annotations) outside this file,
+  // so — unlike the other Celestial* helper types — it must live in the
+  // global scope rather than this file's module scope.
+  interface CelestialProjection {
+    (coords: [number, number]): [number, number] | null
+    rotate(): [number, number, number]
+    rotate(angles: [number, number, number]): CelestialProjection
+    center(): [number, number]
+    center(center: [number, number]): CelestialProjection
+    translate(): [number, number]
+    translate(t: [number, number]): CelestialProjection
+    scale(): number
+    scale(s: number): CelestialProjection
+    invert(point: [number, number]): [number, number] | null
+    clipAngle(): number
+    clipAngle(angle: number): CelestialProjection
+  }
 }
 
 export {}

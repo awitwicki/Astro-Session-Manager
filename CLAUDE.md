@@ -74,7 +74,8 @@ yarn              # install frontend deps
 yarn tauri dev    # dev mode (Vite + Rust)
 yarn tauri build  # production build
 cargo test --lib  # Rust unit tests (from src-tauri/)
-yarn tsc --noEmit # frontend typecheck
+yarn tsc -b       # frontend typecheck (root tsconfig.json is references-only;
+                  # `tsc --noEmit` against it silently checks 0 files — always use -b)
 yarn lint         # frontend lint
 yarn test:web     # frontend unit tests (node:test via tsx)
 ```
