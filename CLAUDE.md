@@ -103,6 +103,14 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   clock (`useSimTime`), Sun/Moon + sky-brightness overlays, and Planner
   targets with night trajectories (`src/lib/trajectory.ts`). PlannerDetail
   deep-links into it via `/skymap?target=<id>`.
+- Weather forecast: Open-Meteo with `models=chmi_aladin_seamless` (CHMI ALADIN
+  2.3 km, extended with ECMWF IFS past 3 days) — NOT the default `best_match`,
+  which at the primary observing site resolves to DMI HARMONIE and scored worse
+  in the 2026-08-08 accuracy audit (see the `weather-model-audit` skill for
+  numbers and re-run methodology). The fetch logic is duplicated in
+  `src/lib/weather.ts` (app) and `docs/astroweather/js/weather.js` (gh-pages);
+  every weather change goes in both files, and `tests/web/weather.test.mjs`
+  covers the gh-pages module.
 
 ## Documentation Conventions
 

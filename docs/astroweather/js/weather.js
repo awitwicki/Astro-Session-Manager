@@ -16,6 +16,9 @@ export async function fetchForecast(lat, lon) {
     daily: 'sunrise,sunset',
     forecast_days: '7',
     timezone: 'auto',
+    // CHMI ALADIN 2.3 km (Open-Meteo extends it with ECMWF IFS beyond 3 days);
+    // more accurate for night clouds than the default best_match model.
+    models: 'chmi_aladin_seamless',
   })
 
   const res = await fetch(`${OPEN_METEO_URL}?${params}`)
