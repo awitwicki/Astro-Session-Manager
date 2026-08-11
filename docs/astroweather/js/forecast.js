@@ -10,10 +10,10 @@ import { altitudeCrossing, dayOfYear } from './sun.js'
 import { el, emptyState } from './dom.js'
 
 export const ROWS = [
-  { label: 'Total Clouds (%)', getValue: (h) => String(Math.round(h.cloudCover)), getColor: (h) => getCloudColor(h.cloudCover) },
-  { label: 'Low Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverLow)), getColor: (h) => getCloudColor(h.cloudCoverLow) },
-  { label: 'Mid Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverMid)), getColor: (h) => getCloudColor(h.cloudCoverMid) },
-  { label: 'High Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverHigh)), getColor: (h) => getCloudColor(h.cloudCoverHigh) },
+  { label: 'Total Clouds (%)', cloudType: 'total', getValue: (h) => String(Math.round(h.cloudCover)), getColor: (h) => getCloudColor(h.cloudCover) },
+  { label: 'Low Clouds (%)', cloudType: 'low', getValue: (h) => String(Math.round(h.cloudCoverLow)), getColor: (h) => getCloudColor(h.cloudCoverLow) },
+  { label: 'Mid Clouds (%)', cloudType: 'mid', getValue: (h) => String(Math.round(h.cloudCoverMid)), getColor: (h) => getCloudColor(h.cloudCoverMid) },
+  { label: 'High Clouds (%)', cloudType: 'high', getValue: (h) => String(Math.round(h.cloudCoverHigh)), getColor: (h) => getCloudColor(h.cloudCoverHigh) },
   { label: 'Temperature (°C)', getValue: (h) => String(Math.round(h.temperature)), getColor: (h) => getTempColor(h.temperature) },
   { label: 'Dew Point (°C)', getValue: (h) => String(Math.round(h.dewPoint)), getColor: (h) => getTempColor(h.dewPoint) },
   { label: 'Humidity (%)', getValue: (h) => String(Math.round(h.humidity)), getColor: (h) => getHumidityColor(h.humidity) },
@@ -149,18 +149,19 @@ const expandedDays = new Set()
 
 export function renderForecast(root, view) {
   root.innerHTML = ''
+  hidePopover()
+
+  if (!root._popoverWired) {
+    root._popoverWired = true
+    root.addEventListener('mouseover', (e) => { if (e.target._cloud && !popoverPinned) showPopover(e.target, false) })
+    root.addEventListener('mouseout', (e) => { if (e.target._cloud && !popoverPinned) hidePopover() })
+    root.addEventListener('click', (e) => { if (e.target._cloud) showPopover(e.target, true) })
+  }
 
   if (view.lat === null) {
     root.append(emptyState('No Location Set', 'Pick your coordinates on the map above'))
     return
   }
-
-  const bar = el('div', 'weather-coords')
-  const btn = el('button', 'btn btn-primary', view.loading ? 'Loading…' : 'Refresh')
-  btn.disabled = !!view.loading
-  btn.addEventListener('click', view.onRefresh)
-  bar.append(btn)
-  root.append(bar)
 
   if (view.error) root.append(el('div', 'weather-error', view.error))
 
@@ -238,6 +239,7 @@ function dayCard(day, view) {
       for (const h of day.hours) {
         const cell = el('div', `weather-cell${h.isNight ? ' night' : ''}${h.isPast ? ' past' : ''}`, r.getValue(h))
         cell.style.backgroundColor = r.getColor(h)
+        if (r.cloudType && h.cloudModels) cell._cloud = { type: r.cloudType, hour: h }
         dataRow.append(cell)
       }
       dataRows.append(dataRow)
@@ -249,4 +251,52 @@ function dayCard(day, view) {
   row.append(left, grid)
   card.append(row)
   return card
+}
+
+// ---- Cloud breakdown popover ------------------------------------------------
+// One reusable fixed-position element; the forecast root gets delegated
+// listeners once (hover shows, click pins — click is also the touch path).
+
+const BLEND_FIELD = { total: 'cloudCover', low: 'cloudCoverLow', mid: 'cloudCoverMid', high: 'cloudCoverHigh' }
+
+let popoverEl = null
+let popoverPinned = false
+
+function ensurePopover() {
+  if (popoverEl) return popoverEl
+  popoverEl = el('div', 'weather-popover hidden')
+  document.body.append(popoverEl)
+  document.addEventListener('click', (e) => {
+    if (popoverPinned && !popoverEl.contains(e.target) && !e.target._cloud) hidePopover()
+  })
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hidePopover() })
+  window.addEventListener('scroll', hidePopover, true)
+  return popoverEl
+}
+
+function popoverRow(label, value, weightText, extraClass) {
+  const row = el('div', `weather-popover-row${extraClass ? ` ${extraClass}` : ''}`)
+  const chip = el('span', 'weather-popover-chip', value === null ? '—' : `${Math.round(value)}%`)
+  if (value !== null) chip.style.backgroundColor = getCloudColor(value)
+  row.append(el('span', 'weather-popover-label', label), chip, el('span', 'weather-popover-weight', weightText))
+  return row
+}
+
+function showPopover(cell, pinned) {
+  const { type, hour } = cell._cloud
+  const pop = ensurePopover()
+  pop.innerHTML = ''
+  for (const m of hour.cloudModels) pop.append(popoverRow(m.label, m[type], `×${m.weight.toFixed(2)}`))
+  pop.append(popoverRow('Blend', hour[BLEND_FIELD[type]], '', 'blend'))
+  pop.classList.remove('hidden')
+  const r = cell.getBoundingClientRect()
+  const pw = pop.offsetWidth
+  pop.style.left = `${Math.max(4, Math.min(r.left + r.width / 2 - pw / 2, window.innerWidth - pw - 4))}px`
+  pop.style.top = `${r.bottom + 6}px`
+  popoverPinned = pinned
+}
+
+function hidePopover() {
+  if (popoverEl) popoverEl.classList.add('hidden')
+  popoverPinned = false
 }

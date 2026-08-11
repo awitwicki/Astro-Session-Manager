@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import {
   fetchForecast,
   getCloudColor,
@@ -13,6 +12,7 @@ import {
   type HourData,
 } from '../../lib/weather'
 import { altitudeCrossing, dayOfYear } from '../../lib/sun'
+import { SatelliteCheck } from './SatelliteCheck'
 
 interface WeatherForecastProps {
   lat: number | null
@@ -25,6 +25,7 @@ export function WeatherForecast({ lat, lon }: WeatherForecastProps) {
   const [error, setError] = useState<string | null>(null)
   const [expandedDays, setCollapsedDays] = useState<Set<string>>(new Set())
   const [refreshKey, setRefreshKey] = useState(0)
+  const [popover, setPopover] = useState<PopoverState | null>(null)
 
   useEffect(() => {
     if (lat === null || lon === null) return
@@ -32,6 +33,9 @@ export function WeatherForecast({ lat, lon }: WeatherForecastProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setError(null)
+    // A new fetch invalidates any open popover: it references stale HourData
+    // objects and a cell position that may no longer exist once new data lands.
+    setPopover(null)
     fetchForecast(lat, lon)
       .then((data) => { if (!cancelled) setForecast(data) })
       .catch((err) => { if (!cancelled) setError(String(err)) })
@@ -48,22 +52,29 @@ export function WeatherForecast({ lat, lon }: WeatherForecastProps) {
     })
   }
 
+  function openPopover(e: React.MouseEvent<HTMLDivElement>, h: HourData, type: CloudKey, pinned: boolean) {
+    // Hover must never hijack a pinned popover onto a different cell; only a
+    // click (pinned === true) may open/redirect while something is pinned.
+    if (!pinned && popover?.pinned) return
+    const r = e.currentTarget.getBoundingClientRect()
+    setPopover({ x: r.left + r.width / 2, y: r.bottom, type, hour: h, pinned })
+  }
+  const closePopover = () => setPopover(null)
+  const onCloudLeave = () => setPopover((p) => (p && p.pinned ? p : null))
+
   return (
     <>
-      {lat !== null && (
-        <div className="weather-coords">
-          <button
-            className="btn btn-primary"
-            onClick={() => setRefreshKey((k) => k + 1)}
-            disabled={loading}
-          >
-            <RefreshCw size={14} className={loading ? 'spinning' : ''} />
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
-        </div>
-      )}
-
       {error && <div className="weather-error">{error}</div>}
+
+      {lat !== null && lon !== null && (
+        <SatelliteCheck
+          lat={lat}
+          lon={lon}
+          forecast={forecast}
+          onForecastRefresh={() => setRefreshKey((k) => k + 1)}
+          forecastRefreshing={loading}
+        />
+      )}
 
       {forecast && (
         <div className="weather-days">
@@ -74,6 +85,8 @@ export function WeatherForecast({ lat, lon }: WeatherForecastProps) {
               lat={lat}
               collapsed={!expandedDays.has(day.date)}
               onToggle={() => toggleCollapse(day.date)}
+              onCloudCell={openPopover}
+              onCloudLeave={onCloudLeave}
             />
           ))}
         </div>
@@ -85,21 +98,46 @@ export function WeatherForecast({ lat, lon }: WeatherForecastProps) {
           <p>Click "Set Location" to pick your coordinates on the map</p>
         </div>
       )}
+
+      {popover && <CloudPopover pop={popover} onClose={closePopover} />}
     </>
   )
+}
+
+type CloudKey = 'total' | 'low' | 'mid' | 'high'
+
+// Typed to admit `number | null` even though `HourData`'s cloud fields are
+// (inaccurately) typed as plain `number`: `blendOf()` in weather.ts casts a
+// genuinely nullable `blendValues()` result to `number`, so at runtime these
+// getters can hand back `null` when every model is null for that hour. The
+// cast stays local to this file — see Finding 1 in the final review.
+const BLEND_FIELD: Record<CloudKey, (h: HourData) => number | null> = {
+  total: (h) => h.cloudCover,
+  low: (h) => h.cloudCoverLow,
+  mid: (h) => h.cloudCoverMid,
+  high: (h) => h.cloudCoverHigh,
+}
+
+interface PopoverState {
+  x: number        // viewport px, cell center
+  y: number        // viewport px, cell bottom
+  type: CloudKey
+  hour: HourData
+  pinned: boolean  // pinned = opened by click (touch); survives mouseout
 }
 
 interface RowDef {
   label: string
   getValue: (h: HourData) => string
   getColor: (h: HourData) => string
+  cloudType?: CloudKey
 }
 
 const ROWS: RowDef[] = [
-  { label: 'Total Clouds (%)', getValue: (h) => String(Math.round(h.cloudCover)), getColor: (h) => getCloudColor(h.cloudCover) },
-  { label: 'Low Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverLow)), getColor: (h) => getCloudColor(h.cloudCoverLow) },
-  { label: 'Mid Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverMid)), getColor: (h) => getCloudColor(h.cloudCoverMid) },
-  { label: 'High Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverHigh)), getColor: (h) => getCloudColor(h.cloudCoverHigh) },
+  { label: 'Total Clouds (%)', getValue: (h) => String(Math.round(h.cloudCover)), getColor: (h) => getCloudColor(h.cloudCover), cloudType: 'total' },
+  { label: 'Low Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverLow)), getColor: (h) => getCloudColor(h.cloudCoverLow), cloudType: 'low' },
+  { label: 'Mid Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverMid)), getColor: (h) => getCloudColor(h.cloudCoverMid), cloudType: 'mid' },
+  { label: 'High Clouds (%)', getValue: (h) => String(Math.round(h.cloudCoverHigh)), getColor: (h) => getCloudColor(h.cloudCoverHigh), cloudType: 'high' },
   { label: 'Temperature (°C)', getValue: (h) => String(Math.round(h.temperature)), getColor: (h) => getTempColor(h.temperature) },
   { label: 'Dew Point (°C)', getValue: (h) => String(Math.round(h.dewPoint)), getColor: (h) => getTempColor(h.dewPoint) },
   { label: 'Humidity (%)', getValue: (h) => String(Math.round(h.humidity)), getColor: (h) => getHumidityColor(h.humidity) },
@@ -237,9 +275,11 @@ interface DayCardProps {
   lat: number | null
   collapsed: boolean
   onToggle: () => void
+  onCloudCell: (e: React.MouseEvent<HTMLDivElement>, h: HourData, type: CloudKey, pinned: boolean) => void
+  onCloudLeave: () => void
 }
 
-function DayCard({ day, lat, collapsed, onToggle }: DayCardProps) {
+function DayCard({ day, lat, collapsed, onToggle, onCloudCell, onCloudLeave }: DayCardProps) {
   if (day.hours.length === 0) return null
 
   return (
@@ -294,6 +334,12 @@ function DayCard({ day, lat, collapsed, onToggle }: DayCardProps) {
                       key={i}
                       className={`weather-cell ${h.isNight ? 'night' : ''}${h.isPast ? ' past' : ''}`}
                       style={{ backgroundColor: row.getColor(h) }}
+                      {...(row.cloudType ? {
+                        'data-cloud-type': row.cloudType,
+                        onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => onCloudCell(e, h, row.cloudType!, false),
+                        onMouseLeave: onCloudLeave,
+                        onClick: (e: React.MouseEvent<HTMLDivElement>) => onCloudCell(e, h, row.cloudType!, true),
+                      } : {})}
                     >
                       {row.getValue(h)}
                     </div>
@@ -304,6 +350,69 @@ function DayCard({ day, lat, collapsed, onToggle }: DayCardProps) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function CloudPopover({ pop, onClose }: { pop: PopoverState; onClose: () => void }) {
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // A pinned popover closes on any click outside both the popover itself
+    // and any cloud cell (a click on a different cloud cell should redirect
+    // the pin instead of being swallowed here).
+    const onDocClick = (e: MouseEvent) => {
+      if (!pop.pinned) return
+      const target = e.target as HTMLElement | null
+      if (popoverRef.current?.contains(target)) return
+      if (target?.closest('[data-cloud-type]')) return
+      onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onClose, true)
+    document.addEventListener('click', onDocClick)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onClose, true)
+      document.removeEventListener('click', onDocClick)
+    }
+  }, [onClose, pop.pinned])
+
+  const width = 170
+  const left = Math.max(4, Math.min(pop.x - width / 2, window.innerWidth - width - 4))
+  return (
+    <div ref={popoverRef} className="weather-popover" style={{ left, top: pop.y + 6, width }}>
+      {pop.hour.cloudModels.map((m) => {
+        const val = m[pop.type]
+        return (
+          <div key={m.id} className="weather-popover-row">
+            <span className="weather-popover-label">{m.label}</span>
+            <span
+              className="weather-popover-chip"
+              style={val !== null ? { backgroundColor: getCloudColor(val) } : undefined}
+            >
+              {val === null ? '—' : `${Math.round(val)}%`}
+            </span>
+            <span className="weather-popover-weight">×{m.weight.toFixed(2)}</span>
+          </div>
+        )
+      })}
+      {(() => {
+        const blend = BLEND_FIELD[pop.type](pop.hour)
+        return (
+          <div className="weather-popover-row blend">
+            <span className="weather-popover-label">Blend</span>
+            <span
+              className="weather-popover-chip"
+              style={blend !== null ? { backgroundColor: getCloudColor(blend) } : undefined}
+            >
+              {blend === null ? '—' : `${Math.round(blend)}%`}
+            </span>
+            <span className="weather-popover-weight" />
+          </div>
+        )
+      })()}
     </div>
   )
 }

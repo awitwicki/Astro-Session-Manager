@@ -5,6 +5,7 @@ import { loadLocation, initLocationBar } from './location.js'
 import { fetchForecast } from './weather.js'
 import { renderForecast } from './forecast.js'
 import { renderDaylight } from './daylight.js'
+import { renderSatellite } from './satellite.js'
 
 const state = {
   location: loadLocation(),
@@ -16,11 +17,19 @@ const state = {
 
 const forecastRoot = document.getElementById('forecast-root')
 const daylightRoot = document.getElementById('daylight-root')
+const satelliteRoot = document.getElementById('satellite-root')
 
 const lat = () => (state.location ? state.location.lat : null)
 const lon = () => (state.location ? state.location.lon : null)
 
 function renderWeatherTab() {
+  renderSatellite(satelliteRoot, {
+    lat: lat(),
+    lon: lon(),
+    forecast: state.forecast,
+    loading: state.loading,
+    onRefresh: refreshForecast,
+  })
   renderForecast(forecastRoot, {
     forecast: state.forecast,
     lat: lat(),

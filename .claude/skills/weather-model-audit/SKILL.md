@@ -16,11 +16,13 @@ stratus season (Oct–Feb) before trusting the ranking year-round.
 - The forecast fetch lives in **two files that must stay in sync**:
   `src/lib/weather.ts` (desktop app) and `docs/astroweather/js/weather.js` (gh-pages,
   the version the user actually checks).
-- Current model: `models=chmi_aladin_seamless` (CHMI ALADIN 2.3 km; Open-Meteo
-  seamlessly extends it with ECMWF IFS beyond ALADIN's 3-day horizon). Verified to
-  return **all 13 hourly variables incl. visibility and precipitation_probability,
-  null-free for 7 days**, with the same unsuffixed response shape as best_match
-  (single-model requests get no `_<model>` key suffixes).
+- Current setup (since 2026-08-08): the app requests
+  `models=chmi_aladin_seamless,ecmwf_ifs025,icon_eu` and shows an
+  accuracy-weighted cloud blend — **ALADIN 0.32, ECMWF 0.44, ICON-EU 0.24**
+  (∝ 1/night-MAE from this audit), renormalized per hour over non-null models.
+  Non-cloud variables come from ALADIN (the only blend model with all 13
+  variables). A re-audit should update the weight constants `CLOUD_MODELS` in
+  BOTH `src/lib/weather.ts` and `docs/astroweather/js/weather.js`.
 - Default `best_match` at this site resolves to **DMI HARMONIE AROME**
   (byte-identical to `dmi_seamless`), NOT ICON — ICON-D2's domain ends at 20.34°E.
   Composition may change as Open-Meteo adds models; re-verify by diffing arrays.
@@ -56,6 +58,18 @@ runner-up (best hourly MAE) but lacks visibility and uses a ~25 km grid.
 Caveats: single summer fortnight (Previous Runs API only archives ~15 days);
 ERA5 is ~25 km and smooths orographic cloud; ECMWF has documented winter
 low-stratus underestimation over central Europe.
+
+## Practical heuristic (community advice the user trusts)
+
+Season-dependent model pair + satellite nowcast check: keep two candidate models
+(winter: ECMWF vs ICON-EU; summer per the audit: ECMWF vs ALADIN), then before an
+imaging night compare a **current satellite image** against each model's forecast
+for the current hour — whichever model matches the real sky *now* is the one to
+trust for tonight. Rationale: a model that already misses the current state started
+from wrong initial conditions. The user reports this gives "0 fails". A future
+Weather-page feature could support this workflow (satellite layer + hour-0 cloud
+values from 2–3 models side by side); satellite imagery sources to evaluate:
+EUMETSAT Meteosat real-time products (EUMETView WMS), sat24-style tiles.
 
 ## How to re-run
 

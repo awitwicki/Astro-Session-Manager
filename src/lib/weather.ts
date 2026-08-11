@@ -1,28 +1,19 @@
 // Open-Meteo API types and utilities for astro weather forecast
 
 export interface OpenMeteoResponse {
-  hourly: {
-    time: string[]
-    temperature_2m: number[]
-    relative_humidity_2m: number[]
-    dew_point_2m: number[]
-    apparent_temperature: number[]
-    cloud_cover: number[]
-    cloud_cover_low: number[]
-    cloud_cover_mid: number[]
-    cloud_cover_high: number[]
-    wind_speed_10m: number[]
-    wind_direction_10m: number[]
-    visibility: number[]
-    precipitation_probability: number[]
-    precipitation: number[]
-  }
-  daily: {
-    time: string[]
-    sunrise: string[]
-    sunset: string[]
-  }
+  hourly: { time: string[] } & { [key: string]: (number | null)[] | string[] }
+  daily: { time: string[] } & { [key: string]: string[] }
   timezone: string
+}
+
+export interface CloudModelBreakdown {
+  id: 'aladin' | 'ecmwf' | 'icon_eu'
+  label: string
+  weight: number
+  total: number | null
+  low: number | null
+  mid: number | null
+  high: number | null
 }
 
 export interface HourData {
@@ -36,6 +27,7 @@ export interface HourData {
   cloudCoverLow: number
   cloudCoverMid: number
   cloudCoverHigh: number
+  cloudModels: CloudModelBreakdown[]
   windSpeed: number
   windDirection: number
   visibility: number   // meters
@@ -59,6 +51,30 @@ export interface DayForecast {
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast'
 
+// Cloud blend models. Weights ∝ 1 / night-MAE from the 2026-08-08 accuracy
+// audit at the primary observing site — see
+// .claude/skills/weather-model-audit/SKILL.md. Cloud rows show the weighted
+// blend; every other variable comes from PRIMARY (ALADIN), the only blend
+// model that carries all 13 variables (ECMWF lacks visibility).
+export const CLOUD_MODELS: Array<{ id: CloudModelBreakdown['id']; label: string; apiId: string; weight: number }> = [
+  { id: 'aladin', label: 'ALADIN', apiId: 'chmi_aladin_seamless', weight: 0.32 },
+  { id: 'ecmwf', label: 'ECMWF', apiId: 'ecmwf_ifs025', weight: 0.44 },
+  { id: 'icon_eu', label: 'ICON-EU', apiId: 'icon_eu', weight: 0.24 },
+]
+const PRIMARY = 'chmi_aladin_seamless'
+
+// Weighted mean over non-null entries, renormalized to the present weights.
+export function blendValues(entries: Array<{ value: number | null; weight: number }>): number | null {
+  let sum = 0
+  let wsum = 0
+  for (const e of entries) {
+    if (e.value === null || e.value === undefined) continue
+    sum += e.value * e.weight
+    wsum += e.weight
+  }
+  return wsum > 0 ? Math.round(sum / wsum) : null
+}
+
 export async function fetchForecast(lat: number, lon: number): Promise<DayForecast[]> {
   const params = new URLSearchParams({
     latitude: lat.toString(),
@@ -72,9 +88,7 @@ export async function fetchForecast(lat: number, lon: number): Promise<DayForeca
     daily: 'sunrise,sunset',
     forecast_days: '7',
     timezone: 'auto',
-    // CHMI ALADIN 2.3 km (Open-Meteo extends it with ECMWF IFS beyond 3 days);
-    // more accurate for night clouds than the default best_match model.
-    models: 'chmi_aladin_seamless'
+    models: CLOUD_MODELS.map((m) => m.apiId).join(',')
   })
 
   const res = await fetch(`${OPEN_METEO_URL}?${params}`)
@@ -96,8 +110,8 @@ function processForecast(data: OpenMeteoResponse): DayForecast[] {
   const sunTimes: Record<string, { sunrise: string; sunset: string }> = {}
   for (let i = 0; i < daily.time.length; i++) {
     sunTimes[daily.time[i]] = {
-      sunrise: daily.sunrise[i],
-      sunset: daily.sunset[i]
+      sunrise: daily[`sunrise_${PRIMARY}`][i],
+      sunset: daily[`sunset_${PRIMARY}`][i]
     }
   }
 
@@ -117,22 +131,41 @@ function processForecast(data: OpenMeteoResponse): DayForecast[] {
     // Mark hours before current hour on today as past
     const isPast = dateStr === todayStr && dt.getHours() < currentHour
 
+    // With several models requested, every hourly key is suffixed _<model>.
+    const col = (key: string) => hourly[key] as (number | null)[] | undefined
+    const v = (name: string) => col(`${name}_${PRIMARY}`)![i] as number
+    const cloudModels: CloudModelBreakdown[] = CLOUD_MODELS.map((m) => {
+      const g = (name: string) => {
+        const arr = col(`${name}_${m.apiId}`)
+        const val = arr ? arr[i] : null
+        return val === undefined || val === null ? null : val
+      }
+      return {
+        id: m.id, label: m.label, weight: m.weight,
+        total: g('cloud_cover'), low: g('cloud_cover_low'),
+        mid: g('cloud_cover_mid'), high: g('cloud_cover_high'),
+      }
+    })
+    const blendOf = (key: 'total' | 'low' | 'mid' | 'high') =>
+      blendValues(cloudModels.map((m) => ({ value: m[key], weight: m.weight }))) as number
+
     return {
       time: t,
       hour: dt.getHours(),
-      temperature: hourly.temperature_2m[i],
-      humidity: hourly.relative_humidity_2m[i],
-      dewPoint: hourly.dew_point_2m[i],
-      feelsLike: hourly.apparent_temperature[i],
-      cloudCover: hourly.cloud_cover[i],
-      cloudCoverLow: hourly.cloud_cover_low[i],
-      cloudCoverMid: hourly.cloud_cover_mid[i],
-      cloudCoverHigh: hourly.cloud_cover_high[i],
-      windSpeed: hourly.wind_speed_10m[i],
-      windDirection: hourly.wind_direction_10m[i],
-      visibility: hourly.visibility[i],
-      precipProb: hourly.precipitation_probability[i],
-      precipitation: hourly.precipitation[i],
+      temperature: v('temperature_2m'),
+      humidity: v('relative_humidity_2m'),
+      dewPoint: v('dew_point_2m'),
+      feelsLike: v('apparent_temperature'),
+      cloudCover: blendOf('total'),
+      cloudCoverLow: blendOf('low'),
+      cloudCoverMid: blendOf('mid'),
+      cloudCoverHigh: blendOf('high'),
+      cloudModels,
+      windSpeed: v('wind_speed_10m'),
+      windDirection: v('wind_direction_10m'),
+      visibility: v('visibility'),
+      precipProb: v('precipitation_probability'),
+      precipitation: v('precipitation'),
       isNight,
       isPast
     }
@@ -167,6 +200,18 @@ function processForecast(data: OpenMeteoResponse): DayForecast[] {
   }
 
   return days
+}
+
+// Breakdown for the current local hour — feeds the Satellite check card.
+export function currentHourClouds(forecast: DayForecast[] | null, now: Date = new Date()):
+  { hour: number; models: CloudModelBreakdown[]; blend: number | null } | null {
+  if (!forecast) return null
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const day = forecast.find((d) => d.date === dateStr)
+  if (!day) return null
+  const h = day.hours.find((x) => x.hour === now.getHours())
+  if (!h) return null
+  return { hour: h.hour, models: h.cloudModels, blend: h.cloudCover }
 }
 
 function parseTimeToMinutes(isoTime: string): number {

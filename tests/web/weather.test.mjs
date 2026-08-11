@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   getMoonPhase, getCloudColor, getTempColor, getWindArrow, processForecast,
+  blendValues, currentHourClouds, CLOUD_MODELS,
 } from '../../docs/astroweather/js/weather.js'
 
 test('moon phase at the reference new moon and following full moon', () => {
@@ -23,32 +24,120 @@ test('wind arrow points where the wind blows to', () => {
   assert.equal(getWindArrow(180), '↑')
 })
 
-test('processForecast groups hours per day and flags night/past', () => {
+// 24 hours of one day in the suffixed multi-model shape the API returns
+// when several models are requested. Non-cloud variables exist only for
+// ALADIN (the primary model); cloud variables exist for all three.
+function multiModelFixture() {
   const times = Array.from({ length: 24 }, (_, i) => `2026-07-20T${String(i).padStart(2, '0')}:00`)
   const fill = (v) => Array(24).fill(v)
-  const data = {
-    hourly: {
-      time: times,
-      temperature_2m: fill(15), relative_humidity_2m: fill(60), dew_point_2m: fill(8),
-      apparent_temperature: fill(15), cloud_cover: fill(10), cloud_cover_low: fill(5),
-      cloud_cover_mid: fill(5), cloud_cover_high: fill(5), wind_speed_10m: fill(4),
-      wind_direction_10m: fill(90), visibility: fill(20000),
-      precipitation_probability: fill(0), precipitation: fill(0),
+  const hourly = { time: times }
+  for (const [name, v] of Object.entries({
+    temperature_2m: 15, relative_humidity_2m: 60, dew_point_2m: 8,
+    apparent_temperature: 15, wind_speed_10m: 4, wind_direction_10m: 90,
+    visibility: 20000, precipitation_probability: 0, precipitation: 0,
+  })) hourly[`${name}_chmi_aladin_seamless`] = fill(v)
+  const totals = { chmi_aladin_seamless: 10, ecmwf_ifs025: 30, icon_eu: 50 }
+  for (const [model, v] of Object.entries(totals)) {
+    hourly[`cloud_cover_${model}`] = fill(v)
+    hourly[`cloud_cover_low_${model}`] = fill(v)
+    hourly[`cloud_cover_mid_${model}`] = fill(0)
+    hourly[`cloud_cover_high_${model}`] = fill(0)
+  }
+  return {
+    hourly,
+    daily: {
+      time: ['2026-07-20'],
+      sunrise_chmi_aladin_seamless: ['2026-07-20T05:12'],
+      sunset_chmi_aladin_seamless: ['2026-07-20T20:45'],
     },
-    daily: { time: ['2026-07-20'], sunrise: ['2026-07-20T05:12'], sunset: ['2026-07-20T20:45'] },
     timezone: 'auto',
   }
-  const days = processForecast(data, new Date('2026-07-20T12:00:00'))
+}
+
+test('CLOUD_MODELS weights sum to 1', () => {
+  const sum = CLOUD_MODELS.reduce((s, m) => s + m.weight, 0)
+  assert.ok(Math.abs(sum - 1) < 1e-9)
+})
+
+test('blendValues computes a renormalized weighted mean', () => {
+  // 10·0.32 + 30·0.44 + 50·0.24 = 28.4 → 28
+  assert.equal(blendValues([
+    { value: 10, weight: 0.32 },
+    { value: 30, weight: 0.44 },
+    { value: 50, weight: 0.24 },
+  ]), 28)
+  // ICON missing: (10·0.32 + 30·0.44) / 0.76 = 21.58 → 22
+  assert.equal(blendValues([
+    { value: 10, weight: 0.32 },
+    { value: 30, weight: 0.44 },
+    { value: null, weight: 0.24 },
+  ]), 22)
+  assert.equal(blendValues([
+    { value: null, weight: 0.32 },
+    { value: null, weight: 0.44 },
+    { value: null, weight: 0.24 },
+  ]), null)
+})
+
+test('processForecast blends clouds, keeps ALADIN for the rest, groups and flags', () => {
+  const days = processForecast(multiModelFixture(), new Date('2026-07-20T12:00:00'))
   assert.equal(days.length, 1)
   const day = days[0]
   assert.equal(day.hours.length, 24)
   assert.equal(day.sunrise, '05:12')
   assert.equal(day.sunset, '20:45')
-  assert.equal(day.dayNumber, 20)
-  assert.equal(day.hours[3].isNight, true)   // 03:00, before sunrise
-  assert.equal(day.hours[12].isNight, false) // noon
-  assert.equal(day.hours[3].isPast, true)    // before the 12:00 "now"
+  const h = day.hours[0]
+  assert.equal(h.cloudCover, 28)      // blend of 10/30/50
+  assert.equal(h.cloudCoverLow, 28)
+  assert.equal(h.cloudCoverMid, 0)
+  assert.equal(h.cloudCoverHigh, 0)
+  assert.equal(h.temperature, 15)     // straight from ALADIN
+  assert.equal(h.visibility, 20000)
+  assert.equal(h.cloudModels.length, 3)
+  assert.deepEqual(h.cloudModels[0], {
+    id: 'aladin', label: 'ALADIN', weight: 0.32, total: 10, low: 10, mid: 0, high: 0,
+  })
+  assert.equal(day.hours[3].isNight, true)
+  assert.equal(day.hours[12].isNight, false)
+  assert.equal(day.hours[3].isPast, true)
   assert.equal(day.hours[12].isPast, false)
   assert.ok(day.moonEmoji.length > 0)
-  assert.ok(day.moonIllumination >= 0 && day.moonIllumination <= 100)
+})
+
+test('processForecast renormalizes when one model has null hours', () => {
+  const data = multiModelFixture()
+  data.hourly.cloud_cover_icon_eu = Array(24).fill(null)
+  data.hourly.cloud_cover_low_icon_eu = Array(24).fill(null)
+  const days = processForecast(data, new Date('2026-07-20T12:00:00'))
+  assert.equal(days[0].hours[0].cloudCover, 22) // (10·0.32 + 30·0.44) / 0.76
+  assert.equal(days[0].hours[0].cloudModels[2].total, null)
+})
+
+test('processForecast produces a null blend when every model reports no cloud data', () => {
+  // Regression test for the "Blend" row null-safety fix: blendValues()
+  // genuinely returns null when all three models are null for an hour, and
+  // that must propagate through processForecast rather than being coerced.
+  const data = multiModelFixture()
+  for (const model of ['chmi_aladin_seamless', 'ecmwf_ifs025', 'icon_eu']) {
+    for (const field of ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high']) {
+      data.hourly[`${field}_${model}`] = Array(24).fill(null)
+    }
+  }
+  const days = processForecast(data, new Date('2026-07-20T12:00:00'))
+  const h = days[0].hours[0]
+  assert.equal(h.cloudCover, null)
+  assert.equal(h.cloudCoverLow, null)
+  assert.equal(h.cloudCoverMid, null)
+  assert.equal(h.cloudCoverHigh, null)
+  assert.ok(h.cloudModels.every((m) => m.total === null && m.low === null && m.mid === null && m.high === null))
+})
+
+test('currentHourClouds finds the breakdown for the current hour', () => {
+  const days = processForecast(multiModelFixture(), new Date('2026-07-20T12:00:00'))
+  const now = currentHourClouds(days, new Date('2026-07-20T21:30:00'))
+  assert.equal(now.hour, 21)
+  assert.equal(now.blend, 28)
+  assert.equal(now.models.length, 3)
+  assert.equal(currentHourClouds(days, new Date('2026-09-01T00:00:00')), null)
+  assert.equal(currentHourClouds(null, new Date('2026-07-20T12:00:00')), null)
 })

@@ -36,7 +36,7 @@ src/                          # Frontend (React + TypeScript)
                               # Converter, Planner, PlannerDetail
   components/layout/          # AppShell, TopBar, Sidebar, StatusBar
   components/astroweather/    # WeatherForecast, SeasonalDaylightChart,
-                              # LightPollutionMap, HorizonEditor
+                              # LightPollutionMap, HorizonEditor, SatelliteCheck
   components/skymap/          # ClassicSkyView, PlannerSkyView,
                               # PlannerTimeToolbar, PlannerTargetPanel
   store/appStore.ts           # Zustand store (scan state, analysis, queues,
@@ -103,14 +103,15 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   clock (`useSimTime`), Sun/Moon + sky-brightness overlays, and Planner
   targets with night trajectories (`src/lib/trajectory.ts`). PlannerDetail
   deep-links into it via `/skymap?target=<id>`.
-- Weather forecast: Open-Meteo with `models=chmi_aladin_seamless` (CHMI ALADIN
-  2.3 km, extended with ECMWF IFS past 3 days) — NOT the default `best_match`,
-  which at the primary observing site resolves to DMI HARMONIE and scored worse
-  in the 2026-08-08 accuracy audit (see the `weather-model-audit` skill for
-  numbers and re-run methodology). The fetch logic is duplicated in
-  `src/lib/weather.ts` (app) and `docs/astroweather/js/weather.js` (gh-pages);
-  every weather change goes in both files, and `tests/web/weather.test.mjs`
-  covers the gh-pages module.
+- Weather forecast: Open-Meteo with `models=chmi_aladin_seamless,ecmwf_ifs025,icon_eu`.
+  The four cloud rows show an accuracy-weighted blend (ALADIN 0.32 / ECMWF 0.44 /
+  ICON-EU 0.24, per-hour renormalization over non-null models — weights from the
+  2026-08-08 audit, see the `weather-model-audit` skill); all other variables come
+  from ALADIN. Cloud cells open a per-model breakdown popover; a collapsible
+  "Satellite check" card (EUMETSAT `msg_fes:ir108` WMS + current-hour model values)
+  sits above the table. The logic is duplicated in `src/lib/weather.ts` (app) and
+  `docs/astroweather/js/weather.js` (gh-pages); every weather change goes in both
+  files, and `tests/web/weather.test.mjs` covers the gh-pages module.
 
 ## Documentation Conventions
 
