@@ -135,11 +135,16 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--color-text-secondary);
+  white-space: nowrap;
 }
 
 .calc-inline {
   display: flex;
   gap: 8px;
+}
+
+.calc-inline-center {
+  align-items: center;
 }
 
 .calc-input,
@@ -161,6 +166,45 @@
 
 .calc-input-sm {
   width: 96px;
+}
+
+/* ─── Mode switch (Bortle / SQM) ─────────────────────────────────────────── */
+.calc-seg {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.calc-seg-btn {
+  padding: 6px 14px;
+  background: var(--color-bg-primary);
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.calc-seg-btn + .calc-seg-btn {
+  border-left: 1px solid var(--color-border);
+}
+
+.calc-seg-btn:hover {
+  background: var(--color-bg-hover);
+}
+
+.calc-seg-btn.active {
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.calc-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  min-width: 62px;
+  white-space: nowrap;
 }
 
 /* ─── Result cards ───────────────────────────────────────────────────────── */

@@ -80,6 +80,16 @@ yarn lint         # frontend lint
 yarn test:web     # frontend unit tests (node:test via tsx)
 ```
 
+## Versioning
+
+- The app version lives **only** in `package.json` — `tauri.conf.json` points at
+  it, and `src-tauri/Cargo.toml`'s `version` is unused. Never edit those two.
+- When finishing a user-visible change, bump `package.json`: **minor** for new
+  features or behavior changes, **patch** for bug fixes. Skip the bump for
+  refactors, docs, or CI-only changes.
+- On push to `main`, CI reads the version, and if tag `v<version>` doesn't exist
+  yet, creates it and builds a cross-platform release — so a merged bump ships.
+
 ## Key Patterns
 
 - Frontend calls Rust via Tauri IPC commands (defined in `commands.rs`, registered in `lib.rs`).
