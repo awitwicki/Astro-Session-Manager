@@ -6,14 +6,25 @@ const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast'
 // Cloud blend models. Weights ∝ 1 / night-MAE from the 2026-08-08 accuracy
 // audit at the primary observing site — see
 // .claude/skills/weather-model-audit/SKILL.md. Cloud rows show the weighted
-// blend; every other variable comes from PRIMARY (ALADIN), the only blend
-// model that carries all 13 variables (ECMWF lacks visibility).
+// blend; every other variable comes from the first model in this order with
+// usable data — normally ALADIN, the only one carrying all 13 variables
+// (ECMWF lacks visibility) — via pickColumn below.
 export const CLOUD_MODELS = [
   { id: 'aladin', label: 'ALADIN', apiId: 'chmi_aladin_seamless', weight: 0.32 },
   { id: 'ecmwf', label: 'ECMWF', apiId: 'ecmwf_ifs025', weight: 0.44 },
   { id: 'icon_eu', label: 'ICON-EU', apiId: 'icon_eu', weight: 0.24 },
 ]
-const PRIMARY = 'chmi_aladin_seamless'
+// Outside a model's domain Open-Meteo omits its arrays entirely (ALADIN
+// covers Central Europe only, roughly up to 32°E), and ECMWF returns
+// visibility as an all-null array. For each non-cloud field, use the first
+// model in CLOUD_MODELS order (ALADIN → ECMWF → ICON-EU) that has any data.
+function pickColumn(section, name) {
+  for (const m of CLOUD_MODELS) {
+    const arr = section[`${name}_${m.apiId}`]
+    if (arr?.some((v) => v !== null && v !== undefined)) return arr
+  }
+  return null
+}
 
 // Weighted mean over non-null entries, renormalized to the present weights.
 export function blendValues(entries) {
@@ -57,11 +68,19 @@ export function processForecast(data, now = new Date()) {
   const currentHour = now.getHours()
 
   const sunTimes = {}
-  for (let i = 0; i < daily.time.length; i++) {
-    sunTimes[daily.time[i]] = {
-      sunrise: daily[`sunrise_${PRIMARY}`][i],
-      sunset: daily[`sunset_${PRIMARY}`][i],
+  const sunriseCol = pickColumn(daily, 'sunrise')
+  const sunsetCol = pickColumn(daily, 'sunset')
+  if (sunriseCol && sunsetCol) {
+    for (let i = 0; i < daily.time.length; i++) {
+      sunTimes[daily.time[i]] = { sunrise: sunriseCol[i], sunset: sunsetCol[i] }
     }
+  }
+
+  // Resolve each non-cloud field's column once, not per hour.
+  const hourlyCols = {}
+  const hourlyCol = (name) => {
+    if (!(name in hourlyCols)) hourlyCols[name] = pickColumn(hourly, name)
+    return hourlyCols[name]
   }
 
   const allHours = hourly.time.map((t, i) => {
@@ -79,7 +98,11 @@ export function processForecast(data, now = new Date()) {
     const isPast = dateStr === todayStr && dt.getHours() < currentHour
 
     // With several models requested, every hourly key is suffixed _<model>.
-    const v = (name) => hourly[`${name}_${PRIMARY}`][i]
+    const v = (name) => {
+      const arr = hourlyCol(name)
+      const val = arr ? arr[i] : null
+      return val === undefined ? null : val
+    }
     const cloudModels = CLOUD_MODELS.map((m) => {
       const g = (name) => {
         const arr = hourly[`${name}_${m.apiId}`]

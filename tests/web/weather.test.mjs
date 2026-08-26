@@ -132,6 +132,50 @@ test('processForecast produces a null blend when every model reports no cloud da
   assert.ok(h.cloudModels.every((m) => m.total === null && m.low === null && m.mid === null && m.high === null))
 })
 
+test('processForecast falls back per field when ALADIN is out of domain', () => {
+  // East of ~32°E the location leaves ALADIN's domain and Open-Meteo omits
+  // every _chmi_aladin_seamless array (daily and hourly) from the response.
+  // ECMWF is global but returns visibility as all-null; ICON-EU has it.
+  const times = Array.from({ length: 24 }, (_, i) => `2026-07-20T${String(i).padStart(2, '0')}:00`)
+  const fill = (v) => Array(24).fill(v)
+  const hourly = { time: times }
+  for (const [name, v] of Object.entries({
+    temperature_2m: 20, relative_humidity_2m: 55, dew_point_2m: 10,
+    apparent_temperature: 20, wind_speed_10m: 6, wind_direction_10m: 45,
+    precipitation_probability: 5, precipitation: 0,
+  })) hourly[`${name}_ecmwf_ifs025`] = fill(v)
+  hourly.visibility_ecmwf_ifs025 = fill(null)
+  hourly.visibility_icon_eu = fill(30000)
+  for (const model of ['ecmwf_ifs025', 'icon_eu']) {
+    for (const field of ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high']) {
+      hourly[`${field}_${model}`] = fill(40)
+    }
+  }
+  const data = {
+    hourly,
+    daily: {
+      time: ['2026-07-20'],
+      sunrise_ecmwf_ifs025: ['2026-07-20T05:30'],
+      sunset_ecmwf_ifs025: ['2026-07-20T20:10'],
+      sunrise_icon_eu: ['2026-07-20T05:30'],
+      sunset_icon_eu: ['2026-07-20T20:10'],
+    },
+    timezone: 'auto',
+  }
+  const days = processForecast(data, new Date('2026-07-20T12:00:00'))
+  assert.equal(days.length, 1)
+  const day = days[0]
+  assert.equal(day.sunrise, '05:30')
+  assert.equal(day.sunset, '20:10')
+  const h = day.hours[0]
+  assert.equal(h.temperature, 20)     // ECMWF, next model after missing ALADIN
+  assert.equal(h.visibility, 30000)   // ICON-EU: ECMWF's visibility is all-null
+  assert.equal(h.cloudCover, 40)
+  assert.equal(h.cloudModels[0].total, null) // ALADIN breakdown stays empty
+  assert.equal(day.hours[3].isNight, true)
+  assert.equal(day.hours[12].isNight, false)
+})
+
 test('currentHourClouds finds the breakdown for the current hour', () => {
   const days = processForecast(multiModelFixture(), new Date('2026-07-20T12:00:00'))
   const now = currentHourClouds(days, new Date('2026-07-20T21:30:00'))

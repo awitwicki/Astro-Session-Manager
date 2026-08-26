@@ -44,6 +44,23 @@ h1 {
   margin: 0 0 12px;
 }
 
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-link {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+.home-link:hover {
+  color: var(--color-accent-hover);
+}
+
 .hidden {
   display: none !important;
 }
