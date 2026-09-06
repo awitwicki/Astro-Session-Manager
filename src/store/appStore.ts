@@ -340,6 +340,7 @@ interface AppState {
   setPlannerTargets: (targets: PlannerTarget[]) => void
   addPlannerTarget: (target: PlannerTarget) => void
   removePlannerTarget: (id: string) => void
+  updatePlannerTarget: (id: string, patch: Partial<Omit<PlannerTarget, 'id'>>) => void
   setHorizonProfile: (profile: HorizonProfile | null) => void
   setFlatHorizonPreview: (v: boolean) => void
 
@@ -521,6 +522,9 @@ export const useAppStore = create<AppState>((set) => ({
       : { plannerTargets: [...state.plannerTargets, target] }),
   removePlannerTarget: (id) => set((state) => ({
     plannerTargets: state.plannerTargets.filter((t) => t.id !== id),
+  })),
+  updatePlannerTarget: (id, patch) => set((state) => ({
+    plannerTargets: state.plannerTargets.map((t) => (t.id === id ? { ...t, ...patch } : t)),
   })),
   setHorizonProfile: (profile) => set({ horizonProfile: profile }),
   setFlatHorizonPreview: (v) => set({ flatHorizonPreview: v }),

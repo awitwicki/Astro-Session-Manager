@@ -72,7 +72,17 @@
   100% { border-color: var(--border-color, rgba(128, 128, 160, 0.15)); box-shadow: none; }
 }
 .planner-row-info { flex: 1; min-width: 0; }
-.planner-row-name { font-size: 14px; font-weight: 600; }
+.planner-row-name { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+.planner-row-rename {
+  background: none; border: none; cursor: pointer; opacity: 0.35;
+  color: inherit; padding: 2px; border-radius: 4px; display: inline-flex;
+}
+.planner-row-rename:hover { opacity: 1; background: rgba(91, 155, 213, 0.15); }
+.planner-row-name-input {
+  font: inherit; font-size: 14px; font-weight: 600; width: min(100%, 320px);
+  padding: 2px 6px; border-radius: 4px; outline: none; color: inherit;
+  background: var(--bg-primary, #12141f); border: 1px solid var(--planner-curve);
+}
 .planner-row-designation { font-size: 12px; opacity: 0.75; margin-top: 2px; }
 .planner-row-meta { font-size: 11px; opacity: 0.6; margin-top: 2px; }
 .planner-row-altaz { font-size: 12px; margin-top: 6px; color: var(--planner-curve); }
@@ -215,18 +225,46 @@
 .horizon-drag-readout text { fill: #ffcc88; font-size: 11px; }
 .horizon-hint { margin: 8px 0 0; font-size: 11px; opacity: 0.55; }
 
-.planner-horizon-toggle {
+.planner-toggle {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
   background: var(--bg-secondary, rgba(128, 128, 160, 0.08));
   border: 1px solid var(--border-color, rgba(128, 128, 160, 0.25));
-  color: inherit;
+  color: inherit; white-space: nowrap;
 }
-.planner-horizon-toggle:hover { border-color: var(--planner-curve); }
-.planner-horizon-toggle--active {
+.planner-toggle:hover { border-color: var(--planner-curve); }
+.planner-toggle--active {
   border-color: var(--planner-curve); color: var(--planner-curve);
   background: rgba(91, 155, 213, 0.12);
 }
+
+/* Planner — coordinates form */
+.planner-coords-form {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;
+  padding: 12px 14px; margin-bottom: 12px; border-radius: 8px;
+  background: var(--bg-secondary, rgba(128, 128, 160, 0.06));
+  border: 1px solid var(--border-color, rgba(128, 128, 160, 0.15));
+}
+.planner-coords-form label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 11px; color: var(--text-secondary, #8888aa);
+}
+.planner-coords-form input {
+  width: 170px; padding: 6px 8px; border-radius: 6px; font-size: 13px;
+  color: var(--text-primary, inherit); outline: none;
+  background: var(--bg-primary, #12141f);
+  border: 1px solid var(--border-color, rgba(128, 128, 160, 0.25));
+}
+.planner-coords-form input:focus { border-color: var(--planner-curve); }
+.planner-coords-field--invalid input { border-color: rgba(255, 80, 80, 0.7); }
+.planner-coords-parsed { min-height: 14px; font-size: 11px; opacity: 0.65; }
+.planner-coords-form button[type="submit"] {
+  padding: 6px 14px; margin-bottom: 18px; border-radius: 6px; cursor: pointer; font-size: 12px;
+  border: 1px solid var(--planner-curve); color: var(--planner-curve);
+  background: rgba(91, 155, 213, 0.12);
+}
+.planner-coords-form button[type="submit"]:disabled { opacity: 0.4; cursor: default; }
+.planner-coords-hint { flex-basis: 100%; font-size: 11px; opacity: 0.55; }
 
 .planner-flat-horizon-toggle {
   display: inline-flex; align-items: center; gap: 5px;

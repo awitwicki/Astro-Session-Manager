@@ -1,22 +1,40 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
-import { loadCatalog } from '../../lib/catalog'
-import { searchCatalog, type CatalogIndex, type CatalogObject } from '../../lib/catalogSearch'
+import { loadCatalog, loadStarCatalog } from '../../lib/catalog'
+import { searchObjects, type SearchHit } from '../../lib/objectSearch'
+import { starDesignation, starDisplayName, type StarObject } from '../../lib/starSearch'
 
 interface ObjectSearchProps {
-  onSelect: (obj: CatalogObject) => void
+  onSelect: (hit: SearchHit) => void
+}
+
+/** One lazily loaded catalog with its own error state, so a failure in one
+ *  catalog never hides the other's results. */
+function useCatalog<T>(load: () => Promise<T>) {
+  const [index, setIndex] = useState<T | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const start = () => {
+    setError(null)
+    load().then(setIndex).catch((err) => setError(String(err)))
+  }
+  return { index, error, start }
+}
+
+function starMeta(star: StarObject): string {
+  const ids = star.hd !== null && star.hip !== null ? ` · HIP ${star.hip}` : ''
+  return `Star · mag ${star.mag.toFixed(1)} · ${star.con}${ids}`
 }
 
 export function ObjectSearch({ onSelect }: ObjectSearchProps) {
   const [query, setQuery] = useState('')
-  const [index, setIndex] = useState<CatalogIndex | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  const dso = useCatalog(loadCatalog)
+  const stars = useCatalog(loadStarCatalog)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const load = () => {
-    setError(null)
-    loadCatalog().then(setIndex).catch((err) => setError(String(err)))
+  const loadAll = () => {
+    if (!dso.index && !dso.error) dso.start()
+    if (!stars.index && !stars.error) stars.start()
   }
 
   // Close the dropdown on outside clicks
@@ -28,7 +46,14 @@ export function ObjectSearch({ onSelect }: ObjectSearchProps) {
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
-  const results = index && query.trim() ? searchCatalog(index, query) : []
+  const anyLoaded = dso.index !== null || stars.index !== null
+  const results = query.trim() ? searchObjects(dso.index, stars.index, query) : []
+
+  const pick = (hit: SearchHit) => {
+    onSelect(hit)
+    setQuery('')
+    setOpen(false)
+  }
 
   return (
     <div className="object-search" ref={rootRef}>
@@ -36,10 +61,10 @@ export function ObjectSearch({ onSelect }: ObjectSearchProps) {
         <Search size={14} />
         <input
           type="text"
-          placeholder="Add object — M31, NGC 7000, C14, name…"
+          placeholder="Add object — M31, NGC 7000, HD 172167, Vega…"
           value={query}
           onFocus={() => {
-            if (!index && !error) load()
+            loadAll()
             setOpen(true)
           }}
           onChange={(e) => {
@@ -53,34 +78,45 @@ export function ObjectSearch({ onSelect }: ObjectSearchProps) {
       </div>
       {open && query.trim() !== '' && (
         <div className="object-search-dropdown">
-          {error !== null && (
+          {dso.error !== null && (
             <div className="object-search-status">
-              Failed to load catalog. <button onClick={load}>Retry</button>
+              Failed to load the deep-sky catalog. <button onClick={dso.start}>Retry</button>
             </div>
           )}
-          {error === null && index === null && (
-            <div className="object-search-status">Loading catalog…</div>
+          {stars.error !== null && (
+            <div className="object-search-status">
+              Failed to load the star catalog. <button onClick={stars.start}>Retry</button>
+            </div>
           )}
-          {index !== null && results.length === 0 && (
+          {!anyLoaded && dso.error === null && stars.error === null && (
+            <div className="object-search-status">Loading catalogs…</div>
+          )}
+          {anyLoaded && results.length === 0 && (
             <div className="object-search-status">No matches</div>
           )}
-          {results.map((obj) => (
-            <button
-              key={obj.id}
-              className="object-search-result"
-              onClick={() => {
-                onSelect(obj)
-                setQuery('')
-                setOpen(false)
-              }}
-            >
-              <span className="osr-designation">{obj.id}</span>
-              {obj.names.length > 0 && <span className="osr-name">{obj.names[0]}</span>}
-              <span className="osr-meta">
-                {obj.type}{obj.mag !== null ? ` · mag ${obj.mag.toFixed(1)}` : ''} · {obj.con}
-              </span>
-            </button>
-          ))}
+          {results.map((hit) => {
+            if (hit.kind === 'dso') {
+              const obj = hit.obj
+              return (
+                <button key={`dso:${obj.id}`} className="object-search-result" onClick={() => pick(hit)}>
+                  <span className="osr-designation">{obj.id}</span>
+                  {obj.names.length > 0 && <span className="osr-name">{obj.names[0]}</span>}
+                  <span className="osr-meta">
+                    {obj.type}{obj.mag !== null ? ` · mag ${obj.mag.toFixed(1)}` : ''} · {obj.con}
+                  </span>
+                </button>
+              )
+            }
+            const designation = starDesignation(hit.star)
+            const name = starDisplayName(hit.star)
+            return (
+              <button key={`star:${designation}`} className="object-search-result" onClick={() => pick(hit)}>
+                <span className="osr-designation">{designation}</span>
+                {name !== designation && <span className="osr-name">{name}</span>}
+                <span className="osr-meta">{starMeta(hit.star)}</span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

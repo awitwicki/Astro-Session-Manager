@@ -89,6 +89,12 @@ yarn tauri build
 
 Builds for the current platform. Cross-platform builds are handled via GitHub Actions CI.
 
+## Data sources
+
+- Deep-sky catalog (`public/catalogs/dso.json`) is generated from [OpenNGC](https://github.com/mattiaverga/OpenNGC), CC BY-SA 4.0 — `node scripts/generate-dso-catalog.mjs`.
+- Star catalog (`public/catalogs/stars.json`, Hipparcos / Henry Draper / Yale numbers, Bayer, Flamsteed, variable and IAU names) is generated from the [HYG Database](https://github.com/astronexus/HYG-Database) v4.1 by David Nash, CC BY-SA 4.0 — `node scripts/generate-star-catalog.mjs`.
+- Sky Map chart data comes from [d3-celestial](https://github.com/ofrohn/d3-celestial).
+
 ## License
 
 [GNU General Public License](LICENSE)
