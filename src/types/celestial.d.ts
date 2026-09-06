@@ -169,7 +169,6 @@ interface CelestialObject {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var Celestial: CelestialObject
 
   // Referenced by name (function parameter annotations) outside this file,

@@ -78,10 +78,14 @@ pub fn write_fits_u16(
     w.write_all(&header_bytes)
         .map_err(|e| format!("Failed to write FITS header: {}", e))?;
 
-    // Write pixel data as big-endian u16
+    // BITPIX=16 stores signed big-endian samples; with BZERO=32768 the
+    // physical value is `stored + 32768`, so an unsigned sample is stored as
+    // `px - 32768` — a plain flip of the sign bit. Writing the raw u16 bytes
+    // instead would make every reader see the data offset by 32768 (and wrap
+    // anything above 32767).
     let mut data_bytes: Vec<u8> = Vec::with_capacity(pixels.len() * 2);
     for &px in pixels {
-        data_bytes.extend_from_slice(&px.to_be_bytes());
+        data_bytes.extend_from_slice(&(px ^ 0x8000).to_be_bytes());
     }
     // Pad to next block boundary
     let remainder = data_bytes.len() % BLOCK_SIZE;
@@ -131,4 +135,53 @@ fn format_keyword_string(key: &str, val: &str) -> String {
         rec.push(' ');
     }
     rec
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use astroimage::{ImageConverter, PixelData};
+
+    /// BITPIX=16 + BZERO=32768: samples must survive a round trip through a
+    /// standards-following reader, including values above 32767 (which a
+    /// writer that stores raw u16 bytes silently wraps).
+    #[test]
+    fn u16_samples_round_trip_through_fits_reader() {
+        let (width, height) = (5usize, 3usize);
+        let pixels: Vec<u16> = vec![
+            0, 1, 1000, 32767, 32768, //
+            40000, 60000, 65535, 7, 8, //
+            9, 10, 11, 12, 13,
+        ];
+        assert_eq!(pixels.len(), width * height);
+
+        let path = std::env::temp_dir().join(format!(
+            "asm-fits-writer-roundtrip-{}.fits",
+            std::process::id()
+        ));
+        write_fits_u16(
+            &path,
+            &pixels,
+            &FitsMetadata {
+                width,
+                height,
+                exptime: Some(1.5),
+                gain: None,
+                date_obs: None,
+                instrume: None,
+                bayerpat: Some("RGGB".to_string()),
+            },
+        )
+        .unwrap();
+
+        let read = ImageConverter::read_raw(&path);
+        let _ = std::fs::remove_file(&path);
+        let (meta, data) = read.unwrap();
+
+        assert_eq!((meta.width, meta.height), (width, height));
+        match data {
+            PixelData::Uint16(v) => assert_eq!(v, pixels),
+            PixelData::Float32(_) => panic!("expected 16-bit samples"),
+        }
+    }
 }

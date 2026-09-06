@@ -11,19 +11,18 @@ Desktop application for managing astrophotography imaging sessions and master ca
 
 ## Tech Stack
 
-**Frontend:** React 19.2, TypeScript 5.9, Vite 7, Zustand 5 (state), React Router DOM 7 (hash routing), Lucide React (icons), `d3-celestial` (SkyMap), `leaflet` (Weather map), `astronomy-engine` (Planner ephemerides), Babel React Compiler plugin, custom CSS with CSS variables (dark/light themes via `data-theme` attribute).
+**Frontend:** React 19.2, TypeScript 6.0 (typescript-eslint does not support 7.x yet), Vite 8 (rolldown), Zustand 5 (state), React Router DOM 7 (hash routing), Lucide React 1.x (icons), `d3-celestial` (SkyMap), `leaflet` (Weather map), `astronomy-engine` (Planner ephemerides), React Compiler via `@rolldown/plugin-babel` + `babel-plugin-react-compiler` (`reactCompilerPreset` in `vite.config.ts`), custom CSS with CSS variables (dark/light themes via `data-theme` attribute).
 
-**Backend:** Tauri 2.10, Rust edition 2021 (MSRV 1.77.2). Key crates:
-- `rustafits` 0.9 — FITS parsing (imported as `astroimage` — this is the crate's `[lib] name`, not a separate dep)
-- `image` 0.25 — preview encoding
-- `lru` 0.12 — bounded preview cache
-- `rawler` 0.7 + `nom-exif` 2 — DSLR raw decoding (CR2/CR3/ARW) and EXIF
+**Backend:** Tauri 2.11, Rust edition 2021 (MSRV 1.89.0 — informational, tracks the highest dep requirement; CI builds on stable). Key crates:
+- `rustafits` 1.1 — FITS/XISF reading, preview pipeline, star analysis and JPEG encoding (`encode_jpeg`, pure-Rust libjpeg-turbo — no cmake/nasm needed). Imported as `astroimage` — this is the crate's `[lib] name`, not a separate dep. `image` is only a dev-dependency (JPEG decoding in tests).
+- `lru` 0.18 — bounded preview cache
+- `rawler` 0.8 + `nom-exif` 3 — DSLR raw decoding (CR2/CR3/ARW) and EXIF
 - `tokio` 1 (sync + time features), `rayon` 1 — async + parallel
-- `walkdir`, `regex`, `chrono`, `sha2`, `hex`, `base64`, `dirs`, `trash`
+- `walkdir`, `regex`, `chrono`, `base64`, `trash`
 - `serde` / `serde_json`
 - `tauri-plugin-log`, `tauri-plugin-dialog`, `tauri-plugin-opener`
 
-**Build:** Vite dev server on port 5173, ESLint flat config, TypeScript strict mode, React compiler plugin enabled.
+**Build:** Vite dev server on port 5173, ESLint 10 flat config, TypeScript strict mode, React compiler enabled.
 
 **CI/CD:** GitHub Actions — auto-tag + cross-platform release builds (macOS ARM64/Intel, Windows NSIS, Linux DEB/AppImage).
 
@@ -95,7 +94,7 @@ yarn test:web     # frontend unit tests (node:test via tsx)
 - Frontend calls Rust via Tauri IPC commands (defined in `commands.rs`, registered in `lib.rs`).
 - Long operations emit progress events via Tauri window events; the preview queue emits state snapshots (`preview:queue_state`) while holding its mutex so events are ordered.
 - FITS parsing handles keyword aliases for N.I.N.A., ASIAIR, SGPro, SharpCap.
-- Preview generation: FITS → JPEG (max 1920×1080, quality 90), SHA256-based cache keys, bounded LRU (default 500 MB, 30 min TTL, runtime-adjustable concurrency).
+- Preview generation (`fits_preview.rs`): rustafits `ImageConverter::read_raw` → `process_data` → `encode_jpeg` (max 1920×1080, quality 90). For FITS the metadata's `flip_vertical` is cleared before processing so previews stay in raw pixel space (rustafits ≥ 1.0 would flip files without `ROWORDER` bottom-up) and line up with the star overlay from `analyzer.rs`, which never flips; XISF is left as rustafits reads it. A unit test pins this. Results are cached by file path in a bounded LRU (default 500 MB, 30 min TTL, runtime-adjustable concurrency). rustafits' full-resolution VNG debayer is deliberately not used here — previews are downscaled anyway and the super-pixel path inside `process_data` is the cheaper fit.
 - Preview/star-analysis prefetch uses a persistent global queue (`preview_queue.rs`): navigating frames calls `enqueue_prefetch_window`, which replaces pending work with the selected frame ±3 (preview job per path, plus star-detail job when heatmap/tilt overlays are on). Direct `get_fits_preview` / `analyze_stars_detail` commands hold a foreground guard that pauses new queue admissions so the visible frame renders first; per-path single-flight (`single_flight.rs`) prevents duplicate concurrent generation.
 - Masters matching: by exposure (±0.5 s), temperature (configurable tolerance), resolution.
 - Supported formats: FITS (`.fits`, `.fit`, `.fts`), XISF (`.xisf`), DSLR RAW (`.cr2`, `.cr3`, `.arw`).

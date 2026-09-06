@@ -1,13 +1,10 @@
-use std::io::Cursor;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Instant;
 
-use astroimage::{ImageConverter, ProcessedImage, ThreadPoolBuilder};
+use astroimage::{encode_jpeg, ImageConverter, ProcessedImage, ThreadPoolBuilder};
 use base64::{engine::general_purpose::STANDARD, Engine};
-use image::codecs::jpeg::JpegEncoder;
-use image::{ImageBuffer, Rgb};
 use lru::LruCache;
 
 use crate::fits_parser;
@@ -163,30 +160,23 @@ fn read_header(file_path: &str) -> Result<crate::types::FitsHeader, String> {
 
 /// Encode a ProcessedImage as JPEG in memory and return base64 string.
 ///
-/// When `flip_vertical` is set the rows are mirrored top-to-bottom before
-/// encoding — used to undo rustafits' FITS row-order flip (see `generate_preview`).
-fn encode_jpeg_base64(
-    processed: ProcessedImage,
-    flip_vertical: bool,
-) -> Result<(String, u32, u32), String> {
-    let width = processed.width as u32;
-    let height = processed.height as u32;
+/// Uses rustafits' own encoder (pure-Rust libjpeg-turbo with SIMD paths)
+/// straight from the processed RGB buffer — no intermediate image buffer.
+fn encode_jpeg_base64(processed: &ProcessedImage) -> Result<(String, u32, u32), String> {
+    let jpeg = encode_jpeg(
+        &processed.data,
+        processed.width,
+        processed.height,
+        processed.channels as usize,
+        JPEG_QUALITY,
+    )
+    .map_err(|e| format!("Failed to encode JPEG: {:#}", e))?;
 
-    let mut img: ImageBuffer<Rgb<u8>, Vec<u8>> =
-        ImageBuffer::from_raw(width, height, processed.data)
-            .ok_or("Failed to create image buffer from processed data")?;
-
-    if flip_vertical {
-        image::imageops::flip_vertical_in_place(&mut img);
-    }
-
-    let mut buf = Cursor::new(Vec::new());
-    let encoder = JpegEncoder::new_with_quality(&mut buf, JPEG_QUALITY);
-    img.write_with_encoder(encoder)
-        .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
-
-    let base64_str = STANDARD.encode(buf.into_inner());
-    Ok((base64_str, width, height))
+    Ok((
+        STANDARD.encode(jpeg),
+        processed.width as u32,
+        processed.height as u32,
+    ))
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -249,27 +239,37 @@ fn generate_preview_inner(file_path: &str) -> Result<Arc<FitsPreviewResult>, Str
 
     // Build converter with shared thread pool
     let mut converter = ImageConverter::new()
-        .with_thread_pool(pool)
+        .with_thread_pool(Arc::clone(&pool))
         .with_downscale(downscale);
 
     if downscale <= 2 {
         converter = converter.with_preview_mode();
     }
 
-    let processed = converter
-        .process(file_path)
-        .map_err(|e| format!("Failed to process image: {}", e))?;
+    // Read the raw samples on the shared pool too: the FITS/XISF readers
+    // convert sample chunks with rayon, and running them outside `install`
+    // would spill that work onto the global pool.
+    let (mut meta, pixels) = pool
+        .install(|| ImageConverter::read_raw(file_path))
+        .map_err(|e| format!("{:#}", e))?;
 
     // rustafits 1.0 changed the default FITS row order: a file with no ROWORDER
-    // keyword is now treated as bottom-up and flipped vertically to match
-    // PixInsight, whereas 0.9.x left it unflipped. Undo that flip for FITS so
-    // previews keep their pre-1.0 orientation and stay aligned with the
-    // star-detection coordinates the detail view overlays (the analyzer always
-    // works in raw, unflipped pixel space). XISF orientation is unchanged across
-    // versions, so leave it as produced.
-    let undo_flip = processed.flip_vertical && !file_path.to_lowercase().ends_with(".xisf");
+    // keyword is treated as bottom-up and flipped vertically to match
+    // PixInsight, whereas 0.9.x left it unflipped. Previews must stay in raw
+    // orientation so they line up with the star-detection coordinates the
+    // detail view overlays (the analyzer always works in raw, unflipped pixel
+    // space). Clearing the flag before processing skips the flip inside the
+    // pipeline instead of applying it and undoing it afterwards. XISF
+    // orientation is unchanged across versions, so leave it as read.
+    if !file_path.to_lowercase().ends_with(".xisf") {
+        meta.flip_vertical = false;
+    }
 
-    let (image_data, width, height) = encode_jpeg_base64(processed, undo_flip)?;
+    let processed = converter
+        .process_data(meta, pixels)
+        .map_err(|e| format!("{:#}", e))?;
+
+    let (image_data, width, height) = encode_jpeg_base64(&processed)?;
 
     let result = FitsPreviewResult {
         image_data,
@@ -328,4 +328,83 @@ pub fn clear_preview_cache() {
     let mut cache = get_cache().write().unwrap();
     cache.lru.clear();
     cache.total_bytes = 0;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fits_writer::{write_fits_u16, FitsMetadata};
+
+    /// A 16-bit FITS with a bright band in its first rows (raw file order, no
+    /// ROWORDER keyword). rustafits ≥ 1.0 treats such a file as bottom-up and
+    /// would flip it for display; the preview must stay in raw orientation so
+    /// it lines up with star-detection coordinates — the band has to come out
+    /// at the top of the JPEG.
+    #[test]
+    fn fits_preview_keeps_raw_row_order() {
+        let (width, height) = (64usize, 32usize);
+        // Background with a little deterministic noise so the auto-stretch has
+        // a non-zero MAD to work with; a saturated band in rows 0..8.
+        let mut seed = 12345u32;
+        let mut noise = || {
+            seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12345);
+            ((seed >> 16) % 200) as u16
+        };
+        let mut pixels = vec![0u16; width * height];
+        for row in 0..height {
+            for col in 0..width {
+                let base = if row < 8 { 60_000 } else { 1_000 };
+                pixels[row * width + col] = base + noise();
+            }
+        }
+
+        let path = std::env::temp_dir().join(format!(
+            "asm-preview-roworder-{}.fits",
+            std::process::id()
+        ));
+        write_fits_u16(
+            &path,
+            &pixels,
+            &FitsMetadata {
+                width,
+                height,
+                exptime: None,
+                gain: None,
+                date_obs: None,
+                instrume: None,
+                bayerpat: None,
+            },
+        )
+        .unwrap();
+
+        let result = generate_preview(path.to_str().unwrap());
+        let _ = std::fs::remove_file(&path);
+        let result = result.unwrap();
+
+        // downscale 1 → preview mode → 2×2 binning
+        assert_eq!((result.original_width, result.original_height), (64, 32));
+        assert_eq!((result.width, result.height), (32, 16));
+
+        let jpeg = STANDARD.decode(&result.image_data).unwrap();
+        let img = image::load_from_memory(&jpeg).unwrap().to_luma8();
+        assert_eq!(img.dimensions(), (32, 16));
+
+        let mean = |rows: std::ops::Range<u32>| -> f64 {
+            let mut sum = 0u64;
+            let mut n = 0u64;
+            for y in rows {
+                for x in 0..32 {
+                    sum += img.get_pixel(x, y).0[0] as u64;
+                    n += 1;
+                }
+            }
+            sum as f64 / n as f64
+        };
+        let top = mean(0..4);
+        let bottom = mean(12..16);
+        assert!(
+            top > bottom + 50.0,
+            "bright band must stay at the top: top={top} bottom={bottom}"
+        );
+    }
 }

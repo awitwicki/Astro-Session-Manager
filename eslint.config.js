@@ -23,6 +23,10 @@ export default defineConfig([
       // The fetch-on-param-change effects across routes predate the React
       // Compiler lint rules; the compiler just skips memoizing them.
       'react-hooks/set-state-in-effect': 'warn',
+      // eslint-plugin-react-refresh 0.5 flags hooks exported next to their
+      // provider (ThemeContext exports useTheme); that only costs fast
+      // refresh a full reload of that one file, so keep it advisory.
+      'react-refresh/only-export-components': 'warn',
     },
   },
 ])
