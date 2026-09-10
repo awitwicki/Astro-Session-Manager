@@ -427,6 +427,15 @@ header {
   filter: saturate(0.5) brightness(0.5);
 }
 
+/* Offline day (API unreachable): hour cells carry no data, only the label. */
+.weather-summary-cell.nodata {
+  background: var(--color-bg-tertiary, #1c2130);
+}
+
+.weather-day-card.offline .weather-day-info {
+  cursor: default;
+}
+
 .weather-summary-cell.past .weather-summary-hour {
   opacity: 0.4;
 }

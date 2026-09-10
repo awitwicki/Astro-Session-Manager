@@ -2,9 +2,9 @@
 // and the two tab renderers.
 
 import { loadLocation, initLocationBar } from './location.js'
-import { fetchForecast } from './weather.js'
+import { fetchForecast, buildOfflineForecast } from './weather.js'
 import { renderForecast } from './forecast.js'
-import { renderDaylight } from './daylight.js'
+import { renderDaylight, detectTimeZone, tzOffsetHours } from './daylight.js'
 import { renderSatellite } from './satellite.js'
 
 const state = {
@@ -55,8 +55,15 @@ async function refreshForecast() {
     state.forecast = data
   } catch (err) {
     if (token !== state.fetchToken) return
-    state.forecast = null
-    state.error = err instanceof Error ? err.message : String(err)
+    // Failsafe: Open-Meteo is down or unreachable (every model failed, see
+    // fetchForecast). Keep the page useful with locally computed sun and
+    // moon times for the coming week; Refresh retries the live forecast.
+    const reason = err instanceof Error ? err.message : String(err)
+    const zone = detectTimeZone()
+    state.forecast = buildOfflineForecast(
+      state.location.lat, state.location.lon, (d) => tzOffsetHours(zone, d),
+    )
+    state.error = `Forecast unavailable (${reason}). Showing computed sun and moon times only.`
   }
   state.loading = false
   renderWeatherTab()

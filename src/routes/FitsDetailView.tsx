@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, FolderOpen, Eye } from 'lucide-react'
+import { ArrowLeft, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, FolderOpen, Eye, Images, X } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { useAppStore } from '../store/appStore'
 import type { StarsDetailResult } from '../types'
@@ -130,6 +130,23 @@ export function FitsDetailView() {
   const goNext = useCallback(() => {
     if (hasNext) navigateToFrame(currentIndex + 1)
   }, [hasNext, currentIndex, navigateToFrame])
+
+  // "Cache all previews": sweep the current gallery starting at the selected
+  // frame and wrapping around, behind the navigation window. Restarting after
+  // Stop re-queues everything; already-cached frames complete instantly on
+  // the backend's cache fast path.
+  const cacheAllPreviews = useCallback(() => {
+    if (frames.length === 0) return
+    const start = Math.max(0, currentIndex)
+    const ordered = [...frames.slice(start), ...frames.slice(0, start)]
+    invoke('enqueue_bulk_previews', { filePaths: ordered }).catch(() => {
+      // fire-and-forget — progress comes via store listener
+    })
+  }, [frames, currentIndex])
+
+  const stopCaching = useCallback(() => {
+    invoke('clear_bulk_previews').catch(() => {})
+  }, [])
 
   // Keyboard navigation
   useEffect(() => {
@@ -898,24 +915,47 @@ export function FitsDetailView() {
           </div>
         </div>
 
-        {/* Filename display */}
-        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', padding: '0 8px' }}>
-          {filename}
-        </div>
-
-        {/* Preview generation progress */}
-        {previewQueue.active && previewQueue.total > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 12, color: 'var(--color-text-muted)', padding: '0 8px' }}>
-            <div className="spinner" style={{ width: 12, height: 12 }} />
-            <span>Generating previews: {previewQueue.completed}/{previewQueue.total}</span>
-            <div className="progress-bar" style={{ flex: 1, height: 3 }}>
-              <div
-                className="progress-bar-fill"
-                style={{ width: `${(previewQueue.completed / previewQueue.total) * 100}%` }}
-              />
+        {/* Status row: filename + prefetch progress. Fixed height so the
+            image below never shifts when the prefetch indicator comes and goes. */}
+        <div
+          style={{
+            height: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 4,
+            padding: '0 8px',
+            fontSize: 12,
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              flex: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {filename}
+          </span>
+          {previewQueue.active && previewQueue.total > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <div className="spinner" style={{ width: 12, height: 12 }} />
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                Generating previews: {previewQueue.completed}/{previewQueue.total}
+              </span>
+              <div className="progress-bar" style={{ width: 120, height: 3 }}>
+                <div
+                  className="progress-bar-fill"
+                  style={{ width: `${(previewQueue.completed / previewQueue.total) * 100}%` }}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Image area */}
         {imageLoading ? (
@@ -1073,6 +1113,49 @@ export function FitsDetailView() {
               )}
             </div>
           ) : null}
+        </div>
+
+        {/* Footer: cache every preview in the current scope. Fixed height so
+            the progress bar and Stop button never resize the image area. */}
+        <div
+          style={{
+            height: 28,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginTop: 4,
+            padding: '0 8px',
+            fontSize: 12,
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          <button
+            className="btn btn-sm"
+            onClick={cacheAllPreviews}
+            disabled={!hasGallery || previewQueue.bulkActive}
+            title="Generate and cache previews for every frame in the current scope (kept for 30 minutes)"
+          >
+            <Images size={14} /> Cache previews{hasGallery ? ` (${frames.length})` : ''}
+          </button>
+          {previewQueue.bulkActive && (
+            <>
+              <div className="spinner" style={{ width: 12, height: 12 }} />
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                Caching previews: {previewQueue.bulkCompleted}/{previewQueue.bulkTotal}
+              </span>
+              <div className="progress-bar" style={{ flex: 1, maxWidth: 320, height: 3 }}>
+                <div
+                  className="progress-bar-fill"
+                  style={{
+                    width: `${previewQueue.bulkTotal > 0 ? (previewQueue.bulkCompleted / previewQueue.bulkTotal) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+              <button className="btn btn-sm" onClick={stopCaching} title="Stop caching (previews already cached are kept)">
+                <X size={12} /> Stop
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

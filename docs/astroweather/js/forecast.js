@@ -4,7 +4,7 @@
 
 import {
   getCloudColor, getWindColor, getHumidityColor, getTempColor,
-  getPrecipColor, getVisibilityColor, getWindArrow,
+  getPrecipColor, getVisibilityColor, getWindArrow, localDateString,
 } from './weather.js'
 import { altitudeCrossing, dayOfYear } from './sun.js'
 import { el, emptyState } from './dom.js'
@@ -168,7 +168,7 @@ export function renderForecast(root, view) {
   if (view.forecast) {
     const days = el('div', 'weather-days')
     for (const day of view.forecast) {
-      if (day.hours.length === 0) continue
+      if (day.hours.length === 0 && !day.offline) continue
       days.append(dayCard(day, view))
     }
     root.append(days)
@@ -176,8 +176,10 @@ export function renderForecast(root, view) {
 }
 
 function dayCard(day, view) {
-  const expanded = expandedDays.has(day.date)
-  const card = el('div', 'weather-day-card')
+  // Offline days (API unreachable) carry sun/moon times only: no hourly
+  // data, nothing to expand.
+  const expanded = !day.offline && expandedDays.has(day.date)
+  const card = el('div', `weather-day-card${day.offline ? ' offline' : ''}`)
   const row = el('div', 'weather-day-row')
 
   // Left column: day info, plus row labels when expanded.
@@ -199,11 +201,13 @@ function dayCard(day, view) {
     el('span', 'weather-sun-set', `▼ ${day.sunset}`),
   )
   info.append(top, moon, sunTimes)
-  info.addEventListener('click', () => {
-    if (expandedDays.has(day.date)) expandedDays.delete(day.date)
-    else expandedDays.add(day.date)
-    card.replaceWith(dayCard(day, view))
-  })
+  if (!day.offline) {
+    info.addEventListener('click', () => {
+      if (expandedDays.has(day.date)) expandedDays.delete(day.date)
+      else expandedDays.add(day.date)
+      card.replaceWith(dayCard(day, view))
+    })
+  }
   left.append(info)
   if (expanded) {
     const labels = el('div', 'weather-labels-col')
@@ -217,11 +221,23 @@ function dayCard(day, view) {
 
   const summaryBar = el('div', 'weather-summary-bar')
   const hoursRow = el('div', 'weather-summary-hours')
-  for (const h of day.hours) {
-    const cell = el('div', `weather-summary-cell${h.isNight ? ' night' : ''}${h.isPast ? ' past' : ''}`)
-    cell.style.backgroundColor = SUMMARY_ROW.getColor(h)
-    cell.append(el('span', 'weather-summary-hour', String(h.hour).padStart(2, '0')))
-    hoursRow.append(cell)
+  if (day.offline) {
+    // Neutral hour cells so the twilight/moon bars below still read against
+    // a clock; hours already gone today are dimmed like live ones.
+    const now = new Date()
+    const isToday = day.date === localDateString(now)
+    for (let hour = 0; hour < 24; hour++) {
+      const cell = el('div', `weather-summary-cell nodata${isToday && hour < now.getHours() ? ' past' : ''}`)
+      cell.append(el('span', 'weather-summary-hour', String(hour).padStart(2, '0')))
+      hoursRow.append(cell)
+    }
+  } else {
+    for (const h of day.hours) {
+      const cell = el('div', `weather-summary-cell${h.isNight ? ' night' : ''}${h.isPast ? ' past' : ''}`)
+      cell.style.backgroundColor = SUMMARY_ROW.getColor(h)
+      cell.append(el('span', 'weather-summary-hour', String(h.hour).padStart(2, '0')))
+      hoursRow.append(cell)
+    }
   }
   summaryBar.append(hoursRow)
 

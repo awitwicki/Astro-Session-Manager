@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -23,111 +23,223 @@ pub struct Job {
     pub path: String,
 }
 
+/// Which lane a job was admitted through. Lanes have separate pending lists
+/// and progress counters; the worker always serves `Window` before `Bulk`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lane {
+    /// The ±3 navigation window around the selected frame. Replaced wholesale
+    /// on every navigation so prefetch follows the user.
+    Window,
+    /// A "Cache all previews" sweep over a whole gallery. Runs behind the
+    /// window lane and survives navigation; stopped explicitly by the user.
+    Bulk,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct EnqueueOutcome {
     pub added: usize,
 }
 
-pub struct PreviewQueue {
-    pending: VecDeque<Job>,
-    enqueued: HashSet<Job>,
-    in_flight: HashSet<Job>,
+/// Result of `pop_next`: the job to run (if any) plus how many pending jobs
+/// were found already in flight through the other lane and counted complete
+/// without running — a signal to re-emit queue state.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Popped {
+    pub job: Option<Job>,
+    pub skipped: usize,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct Progress {
     completed: usize,
     total: usize,
+}
+
+#[derive(Default)]
+struct LaneQueue {
+    pending: VecDeque<Job>,
+    /// Membership of `pending` for O(1) dedup.
+    enqueued: HashSet<Job>,
+    progress: Progress,
+}
+
+pub struct PreviewQueue {
+    window: LaneQueue,
+    bulk: LaneQueue,
+    /// Every running job, tagged with the lane it was popped from. A path is
+    /// generated at most once at a time: the other lane's copy is counted
+    /// complete when it reaches the front instead of running again.
+    in_flight: HashMap<Job, Lane>,
 }
 
 impl PreviewQueue {
     pub fn new() -> Self {
         Self {
-            pending: VecDeque::new(),
-            enqueued: HashSet::new(),
-            in_flight: HashSet::new(),
-            completed: 0,
-            total: 0,
+            window: LaneQueue::default(),
+            bulk: LaneQueue::default(),
+            in_flight: HashMap::new(),
         }
     }
 
-    /// Prepend a batch of jobs to the front of the queue with dedup:
-    /// - If a job is in `in_flight`, skip.
-    /// - If a job is in `pending`, pull it out (will be re-pushed at front).
-    /// - Otherwise, increment `total`.
+    fn lane(&self, lane: Lane) -> &LaneQueue {
+        match lane {
+            Lane::Window => &self.window,
+            Lane::Bulk => &self.bulk,
+        }
+    }
+
+    fn lane_mut(&mut self, lane: Lane) -> &mut LaneQueue {
+        match lane {
+            Lane::Window => &mut self.window,
+            Lane::Bulk => &mut self.bulk,
+        }
+    }
+
+    /// Prepend a batch of window jobs to the front of the queue with dedup:
+    /// - If a job is in flight (either lane), skip.
+    /// - If a job is already pending in the window lane, pull it out (it will
+    ///   be re-pushed at the front).
+    /// - Otherwise, increment the window `total`.
     ///
-    /// Order of the returned front reflects the caller's order (jobs[0]
+    /// Order of the resulting front reflects the caller's order (jobs[0]
     /// ends up at position 0 of `pending`).
     pub fn enqueue(&mut self, jobs: Vec<Job>) -> EnqueueOutcome {
         let mut added = 0usize;
-        // First pass: determine which jobs are admissible and in what order,
-        // and adjust total for new items.
         let mut to_push: Vec<Job> = Vec::with_capacity(jobs.len());
         for job in jobs {
-            if self.in_flight.contains(&job) {
+            if self.in_flight.contains_key(&job) {
                 continue;
             }
-            if self.enqueued.contains(&job) {
+            if self.window.enqueued.contains(&job) {
                 // Already pending — remove from its current position.
-                if let Some(idx) = self.pending.iter().position(|j| j == &job) {
-                    self.pending.remove(idx);
+                if let Some(idx) = self.window.pending.iter().position(|j| j == &job) {
+                    self.window.pending.remove(idx);
                 }
                 to_push.push(job);
             } else {
-                self.enqueued.insert(job.clone());
-                self.total += 1;
+                self.window.enqueued.insert(job.clone());
+                self.window.progress.total += 1;
                 added += 1;
                 to_push.push(job);
             }
         }
         // Push to front, preserving caller order: iterate reverse and push_front.
         for job in to_push.into_iter().rev() {
-            self.pending.push_front(job);
+            self.window.pending.push_front(job);
         }
         EnqueueOutcome { added }
     }
 
-    pub fn pop_next(&mut self) -> Option<Job> {
-        let job = self.pending.pop_front()?;
-        self.in_flight.insert(job.clone());
-        Some(job)
+    /// Replace the bulk lane with a new sweep, in caller order. Jobs in
+    /// flight (either lane) are skipped — they are being generated anyway —
+    /// and duplicates within the batch collapse. Bulk jobs still running from
+    /// a previous sweep stay in the new total so the counter never goes
+    /// backwards mid-run.
+    pub fn enqueue_bulk(&mut self, jobs: Vec<Job>) -> EnqueueOutcome {
+        self.bulk.pending.clear();
+        self.bulk.enqueued.clear();
+        let mut added = 0usize;
+        for job in jobs {
+            if self.in_flight.contains_key(&job) || self.bulk.enqueued.contains(&job) {
+                continue;
+            }
+            self.bulk.enqueued.insert(job.clone());
+            self.bulk.pending.push_back(job);
+            added += 1;
+        }
+        let running = self.in_flight_count(Lane::Bulk);
+        self.bulk.progress = Progress { completed: 0, total: added + running };
+        EnqueueOutcome { added }
     }
 
-    /// Mark a job as completed (success or failure). Must be called exactly
-    /// once per `pop_next` return value. Resets counters on full drain.
+    /// Take the next job to run: window lane first, then bulk. A pending job
+    /// whose path is already running through the other lane is not run twice;
+    /// it is counted complete for its own lane and skipped.
+    pub fn pop_next(&mut self) -> Popped {
+        let mut skipped = 0usize;
+        loop {
+            let (job, lane) = if let Some(job) = self.window.pending.pop_front() {
+                self.window.enqueued.remove(&job);
+                (job, Lane::Window)
+            } else if let Some(job) = self.bulk.pending.pop_front() {
+                self.bulk.enqueued.remove(&job);
+                (job, Lane::Bulk)
+            } else {
+                return Popped { job: None, skipped };
+            };
+            if self.in_flight.contains_key(&job) {
+                self.lane_mut(lane).progress.completed += 1;
+                self.check_drain_reset(lane);
+                skipped += 1;
+                continue;
+            }
+            self.in_flight.insert(job.clone(), lane);
+            return Popped { job: Some(job), skipped };
+        }
+    }
+
+    /// Mark a running job as completed (success or failure). Must be called
+    /// exactly once per job returned by `pop_next`. Resets the owning lane's
+    /// counters once that lane is fully drained.
     pub fn mark_complete(&mut self, job: &Job) {
-        self.in_flight.remove(job);
-        self.enqueued.remove(job);
-        self.completed += 1;
-        self.check_drain_reset();
+        if let Some(lane) = self.in_flight.remove(job) {
+            self.lane_mut(lane).progress.completed += 1;
+            self.check_drain_reset(lane);
+        }
     }
 
-    /// Drain `pending` without touching `in_flight`. Counters reset if
-    /// `in_flight` is already empty; otherwise they reset when the last
-    /// in-flight item completes.
+    /// Drop the window lane's pending jobs without touching in-flight ones or
+    /// the bulk lane. Counters reset now if nothing from the window lane is
+    /// running, otherwise when its last in-flight job completes.
     pub fn clear(&mut self) {
-        for job in self.pending.drain(..) {
-            self.enqueued.remove(&job);
+        self.clear_lane(Lane::Window);
+    }
+
+    /// Stop a bulk sweep: drop its pending jobs; in-flight ones finish.
+    pub fn clear_bulk(&mut self) {
+        self.clear_lane(Lane::Bulk);
+    }
+
+    fn clear_lane(&mut self, lane: Lane) {
+        let q = self.lane_mut(lane);
+        q.pending.clear();
+        q.enqueued.clear();
+        self.check_drain_reset(lane);
+    }
+
+    fn in_flight_count(&self, lane: Lane) -> usize {
+        self.in_flight.values().filter(|l| **l == lane).count()
+    }
+
+    fn check_drain_reset(&mut self, lane: Lane) {
+        if self.lane(lane).pending.is_empty() && self.in_flight_count(lane) == 0 {
+            self.lane_mut(lane).progress = Progress::default();
         }
-        self.check_drain_reset();
     }
 
-    fn check_drain_reset(&mut self) {
-        if self.pending.is_empty() && self.in_flight.is_empty() {
-            self.total = 0;
-            self.completed = 0;
-            self.enqueued.clear();
-        }
+    fn lane_active(&self, lane: Lane) -> bool {
+        !self.lane(lane).pending.is_empty() || self.in_flight_count(lane) > 0
     }
 
-    pub fn is_active(&self) -> bool {
-        !self.pending.is_empty() || !self.in_flight.is_empty()
-    }
+    pub fn is_active(&self) -> bool { self.lane_active(Lane::Window) }
+    pub fn total(&self) -> usize { self.window.progress.total }
+    pub fn completed(&self) -> usize { self.window.progress.completed }
 
-    pub fn total(&self) -> usize { self.total }
-    pub fn completed(&self) -> usize { self.completed }
+    pub fn bulk_active(&self) -> bool { self.lane_active(Lane::Bulk) }
+    pub fn bulk_total(&self) -> usize { self.bulk.progress.total }
+    pub fn bulk_completed(&self) -> usize { self.bulk.progress.completed }
+
     #[cfg(test)]
-    pub fn is_in_flight(&self, job: &Job) -> bool { self.in_flight.contains(job) }
+    pub fn is_in_flight(&self, job: &Job) -> bool { self.in_flight.contains_key(job) }
 
     #[cfg(test)]
     pub fn pending_snapshot(&self) -> Vec<Job> {
-        self.pending.iter().cloned().collect()
+        self.window.pending.iter().cloned().collect()
+    }
+
+    #[cfg(test)]
+    pub fn bulk_snapshot(&self) -> Vec<Job> {
+        self.bulk.pending.iter().cloned().collect()
     }
 }
 
@@ -150,6 +262,9 @@ fn snapshot(q: &PreviewQueue) -> PreviewQueueState {
         completed: q.completed(),
         total: q.total(),
         active: q.is_active(),
+        bulk_completed: q.bulk_completed(),
+        bulk_total: q.bulk_total(),
+        bulk_active: q.bulk_active(),
     }
 }
 
@@ -159,11 +274,12 @@ fn emit_state(window: &tauri::Window, state: PreviewQueueState) {
 
 /// Public entry point for the `enqueue_prefetch_window` command.
 ///
-/// Replaces pending work with the navigation window: for each path (nearest
-/// frame first) a preview job, immediately followed by a star-detail job when
-/// the heatmap/tilt overlays are on. Pending jobs from the previous window
-/// are dropped — prefetch follows navigation instead of sweeping a backlog —
-/// while in-flight jobs finish normally.
+/// Replaces pending window work with the navigation window: for each path
+/// (nearest frame first) a preview job, immediately followed by a star-detail
+/// job when the heatmap/tilt overlays are on. Pending jobs from the previous
+/// window are dropped — prefetch follows navigation instead of sweeping a
+/// backlog — while in-flight jobs finish normally. A bulk sweep, if any, is
+/// untouched and resumes once the window is served.
 pub fn prefetch_window(window: &tauri::Window, paths: Vec<String>, include_stars: bool) {
     let mut jobs = Vec::with_capacity(paths.len() * if include_stars { 2 } else { 1 });
     for path in paths {
@@ -182,6 +298,32 @@ pub fn prefetch_window(window: &tauri::Window, paths: Vec<String>, include_stars
     }
     notify().notify_one();
     ensure_worker_started(window.clone());
+}
+
+/// Public entry point for the `enqueue_bulk_previews` command ("Cache all
+/// previews"): a preview job per path, in caller order, behind the window
+/// lane. Replaces any previous sweep. Already-cached paths complete instantly
+/// through the worker's cache fast path, so restarting a stopped sweep only
+/// pays for what is still missing.
+pub fn bulk_previews(window: &tauri::Window, paths: Vec<String>) {
+    let jobs = paths
+        .into_iter()
+        .map(|path| Job { kind: JobKind::Preview, path })
+        .collect();
+    {
+        let mut q = queue().lock().unwrap();
+        q.enqueue_bulk(jobs);
+        emit_state(window, snapshot(&q));
+    }
+    notify().notify_one();
+    ensure_worker_started(window.clone());
+}
+
+/// Public entry point for the `clear_bulk_previews` command.
+pub fn clear_bulk(window: &tauri::Window) {
+    let mut q = queue().lock().unwrap();
+    q.clear_bulk();
+    emit_state(window, snapshot(&q));
 }
 
 // ─── Foreground priority ────────────────────────────────────────────────────
@@ -257,7 +399,11 @@ async fn worker_loop(window: tauri::Window) {
         // Pop next job, or wait for a notification if empty.
         let job = {
             let mut q = queue().lock().unwrap();
-            q.pop_next()
+            let popped = q.pop_next();
+            if popped.skipped > 0 {
+                emit_state(&window, snapshot(&q));
+            }
+            popped.job
         };
         let job = match job {
             Some(j) => j,
@@ -308,7 +454,7 @@ fn finish(window: &tauri::Window, job: &Job) {
 
 #[cfg(test)]
 mod tests {
-    use super::{EnqueueOutcome, Job, JobKind, PreviewQueue};
+    use super::{EnqueueOutcome, Job, JobKind, Popped, PreviewQueue};
 
     fn make() -> PreviewQueue {
         PreviewQueue::new()
@@ -324,6 +470,13 @@ mod tests {
 
     fn previews(paths: &[&str]) -> Vec<Job> {
         paths.iter().map(|x| p(x)).collect()
+    }
+
+    /// Pop and unwrap the job, asserting nothing was skipped.
+    fn pop(q: &mut PreviewQueue) -> Job {
+        let popped = q.pop_next();
+        assert_eq!(popped.skipped, 0);
+        popped.job.expect("expected a job")
     }
 
     #[test]
@@ -361,7 +514,7 @@ mod tests {
         let mut q = make();
         q.enqueue(previews(&["a", "b"]));
         // Simulate the worker popping "a".
-        let popped = q.pop_next().unwrap();
+        let popped = pop(&mut q);
         assert_eq!(popped, p("a"));
         assert!(q.is_in_flight(&p("a")));
         // Re-enqueue "a" — should be ignored.
@@ -381,7 +534,7 @@ mod tests {
         assert_eq!(q.pending_snapshot(), vec![p("a"), s("a")]);
         // Popping the preview leaves the stars job pending; re-enqueueing the
         // stars job moves it but never touches the in-flight preview.
-        assert_eq!(q.pop_next().unwrap(), p("a"));
+        assert_eq!(pop(&mut q), p("a"));
         let outcome = q.enqueue(vec![s("a")]);
         assert_eq!(outcome, EnqueueOutcome { added: 0 });
         assert!(q.is_in_flight(&p("a")));
@@ -405,9 +558,9 @@ mod tests {
     fn mark_complete_then_full_drain_resets_counters() {
         let mut q = make();
         q.enqueue(previews(&["a", "b", "c"]));
-        q.pop_next();
-        q.pop_next();
-        q.pop_next();
+        pop(&mut q);
+        pop(&mut q);
+        pop(&mut q);
         q.mark_complete(&p("a"));
         q.mark_complete(&p("b"));
         q.mark_complete(&p("c"));
@@ -422,7 +575,7 @@ mod tests {
         let mut q = make();
         q.enqueue(previews(&["a"]));
         assert!(q.is_active());
-        q.pop_next();
+        pop(&mut q);
         q.mark_complete(&p("a"));
         assert_eq!(q.total(), 0);
         assert_eq!(q.completed(), 0);
@@ -433,13 +586,13 @@ mod tests {
     fn interleaved_enqueue_during_drain() {
         let mut q = make();
         q.enqueue(previews(&["a", "b"])); // total=2
-        q.pop_next(); // a in_flight
+        pop(&mut q); // a in_flight
         q.mark_complete(&p("a")); // completed=1
         q.enqueue(previews(&["c", "d", "e"])); // total=5
         assert_eq!(q.total(), 5);
         assert_eq!(q.completed(), 1);
         // Drain the rest.
-        while let Some(j) = q.pop_next() {
+        while let Some(j) = q.pop_next().job {
             q.mark_complete(&j);
         }
         assert_eq!(q.total(), 0);
@@ -453,9 +606,9 @@ mod tests {
         // sole counter-incrementing path. This test pins that contract.
         let mut q = make();
         q.enqueue(previews(&["a", "b"]));
-        q.pop_next();
+        pop(&mut q);
         q.mark_complete(&p("a")); // "a" failed at generate_preview — still complete
-        q.pop_next();
+        pop(&mut q);
         q.mark_complete(&p("b"));
         assert!(!q.is_active());
     }
@@ -464,7 +617,7 @@ mod tests {
     fn clear_drops_pending_leaves_in_flight() {
         let mut q = make();
         q.enqueue(previews(&["a", "b", "c"]));
-        q.pop_next(); // a in_flight
+        pop(&mut q); // a in_flight
         q.clear();
         assert!(q.is_in_flight(&p("a")));
         assert_eq!(q.pending_snapshot(), Vec::<Job>::new());
@@ -486,4 +639,152 @@ mod tests {
         assert_eq!(q.completed(), 0);
     }
 
+    // ─── Bulk lane ──────────────────────────────────────────────────────
+
+    #[test]
+    fn bulk_jobs_run_in_caller_order_behind_the_window() {
+        let mut q = make();
+        q.enqueue_bulk(previews(&["a", "b", "c"]));
+        q.enqueue(previews(&["x"]));
+        assert_eq!(q.bulk_snapshot(), previews(&["a", "b", "c"]));
+        assert_eq!(pop(&mut q), p("x"));
+        assert_eq!(pop(&mut q), p("a"));
+        assert_eq!(pop(&mut q), p("b"));
+        assert_eq!(pop(&mut q), p("c"));
+        assert_eq!(q.pop_next(), Popped { job: None, skipped: 0 });
+    }
+
+    #[test]
+    fn bulk_progress_is_tracked_separately_from_the_window() {
+        let mut q = make();
+        q.enqueue_bulk(previews(&["a", "b"]));
+        q.enqueue(previews(&["x"]));
+        assert_eq!((q.total(), q.completed()), (1, 0));
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (2, 0));
+        assert!(q.is_active());
+        assert!(q.bulk_active());
+
+        let x = pop(&mut q);
+        q.mark_complete(&x);
+        // Window drained → its counters reset; bulk untouched.
+        assert!(!q.is_active());
+        assert_eq!((q.total(), q.completed()), (0, 0));
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (2, 0));
+
+        let a = pop(&mut q);
+        q.mark_complete(&a);
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (2, 1));
+        assert!(q.bulk_active());
+        let b = pop(&mut q);
+        q.mark_complete(&b);
+        assert!(!q.bulk_active());
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (0, 0));
+    }
+
+    #[test]
+    fn navigation_clear_leaves_the_bulk_lane_alone() {
+        let mut q = make();
+        q.enqueue_bulk(previews(&["a", "b"]));
+        q.enqueue(previews(&["x", "y"]));
+        q.clear(); // what prefetch_window does on every navigation
+        assert_eq!(q.pending_snapshot(), Vec::<Job>::new());
+        assert_eq!(q.bulk_snapshot(), previews(&["a", "b"]));
+        assert_eq!(q.bulk_total(), 2);
+        assert_eq!(pop(&mut q), p("a"));
+    }
+
+    #[test]
+    fn clear_bulk_drops_pending_and_lets_in_flight_finish() {
+        let mut q = make();
+        q.enqueue_bulk(previews(&["a", "b", "c"]));
+        let a = pop(&mut q);
+        q.clear_bulk();
+        assert_eq!(q.bulk_snapshot(), Vec::<Job>::new());
+        assert!(q.is_in_flight(&a));
+        assert!(q.bulk_active());
+        assert_eq!(q.pop_next(), Popped { job: None, skipped: 0 });
+        q.mark_complete(&a);
+        assert!(!q.bulk_active());
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (0, 0));
+    }
+
+    #[test]
+    fn clear_bulk_while_idle_resets_immediately() {
+        let mut q = make();
+        q.enqueue_bulk(previews(&["a", "b"]));
+        q.clear_bulk();
+        assert!(!q.bulk_active());
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (0, 0));
+    }
+
+    #[test]
+    fn enqueue_bulk_replaces_the_previous_sweep_and_keeps_running_jobs_in_total() {
+        let mut q = make();
+        q.enqueue_bulk(previews(&["a", "b", "c"]));
+        let a = pop(&mut q);
+        let b = pop(&mut q);
+        q.mark_complete(&b); // b done: 1/3
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (3, 1));
+
+        // Restart with a different list while "a" is still generating.
+        let outcome = q.enqueue_bulk(previews(&["c", "d"]));
+        assert_eq!(outcome, EnqueueOutcome { added: 2 });
+        assert_eq!(q.bulk_snapshot(), previews(&["c", "d"]));
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (3, 0)); // 2 new + "a" running
+
+        q.mark_complete(&a);
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (3, 1));
+        let c = pop(&mut q);
+        q.mark_complete(&c);
+        let d = pop(&mut q);
+        q.mark_complete(&d);
+        assert!(!q.bulk_active());
+    }
+
+    #[test]
+    fn enqueue_bulk_skips_jobs_in_flight_and_batch_duplicates() {
+        let mut q = make();
+        q.enqueue(previews(&["a"]));
+        let a = pop(&mut q); // "a" running through the window lane
+        let outcome = q.enqueue_bulk(previews(&["a", "b", "b"]));
+        assert_eq!(outcome, EnqueueOutcome { added: 1 });
+        assert_eq!(q.bulk_snapshot(), previews(&["b"]));
+        assert_eq!(q.bulk_total(), 1);
+        q.mark_complete(&a);
+        assert!(!q.is_active());
+        assert!(q.bulk_active());
+    }
+
+    #[test]
+    fn a_path_running_in_the_other_lane_is_counted_not_run_twice() {
+        let mut q = make();
+        q.enqueue_bulk(previews(&["a", "b"]));
+        q.enqueue(previews(&["a"]));
+        assert_eq!(pop(&mut q), p("a")); // window copy runs
+        // Bulk reaches its own "a" while the window copy is in flight: it is
+        // counted complete for the bulk lane and "b" is returned instead.
+        assert_eq!(q.pop_next(), Popped { job: Some(p("b")), skipped: 1 });
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (2, 1));
+        q.mark_complete(&p("a")); // completes the WINDOW lane only
+        assert!(!q.is_active());
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (2, 1));
+        q.mark_complete(&p("b"));
+        assert!(!q.bulk_active());
+    }
+
+    #[test]
+    fn bulk_copy_of_a_running_window_job_is_skipped_when_it_surfaces_later() {
+        let mut q = make();
+        q.enqueue(previews(&["a"]));
+        q.enqueue_bulk(previews(&["b", "a"]));
+        assert_eq!(pop(&mut q), p("a")); // window copy runs first
+        assert_eq!(pop(&mut q), p("b"));
+        // Bulk's own "a" surfaces while the window copy is still in flight.
+        assert_eq!(q.pop_next(), Popped { job: None, skipped: 1 });
+        assert_eq!((q.bulk_total(), q.bulk_completed()), (2, 1));
+        q.mark_complete(&p("a"));
+        q.mark_complete(&p("b"));
+        assert!(!q.is_active());
+        assert!(!q.bulk_active());
+    }
 } // end mod tests

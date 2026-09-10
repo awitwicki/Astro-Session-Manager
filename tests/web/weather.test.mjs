@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   getMoonPhase, getCloudColor, getTempColor, getWindArrow, processForecast,
-  blendValues, currentHourClouds, CLOUD_MODELS,
+  blendValues, currentHourClouds, CLOUD_MODELS, mergeModelResponses,
+  buildOfflineForecast, fetchForecast,
 } from '../../docs/astroweather/js/weather.js'
 
 test('moon phase at the reference new moon and following full moon', () => {
@@ -184,4 +185,125 @@ test('currentHourClouds finds the breakdown for the current hour', () => {
   assert.equal(now.models.length, 3)
   assert.equal(currentHourClouds(days, new Date('2026-09-01T00:00:00')), null)
   assert.equal(currentHourClouds(null, new Date('2026-07-20T12:00:00')), null)
+})
+
+// ---- Failsafe: per-model failover and the offline sun/moon forecast ---------
+
+// What Open-Meteo returns when ONE model is requested: unsuffixed keys.
+function singleModelFixture(cloud, extraHourly = {}) {
+  const times = Array.from({ length: 24 }, (_, i) => `2026-07-20T${String(i).padStart(2, '0')}:00`)
+  const fill = (v) => Array(24).fill(v)
+  return {
+    hourly: {
+      time: times,
+      cloud_cover: fill(cloud), cloud_cover_low: fill(cloud),
+      cloud_cover_mid: fill(0), cloud_cover_high: fill(0),
+      ...extraHourly,
+    },
+    daily: { time: ['2026-07-20'], sunrise: ['2026-07-20T05:12'], sunset: ['2026-07-20T20:45'] },
+    timezone: 'Europe/Warsaw',
+  }
+}
+
+test('mergeModelResponses rebuilds the suffixed multi-model shape', () => {
+  const aladin = singleModelFixture(10, { temperature_2m: Array(24).fill(15) })
+  const ecmwf = singleModelFixture(30)
+  const merged = mergeModelResponses([
+    { apiId: 'chmi_aladin_seamless', data: aladin },
+    { apiId: 'ecmwf_ifs025', data: ecmwf },
+  ])
+  assert.deepEqual(merged.hourly.time, aladin.hourly.time)
+  assert.deepEqual(merged.daily.time, ['2026-07-20'])
+  assert.equal(merged.hourly.cloud_cover_chmi_aladin_seamless[0], 10)
+  assert.equal(merged.hourly.cloud_cover_ecmwf_ifs025[0], 30)
+  assert.equal(merged.hourly.temperature_2m_chmi_aladin_seamless[0], 15)
+  assert.equal(merged.daily.sunrise_ecmwf_ifs025[0], '2026-07-20T05:12')
+  assert.ok(!('cloud_cover' in merged.hourly))
+
+  // Already-suffixed keys pass through untouched.
+  const pre = {
+    hourly: { time: aladin.hourly.time, cloud_cover_icon_eu: Array(24).fill(50) },
+    daily: { time: ['2026-07-20'] },
+  }
+  const m2 = mergeModelResponses([{ apiId: 'icon_eu', data: pre }])
+  assert.equal(m2.hourly.cloud_cover_icon_eu[0], 50)
+  assert.ok(!('cloud_cover_icon_eu_icon_eu' in m2.hourly))
+
+  // Processing the merge blends over the models that answered:
+  // (10·0.32 + 30·0.44) / 0.76 = 21.6 → 22; the rest comes from ALADIN.
+  const days = processForecast(merged, new Date('2026-07-20T10:00:00'))
+  assert.equal(days.length, 1)
+  assert.equal(days[0].hours[0].cloudCover, 22)
+  assert.equal(days[0].hours[0].temperature, 15)
+  assert.equal(days[0].sunrise, '05:12')
+})
+
+test('fetchForecast falls back to per-model requests when the combined one fails', async () => {
+  const calls = []
+  const origFetch = globalThis.fetch
+  globalThis.fetch = async (url) => {
+    const models = new URL(url).searchParams.get('models')
+    calls.push(models)
+    // Combined request: rejected as a whole (one model "unavailable").
+    if (models.includes(',')) return { ok: false, status: 400, json: async () => ({ error: true }) }
+    if (models === 'icon_eu') throw new Error('network down')
+    return { ok: true, status: 200, json: async () => singleModelFixture(models === 'chmi_aladin_seamless' ? 10 : 30) }
+  }
+  try {
+    const days = await fetchForecast(49.26, 22.68)
+    assert.equal(calls[0], CLOUD_MODELS.map((m) => m.apiId).join(','))
+    assert.deepEqual(calls.slice(1).sort(), CLOUD_MODELS.map((m) => m.apiId).sort())
+    assert.equal(days.length, 1)
+    assert.equal(days[0].offline, undefined)
+    // ICON failed, so the blend renormalizes over ALADIN + ECMWF.
+    assert.equal(days[0].hours[12].cloudCover, 22)
+    assert.equal(days[0].hours[12].cloudModels.find((m) => m.id === 'icon_eu').total, null)
+  } finally {
+    globalThis.fetch = origFetch
+  }
+})
+
+test('fetchForecast rethrows the combined error when every model fails', async () => {
+  const origFetch = globalThis.fetch
+  globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({}) })
+  try {
+    await assert.rejects(fetchForecast(49.26, 22.68), /Weather API error: 503/)
+  } finally {
+    globalThis.fetch = origFetch
+  }
+})
+
+test('buildOfflineForecast yields a week of sun/moon-only days', () => {
+  const now = new Date(2026, 8, 10, 22, 30) // 2026-09-10 22:30 local
+  const days = buildOfflineForecast(49.26458, 22.68501, () => 2, now)
+  assert.equal(days.length, 7)
+  assert.equal(days[0].date, '2026-09-10')
+  assert.equal(days[0].dayNumber, 10)
+  assert.equal(days[6].date, '2026-09-16')
+  for (const d of days) {
+    assert.equal(d.offline, true)
+    assert.deepEqual(d.hours, [])
+    assert.match(d.sunrise, /^\d\d:\d\d$/)
+    assert.match(d.sunset, /^\d\d:\d\d$/)
+    assert.ok(d.sunrise < d.sunset, `${d.sunrise} < ${d.sunset}`)
+    assert.ok(d.moonIllumination >= 0 && d.moonIllumination <= 100)
+    assert.ok(d.moonEmoji.length > 0)
+  }
+  // Bieszczady, 10 September, UTC+2: sunrise ≈ 06:05, sunset ≈ 18:45.
+  const [riseH] = days[0].sunrise.split(':').map(Number)
+  const [setH] = days[0].sunset.split(':').map(Number)
+  assert.ok(riseH >= 5 && riseH <= 7, days[0].sunrise)
+  assert.ok(setH >= 18 && setH <= 19, days[0].sunset)
+})
+
+test('buildOfflineForecast marks polar day with --:--', () => {
+  const days = buildOfflineForecast(80, 20, () => 1, new Date(2026, 5, 21, 12), 1)
+  assert.equal(days[0].sunrise, '--:--')
+  assert.equal(days[0].sunset, '--:--')
+})
+
+test('currentHourClouds ignores offline days', () => {
+  const now = new Date(2026, 8, 10, 22, 30)
+  const days = buildOfflineForecast(49.26, 22.68, () => 2, now)
+  assert.equal(currentHourClouds(days, now), null)
 })

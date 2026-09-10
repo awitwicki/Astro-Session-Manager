@@ -116,6 +116,26 @@ pub async fn clear_preview_queue(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
+/// "Cache all previews": queue a preview job per path behind the navigation
+/// window, replacing any previous sweep. Already-cached paths complete
+/// instantly, so restarting a stopped sweep only generates what is missing.
+/// Fire-and-forget: progress arrives via `preview:queue_state` (bulk fields).
+#[tauri::command]
+pub async fn enqueue_bulk_previews(
+    window: tauri::Window,
+    file_paths: Vec<String>,
+) -> Result<(), String> {
+    preview_queue::bulk_previews(&window, file_paths);
+    Ok(())
+}
+
+/// Stop a "Cache all previews" sweep. In-flight items continue to completion.
+#[tauri::command]
+pub async fn clear_bulk_previews(window: tauri::Window) -> Result<(), String> {
+    preview_queue::clear_bulk(&window);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn clear_preview_cache() {
     fits_preview::clear_preview_cache();
