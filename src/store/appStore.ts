@@ -284,9 +284,14 @@ export interface ConverterFile {
 }
 
 export interface PreviewQueueState {
+  // Navigation-window prefetch (selected frame ±3).
   completed: number
   total: number
   active: boolean
+  // "Cache all previews" sweep — runs behind the window, survives navigation.
+  bulkCompleted: number
+  bulkTotal: number
+  bulkActive: boolean
 }
 
 interface AppState {
@@ -371,7 +376,7 @@ export const useAppStore = create<AppState>((set) => ({
   importQueue: [],
   subAnalysis: {},
   isAnalyzing: false,
-  previewQueue: { completed: 0, total: 0, active: false },
+  previewQueue: { completed: 0, total: 0, active: false, bulkCompleted: 0, bulkTotal: 0, bulkActive: false },
   weatherLat: null,
   weatherLon: null,
   weatherShowMap: false,

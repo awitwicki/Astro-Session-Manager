@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   fetchForecast,
+  buildOfflineForecast,
+  localDateString,
   getCloudColor,
   getWindColor,
   getHumidityColor,
@@ -12,6 +14,7 @@ import {
   type HourData,
 } from '../../lib/weather'
 import { altitudeCrossing, dayOfYear } from '../../lib/sun'
+import { detectTimeZone, tzOffsetHours, zoneFromCoords } from '../../lib/timezone'
 import { SatelliteCheck } from './SatelliteCheck'
 
 interface WeatherForecastProps {
@@ -38,7 +41,16 @@ export function WeatherForecast({ lat, lon }: WeatherForecastProps) {
     setPopover(null)
     fetchForecast(lat, lon)
       .then((data) => { if (!cancelled) setForecast(data) })
-      .catch((err) => { if (!cancelled) setError(String(err)) })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        // Failsafe: Open-Meteo is down or unreachable (every model failed).
+        // Keep the page useful with locally computed sun and moon times for
+        // the coming week; Refresh retries the live forecast.
+        const reason = err instanceof Error ? err.message : String(err)
+        const zone = zoneFromCoords(lat, lon) ?? detectTimeZone()
+        setForecast(buildOfflineForecast(lat, lon, (d) => tzOffsetHours(zone, d)))
+        setError(`Forecast unavailable (${reason}). Showing computed sun and moon times only.`)
+      })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [lat, lon, refreshKey])
@@ -280,13 +292,20 @@ interface DayCardProps {
 }
 
 function DayCard({ day, lat, collapsed, onToggle, onCloudCell, onCloudLeave }: DayCardProps) {
-  if (day.hours.length === 0) return null
+  if (day.hours.length === 0 && !day.offline) return null
+
+  // Offline days (API unreachable) carry sun/moon times only: no hourly
+  // data, nothing to expand.
+  const offline = day.offline === true
+  const expanded = !collapsed && !offline
+  const now = new Date()
+  const isToday = day.date === localDateString(now)
 
   return (
-    <div className="weather-day-card">
+    <div className={`weather-day-card${offline ? ' offline' : ''}`}>
       <div className="weather-day-row">
         <div className="weather-day-left">
-          <div className="weather-day-info" onClick={onToggle}>
+          <div className="weather-day-info" onClick={offline ? undefined : onToggle}>
             <div className="weather-day-top">
               <span className="weather-day-number">{day.dayNumber}</span>
               <span className="weather-day-name">{day.dayName}</span>
@@ -300,7 +319,7 @@ function DayCard({ day, lat, collapsed, onToggle, onCloudCell, onCloudLeave }: D
               <span className="weather-sun-set">&#9660; {day.sunset}</span>
             </div>
           </div>
-          {!collapsed && (
+          {expanded && (
             <div className="weather-labels-col">
               {ROWS.map((row) => (
                 <div key={row.label} className="weather-label-cell">{row.label}</div>
@@ -312,20 +331,31 @@ function DayCard({ day, lat, collapsed, onToggle, onCloudCell, onCloudLeave }: D
         <div className="weather-day-grid">
           <div className="weather-summary-bar">
             <div className="weather-summary-hours">
-              {day.hours.map((h, i) => (
-                <div
-                  key={i}
-                  className={`weather-summary-cell ${h.isNight ? 'night' : ''}${h.isPast ? ' past' : ''}`}
-                  style={{ backgroundColor: SUMMARY_ROW.getColor(h) }}
-                >
-                  <span className="weather-summary-hour">{String(h.hour).padStart(2, '0')}</span>
-                </div>
-              ))}
+              {offline
+                // Neutral hour cells so the twilight/moon bars below still read
+                // against a clock; hours already gone today are dimmed like live ones.
+                ? Array.from({ length: 24 }, (_, hour) => (
+                  <div
+                    key={hour}
+                    className={`weather-summary-cell nodata${isToday && hour < now.getHours() ? ' past' : ''}`}
+                  >
+                    <span className="weather-summary-hour">{String(hour).padStart(2, '0')}</span>
+                  </div>
+                ))
+                : day.hours.map((h, i) => (
+                  <div
+                    key={i}
+                    className={`weather-summary-cell ${h.isNight ? 'night' : ''}${h.isPast ? ' past' : ''}`}
+                    style={{ backgroundColor: SUMMARY_ROW.getColor(h) }}
+                  >
+                    <span className="weather-summary-hour">{String(h.hour).padStart(2, '0')}</span>
+                  </div>
+                ))}
             </div>
           </div>
           <div className="weather-sun-bar" style={{ background: buildTwilightBar(lat, day.date, day.sunrise, day.sunset) }} />
           <div className="weather-sun-bar" style={{ background: buildMoonBarGradient(day.date, day.sunrise, day.moonIllumination) }} />
-          {!collapsed && (
+          {expanded && (
             <div className="weather-data-rows">
               {ROWS.map((row) => (
                 <div key={row.label} className="weather-data-row">

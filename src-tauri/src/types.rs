@@ -163,9 +163,14 @@ pub struct ScanProgress {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewQueueState {
+    /// Navigation-window prefetch (selected frame ±3).
     pub completed: usize,
     pub total: usize,
     pub active: bool,
+    /// "Cache all previews" sweep — runs behind the window, survives navigation.
+    pub bulk_completed: usize,
+    pub bulk_total: usize,
+    pub bulk_active: bool,
 }
 
 // ─── FITS Preview Types ─────────────────────────────────────────────────────

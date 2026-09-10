@@ -62,6 +62,8 @@ pub fn run() {
             commands::get_fits_preview,
             commands::enqueue_prefetch_window,
             commands::clear_preview_queue,
+            commands::enqueue_bulk_previews,
+            commands::clear_bulk_previews,
             commands::clear_preview_cache,
             commands::update_preview_config,
             // Analyzer

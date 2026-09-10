@@ -1,5 +1,7 @@
 // Open-Meteo API types and utilities for astro weather forecast
 
+import { dayPhases, dayOfYear } from './sun'
+
 export interface OpenMeteoResponse {
   hourly: { time: string[] } & { [key: string]: (number | null)[] | string[] }
   daily: { time: string[] } & { [key: string]: string[] }
@@ -47,9 +49,12 @@ export interface DayForecast {
   moonEmoji: string     // Moon phase emoji
   moonIllumination: number // 0-100
   hours: HourData[]     // 24 hours starting from noon previous day
+  offline?: boolean     // built locally because the API was unreachable: sun/moon only, no hours
 }
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast'
+const FETCH_TIMEOUT_MS = 20_000
+const FORECAST_DAYS = 7
 
 // Cloud blend models. Weights ∝ 1 / night-MAE from the 2026-08-08 accuracy
 // audit at the primary observing site — see
@@ -87,8 +92,8 @@ export function blendValues(entries: Array<{ value: number | null; weight: numbe
   return wsum > 0 ? Math.round(sum / wsum) : null
 }
 
-export async function fetchForecast(lat: number, lon: number): Promise<DayForecast[]> {
-  const params = new URLSearchParams({
+function forecastParams(lat: number, lon: number, modelIds: string[]): URLSearchParams {
+  return new URLSearchParams({
     latitude: lat.toString(),
     longitude: lon.toString(),
     hourly: [
@@ -98,15 +103,118 @@ export async function fetchForecast(lat: number, lon: number): Promise<DayForeca
       'precipitation_probability', 'precipitation'
     ].join(','),
     daily: 'sunrise,sunset',
-    forecast_days: '7',
+    forecast_days: String(FORECAST_DAYS),
     timezone: 'auto',
-    models: CLOUD_MODELS.map((m) => m.apiId).join(',')
+    models: modelIds.join(',')
   })
+}
 
-  const res = await fetch(`${OPEN_METEO_URL}?${params}`)
+// A stalled connection should fail over, not spin forever. Runtimes without
+// AbortSignal.timeout simply get no deadline.
+function timeoutSignal(ms: number): AbortSignal | undefined {
+  return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(ms)
+    : undefined
+}
+
+async function fetchJson(params: URLSearchParams): Promise<OpenMeteoResponse> {
+  const res = await fetch(`${OPEN_METEO_URL}?${params}`, { signal: timeoutSignal(FETCH_TIMEOUT_MS) })
   if (!res.ok) throw new Error(`Weather API error: ${res.status}`)
-  const data: OpenMeteoResponse = await res.json()
-  return processForecast(data)
+  return res.json()
+}
+
+// One combined request normally; but Open-Meteo rejects the WHOLE request
+// (HTTP 400) when any single requested model is unavailable, so on failure
+// retry each model on its own and merge whatever answered. Throws only when
+// every model failed — the caller then falls back to buildOfflineForecast.
+export async function fetchForecast(lat: number, lon: number): Promise<DayForecast[]> {
+  let combinedError: unknown
+  try {
+    return processForecast(await fetchJson(forecastParams(lat, lon, CLOUD_MODELS.map((m) => m.apiId))))
+  } catch (err) {
+    combinedError = err
+  }
+  const settled = await Promise.allSettled(
+    CLOUD_MODELS.map((m) => fetchJson(forecastParams(lat, lon, [m.apiId])))
+  )
+  const responses: ModelResponse[] = []
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value?.hourly?.time && r.value?.daily?.time) {
+      responses.push({ apiId: CLOUD_MODELS[i].apiId, data: r.value })
+    }
+  })
+  if (responses.length === 0) throw combinedError
+  return processForecast(mergeModelResponses(responses))
+}
+
+export interface ModelResponse {
+  apiId: string
+  data: OpenMeteoResponse
+}
+
+// Single-model responses carry UNsuffixed variable keys; rebuild the
+// `<variable>_<model>` multi-model shape processForecast expects. The time
+// axes are identical across models for the same query, so the first
+// response's `time` arrays are shared.
+export function mergeModelResponses(responses: ModelResponse[]): OpenMeteoResponse {
+  const first = responses[0].data
+  const merged: OpenMeteoResponse = {
+    hourly: { time: first.hourly.time },
+    daily: { time: first.daily.time },
+    timezone: first.timezone,
+  }
+  for (const { apiId, data } of responses) {
+    for (const section of ['hourly', 'daily'] as const) {
+      for (const [key, arr] of Object.entries(data[section] ?? {})) {
+        if (key === 'time') continue
+        const suffixed = key.endsWith(`_${apiId}`) ? key : `${key}_${apiId}`
+        ;(merged[section] as Record<string, unknown>)[suffixed] = arr
+      }
+    }
+  }
+  return merged
+}
+
+export function localDateString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function clockLabel(hours: number | null): string {
+  if (hours === null) return '--:--'
+  const m = Math.round(hours * 60) % 1440
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+
+// Failsafe when Open-Meteo is unreachable: the same day entries the UI
+// renders, but computed locally — sunrise/sunset from solar geometry (sun.ts)
+// in the caller's time zone, moon from the synodic model, no weather hours.
+// `tzOffsetHoursAt(date)` supplies the DST-aware offset (see timezone.ts).
+export function buildOfflineForecast(
+  lat: number,
+  lon: number,
+  tzOffsetHoursAt: (date: Date) => number,
+  now: Date = new Date(),
+  days: number = FORECAST_DAYS,
+): DayForecast[] {
+  const out: DayForecast[] = []
+  for (let d = 0; d < days; d++) {
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, 12, 0, 0)
+    const phases = dayPhases(lat, lon, dayOfYear(dt), tzOffsetHoursAt(dt))
+    const moon = getMoonPhase(dt)
+    out.push({
+      date: localDateString(dt),
+      dayName: dt.toLocaleDateString('en-US', { weekday: 'long' }),
+      dayNumber: dt.getDate(),
+      sunrise: clockLabel(phases.sunrise),
+      sunset: clockLabel(phases.sunset),
+      moonPhase: moon.name,
+      moonEmoji: moon.emoji,
+      moonIllumination: moon.illumination,
+      hours: [],
+      offline: true,
+    })
+  }
+  return out
 }
 
 function processForecast(data: OpenMeteoResponse): DayForecast[] {
@@ -115,7 +223,7 @@ function processForecast(data: OpenMeteoResponse): DayForecast[] {
 
   // Current time for marking past hours
   const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todayStr = localDateString(now)
   const currentHour = now.getHours()
 
   // Build a map of sunrise/sunset per date
@@ -229,9 +337,8 @@ function processForecast(data: OpenMeteoResponse): DayForecast[] {
 export function currentHourClouds(forecast: DayForecast[] | null, now: Date = new Date()):
   { hour: number; models: CloudModelBreakdown[]; blend: number | null } | null {
   if (!forecast) return null
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const day = forecast.find((d) => d.date === dateStr)
-  if (!day) return null
+  const day = forecast.find((d) => d.date === localDateString(now))
+  if (!day || day.offline) return null
   const h = day.hours.find((x) => x.hour === now.getHours())
   if (!h) return null
   return { hour: h.hour, models: h.cloudModels, blend: h.cloudCover }
