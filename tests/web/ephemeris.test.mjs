@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   altAzAt, altAzCurve, altitudeCurve, azimuthTicks, sunAltitudes, riseTransitSet, moonInfo, separationDeg, horizonPathJ2000,
-  altitudeCircleJ2000, azimuthLineJ2000, parallacticAngleDeg, zenithEquatorial, horizonToEquatorial, sunInfo,
+  altitudeCircleJ2000, azimuthLineJ2000, parallacticAngleDeg, zenithEquatorial, horizonToEquatorial, equatorialToHorizon, sunInfo,
 } from '../../src/lib/ephemeris.ts'
 
 const LAT = 50, LON = 20
@@ -164,6 +164,14 @@ test('horizonToEquatorial roundtrips through altAzAt', () => {
   // altAzAt applies refraction (~1 arcmin at 42 deg); allow 0.2 deg
   assert.ok(Math.abs(alt - 42) < 0.2, `alt=${alt}`)
   assert.ok(Math.abs(az - 210) < 0.2, `az=${az}`)
+})
+
+test('equatorialToHorizon is the exact (unrefracted) inverse of horizonToEquatorial', () => {
+  for (const [az, alt] of [[210, 42], [0, 5], [95, 88], [300, -20]]) {
+    const [ra, dec] = horizonToEquatorial(az, alt, T0, LAT, LON)
+    const h = equatorialToHorizon(ra, dec, T0, LAT, LON)
+    assert.ok(Math.abs(h.alt - alt) < 1e-6 && Math.abs(h.az - az) < 1e-6, `${az},${alt} -> ${h.az},${h.alt}`)
+  }
 })
 
 test('horizonToEquatorial at alt 90 matches zenithEquatorial', () => {

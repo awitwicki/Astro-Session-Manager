@@ -4,9 +4,10 @@ Desktop application for managing astrophotography imaging sessions and master ca
 
 ## Agent Rules
 
-- **Do not make git commits** unless the user explicitly asks for one. Edit files, run tests/builds, report results — but leave commits, branches, tags, and pushes to the user. This applies to every session regardless of task size.
+- **Commit locally, never push.** Making git commits is fine. The user reviews every commit locally and pushes it themselves — never push, tag, or open a PR unless explicitly asked.
+- **One commit per feature.** Intermediate commits while implementing are fine, but when the implementation is finished, squash all of that feature's commits into a single commit (`git reset --soft <last commit before your work>` followed by one new commit) so the user reviews and pushes one commit. Separate concerns stay separate commits.
 - **Do not create git branches or worktrees** on your own. Work on whatever branch is currently checked out.
-- **Never use destructive git operations** (`reset --hard`, `push --force`, `branch -D`, `stash drop`, etc.) without an explicit request for that exact operation.
+- **Never use destructive git operations** (`reset --hard`, `push --force`, `branch -D`, `stash drop`, etc.) without an explicit request for that exact operation. The only sanctioned exception is `git reset --soft` over your own unpushed commits for the squash above.
 - **Do not add compatibility shims or dead code** "for later removal." If a refactor leaves the tree temporarily broken mid-task, keep going to finish it — don't patch around partial state with stubs.
 
 ## Tech Stack

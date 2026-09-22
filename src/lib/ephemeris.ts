@@ -1,9 +1,9 @@
 // Ephemeris helpers for the Planner: thin wrappers over astronomy-engine.
 // All RA/Dec parameters and results are J2000 degrees; observers at sea level.
 import {
-  Body, DefineStar, Equator, EquatorFromVector, Horizon, Illumination, MakeTime,
-  MoonPhase, Observer, RotateVector, Rotation_HOR_EQJ, SearchHourAngle,
-  SearchRiseSet, Spherical, VectorFromHorizon,
+  Body, DefineStar, Equator, EquatorFromVector, Horizon, HorizonFromVector, Illumination, MakeTime,
+  MoonPhase, Observer, RotateVector, Rotation_EQJ_HOR, Rotation_HOR_EQJ, SearchHourAngle,
+  SearchRiseSet, Spherical, VectorFromHorizon, VectorFromSphere,
   type AstroTime, type RotationMatrix,
 } from 'astronomy-engine'
 
@@ -210,6 +210,18 @@ export function horizonToEquatorial(
 }
 
 export interface SunInfo { raDeg: number; decDeg: number; alt: number; az: number }
+
+/** Local alt/az of a J2000 RA/Dec without refraction — the exact inverse of
+ *  horizonToEquatorial. altAzAt refracts and so does not round-trip. */
+export function equatorialToHorizon(
+  raDeg: number, decDeg: number, date: Date, lat: number, lon: number,
+): AltAz {
+  const observer = new Observer(lat, lon, 0)
+  const time = MakeTime(date)
+  const vec = VectorFromSphere(new Spherical(decDeg, raDeg, 1), time)
+  const hor = HorizonFromVector(RotateVector(Rotation_EQJ_HOR(time, observer), vec), '')
+  return { alt: hor.lat, az: hor.lon }
+}
 
 /** Sun position at `date`: equatorial (J2000-ish of-date from astronomy-engine
  *  Equator with aberration) plus local alt/az with refraction. */

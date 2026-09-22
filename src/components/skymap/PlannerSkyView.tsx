@@ -4,7 +4,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { MapPin, ZoomIn, ZoomOut } from 'lucide-react'
 import { ensureCelestialLoaded } from '../../lib/celestialLoader'
 import {
-  altAzAt, altitudeCircleJ2000, azimuthLineJ2000, horizonPathJ2000, horizonToEquatorial,
+  altAzAt, altitudeCircleJ2000, azimuthLineJ2000, equatorialToHorizon, horizonPathJ2000,
+  horizonToEquatorial,
   moonInfo, parallacticAngleDeg, sunInfo, zenithEquatorial,
   type MoonInfo, type SunInfo,
 } from '../../lib/ephemeris'
@@ -18,6 +19,7 @@ import {
   HORIZON_STROKE, fillGround, fitShape, isFinitePoint, longestRunPolyline, projectPoints,
   raToCelestial, strokePolyline, visiblePolyline,
 } from '../../lib/altAzView'
+import { clampLook, pannedCentre } from '../../lib/skyPan'
 import { trajectoryPathJ2000, type TrajectoryPoint } from '../../lib/trajectory'
 import { nightWindowStart, formatTimeInZone } from '../../lib/localTime'
 import { PlannerTargetPanel, type TargetRow } from './PlannerTargetPanel'
@@ -63,31 +65,13 @@ let frame: FrameData | null = null
 let markers: SkyMarker[] = []
 let trajectory: TrajectoryPoint[] | null = null
 // The look direction IS the view state — az/alt, not RA/Dec, so the ground
-// stays down as time flows. Written back from the projection on user pan.
+// stays down as time flows. Only this module ever moves it: the mouse drag
+// pans in alt-az (panBy), focusTarget aims at a target, and every change
+// reaches d3-celestial through pointCamera's single rotate(). d3-celestial's
+// own drag/zoom behaviour is detached at init, so no redraw ever moves the
+// view behind our back and nothing has to be read back from the projection.
 let viewAz = 180
 let viewAlt = 35
-let relevelQueued = false
-// Set around EVERY call this module makes to Celestial.rotate()/.redraw()
-// (pointCamera, the roll re-level below, and the markers/trajectory publish
-// effect) so drawOverlay's pan write-back — meant only to capture a genuine
-// user drag — doesn't mistake one of our own synchronous redraws for one.
-// Real panning goes through d3-celestial's internal drag handling, never
-// through these calls, so this flag is never set during an actual pan and
-// that capture path is unaffected. Without this guard on EVERY such call
-// site, each self-triggered cycle re-derives az/alt from the current RA/Dec
-// via altAzAt's atmospheric refraction — which horizonToEquatorial's forward
-// conversion never applied — nudging viewAlt upward every published time
-// tick and slowly sinking the horizon toward the bottom of the frame. (A
-// first pass only guarded pointCamera's own rotate() calls and missed the
-// markers/trajectory effect's separate Celestial.redraw() call, which fires
-// on the same every-tick cadence and reintroduced the identical drift.)
-let programmaticRedraw = false
-// Set true by the init effect's cleanup on unmount. drawOverlay's re-level
-// setTimeout runs outside any React effect scope (it's queued from a
-// d3-celestial redraw callback), so this is how it learns the view it was
-// queued for no longer owns the Celestial singleton — same cross-render
-// escape hatch as frame/viewAz/viewAlt above.
-let viewTornDown = false
 
 /** Points the camera at the stored look direction as the sky stands at the
  *  current frame's time. */
@@ -96,9 +80,61 @@ function pointCamera(): void {
   if (!f) return
   const [ra, dec] = horizonToEquatorial(viewAz, viewAlt, f.time, f.lat, f.lon)
   const roll = parallacticAngleDeg(ra, dec, f.time, f.lat, f.lon)
-  programmaticRedraw = true
   try { Celestial.rotate({ center: [raToCelestial(ra), dec, roll] }) } catch { /* ignore */ }
-  programmaticRedraw = false
+}
+
+/** Drag step: the sky point under `from` (canvas px) moves to `to` and the
+ *  horizon stays level — one rotate(), hence one full redraw, per mouse move.
+ *  d3-celestial's own drag rotated the sphere freely and left the roll to a
+ *  second full redraw queued from drawOverlay, which halved the frame rate
+ *  and made the whole view twist visibly at every step. */
+function panBy(from: [number, number], to: [number, number]): void {
+  const f = frame
+  const proj = Celestial.map?.projection?.()
+  if (!f || !proj) return
+  const p0 = proj.invert(from), p1 = proj.invert(to)
+  const centre = proj.invert(proj.translate())
+  if (!isFinitePoint(p0) || !isFinitePoint(p1) || !isFinitePoint(centre)) return
+  const [lon, lat] = pannedCentre(centre, p0, p1)
+  const { az, alt } = equatorialToHorizon(((lon % 360) + 360) % 360, lat, f.time, f.lat, f.lon)
+  const look = clampLook(viewAz, az, alt)
+  viewAz = look.az
+  viewAlt = look.alt
+  pointCamera()
+}
+
+/** Mouse input for the view: left-drag pans (panBy), wheel zooms about the
+ *  centre. Pointer capture keeps a drag alive once the cursor leaves the
+ *  canvas. */
+function bindPointerInput(canvas: HTMLCanvasElement, signal: AbortSignal): void {
+  let last: [number, number] | null = null
+  const at = (e: PointerEvent): [number, number] => {
+    const r = canvas.getBoundingClientRect()
+    return [e.clientX - r.left, e.clientY - r.top]
+  }
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    last = at(e)
+    try { canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+  }, { signal })
+  canvas.addEventListener('pointermove', (e) => {
+    if (!last) return
+    if (!(e.buttons & 1)) { last = null; return }
+    const now = at(e)
+    panBy(last, now)
+    last = now
+  }, { signal })
+  const end = () => { last = null }
+  canvas.addEventListener('pointerup', end, { signal })
+  canvas.addEventListener('pointercancel', end, { signal })
+  // Same factor per wheel notch as d3.behavior.zoom used (2^(-deltaY/500)),
+  // with line-mode deltas scaled the way it scaled them.
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault()
+    const delta = -e.deltaY * (e.deltaMode ? 120 : 1)
+    try { Celestial.zoomBy(Math.pow(2, delta * 0.002)) } catch { /* ignore */ }
+  }, { signal, passive: false })
 }
 
 function drawSkyTint(
@@ -193,37 +229,6 @@ function drawOverlay(): void {
   const viewW = cx * 2, viewH = cy * 2
   const viewSize = Math.max(viewW, viewH)
   const maxDist = viewSize * 6
-
-  // Pan write-back + re-level: read the actual view centre, store it as the
-  // look direction (so time flow continues from wherever the user dragged),
-  // and correct the roll toward the parallactic angle there so the ground
-  // stays level. Threshold + queue flag prevent a rotate/redraw feedback
-  // loop (same mechanism the former DetailSkyChart used).
-  const rot = proj.rotate()
-  const centreRa = ((-rot[0] % 360) + 360) % 360
-  const centreDec = -rot[1]
-  if (!programmaticRedraw && Math.abs(centreDec) < 89.5) {
-    const { alt, az } = altAzAt(centreRa, centreDec, f.time, f.lat, f.lon)
-    viewAz = az
-    viewAlt = alt
-    const want = parallacticAngleDeg(centreRa, centreDec, f.time, f.lat, f.lon)
-    const off = ((want - rot[2] + 540) % 360) - 180
-    if (Math.abs(off) > 0.1 && !relevelQueued) {
-      relevelQueued = true
-      // setTimeout, not rAF: rAF pauses in background tabs and would leave
-      // the flag stuck, disabling levelling for the session.
-      setTimeout(() => {
-        relevelQueued = false
-        // The view that queued this may have been unmounted before it fired
-        // (Planner mode switched away within the same tick) — the Celestial
-        // singleton could now belong to a different mounted view.
-        if (viewTornDown) return
-        programmaticRedraw = true
-        try { Celestial.rotate({ center: [raToCelestial(centreRa), centreDec, want] }) } catch { /* ignore */ }
-        programmaticRedraw = false
-      }, 0)
-    }
-  }
 
   // Sky brightness + Sun/Moon (under the grid; the ground fill later covers
   // whatever sits below the horizon)
@@ -359,6 +364,9 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
   // (including its cleanup registration) has already executed — so cleanup
   // must reach it through a ref rather than a plain closed-over variable.
   const recenterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Detaches the pointer/wheel listeners bindPointerInput installs on the
+  // canvas; created in the same async continuation, hence also a ref.
+  const inputRef = useRef<AbortController | null>(null)
 
   const sim = useSimTime()
   const time = sim.time
@@ -414,9 +422,7 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
     }))
     trajectory = trajectoryPts
     if (initRef.current) {
-      programmaticRedraw = true
       try { Celestial.redraw() } catch { /* ignore */ }
-      programmaticRedraw = false
     }
   }, [rows, selectedId, trajectoryPts])
 
@@ -446,16 +452,11 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
   const raDecGridVisibleRef = useRef(raDecGridVisible)
   useEffect(() => { raDecGridVisibleRef.current = raDecGridVisible }, [raDecGridVisible])
 
-  // Toggle d3-celestial's own RA/Dec graticule + equatorial-plane lines.
-  // Celestial.apply() synchronously triggers the same redraw() rotate()
-  // does, so it needs the same programmaticRedraw guard the other
-  // self-triggered calls use — otherwise every toggle would reintroduce the
-  // horizon-drift bug via the pan write-back in drawOverlay. Not gated on
-  // initRef: before init this simply no-ops against an undefined Celestial
-  // (caught below), and the initial Celestial.display() call already seeds
-  // the correct value from raDecGridVisibleRef once it does run.
+  // Toggle d3-celestial's own RA/Dec graticule + equatorial-plane lines. Not
+  // gated on initRef: before init this simply no-ops against an undefined
+  // Celestial (caught below), and the initial Celestial.display() call
+  // already seeds the correct value from raDecGridVisibleRef once it runs.
   useEffect(() => {
-    programmaticRedraw = true
     try {
       Celestial.apply({
         lines: {
@@ -464,7 +465,6 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
         },
       })
     } catch { /* ignore */ }
-    programmaticRedraw = false
   }, [raDecGridVisible])
 
   const focusTarget = (t: PlannerTarget) => {
@@ -491,10 +491,6 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
   useEffect(() => {
     if (!containerRef.current || initRef.current) return
     let cancelled = false
-    // Fresh mount: clear any teardown flag a prior unmount of this same
-    // component instance may have left set (e.g. React StrictMode's
-    // mount-cleanup-mount cycle).
-    viewTornDown = false
 
     ensureCelestialLoaded().then(() => {
       if (cancelled || initRef.current || !containerRef.current) return
@@ -571,11 +567,21 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
       })
 
       // Remove d3-celestial's own window resize handler (same as classic view)
+      // and detach its d3.behavior.zoom from the canvas: mouse input is ours
+      // from here (bindPointerInput). Its dblclick handler on the container
+      // stays — that is a pure zoomBy about the centre.
+      const canvas = containerRef.current.querySelector('canvas')
       try {
         const d3ref = (globalThis as Record<string, unknown>)['d3'] as
           { select: (t: EventTarget) => { on: (e: string, h: null) => void } } | undefined
         d3ref?.select(globalThis).on('resize', null)
+        if (canvas) d3ref?.select(canvas).on('.zoom', null)
       } catch { /* ignore */ }
+      if (canvas) {
+        const ac = new AbortController()
+        inputRef.current = ac
+        bindPointerInput(canvas, ac.signal)
+      }
 
       // Layers registered by other views persist on the singleton — drop them.
       Celestial.clear()
@@ -600,7 +606,8 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
 
     return () => {
       cancelled = true
-      viewTornDown = true
+      inputRef.current?.abort()
+      inputRef.current = null
       if (recenterIntervalRef.current !== null) {
         clearInterval(recenterIntervalRef.current)
         recenterIntervalRef.current = null
