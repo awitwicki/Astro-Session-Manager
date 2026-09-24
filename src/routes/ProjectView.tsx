@@ -185,6 +185,14 @@ export function ProjectView() {
           <button
             className="btn btn-sm"
             style={{ padding: '2px 6px' }}
+            onClick={() => invoke('show_in_folder', { path: project.path })}
+            title="Show in Finder"
+          >
+            <FolderOpen size={13} />
+          </button>
+          <button
+            className="btn btn-sm"
+            style={{ padding: '2px 6px' }}
             onClick={() => {
               setRenameProjectName(project.name)
               setRenameProject(true)
