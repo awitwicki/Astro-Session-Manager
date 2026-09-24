@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Database, Plus, FolderOpen, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, File, Folder, Info, Star, Undo2 } from 'lucide-react'
+import { Database, Plus, FolderOpen, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, File, Folder, Info, Star, Undo2, RefreshCw } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -173,6 +173,11 @@ export function MastersLibrary() {
     try {
       const data = await invoke<MastersLibraryType>('scan_masters', { rootFolder })
       setMastersLibrary(data)
+      try {
+        await invoke('save_cache', { rootFolder, data: { mastersLibrary: data } })
+      } catch {
+        // Cache save is best-effort
+      }
     } catch {
       // scan failed
     } finally {
@@ -362,7 +367,15 @@ export function MastersLibrary() {
           <div>
             <h1 className="page-title">Masters Library</h1>
           </div>
-          <div style={{ paddingLeft: "8px"}}>
+          <div style={{ paddingLeft: "8px", display: 'flex', gap: 4 }}>
+            <button
+              className="btn btn-sm"
+              onClick={() => rescanMasters()}
+              disabled={scanning}
+              title="Rescan masters library"
+            >
+              <RefreshCw size={13} className={scanning ? 'spinning' : ''} />
+            </button>
             <button
               className="btn btn-sm"
               onClick={() => invoke('show_in_folder', { path: mastersLibrary.rootPath })}
