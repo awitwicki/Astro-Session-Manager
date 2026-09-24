@@ -54,6 +54,48 @@ export function projectPoints(
   })
 }
 
+/** Breaks a projected loop wherever it runs out through the projection's
+ *  point at infinity between two samples — the antipode of the view centre,
+ *  which a custom skyline can pass close to. Both samples may still sit
+ *  within reach, on opposite sides of the screen, and the straight segment
+ *  joining them would then cut across the view (and flip the ground fill
+ *  along it). Such a pair is caught by projecting the midpoint of the two
+ *  samples on the sphere: on a real arc it lands near the chord's midpoint,
+ *  but here it lands far out beyond one end. The farther sample of the pair
+ *  is dropped, leaving an open run for longestRunPolyline. */
+export function cutAtInfinity(
+  raDecPts: [number, number][], pts: ([number, number] | null)[], proj: CelestialProjection,
+  cx: number, cy: number,
+): ([number, number] | null)[] {
+  const out = pts.slice()
+  const n = pts.length
+  const DEG = Math.PI / 180
+  const unit = ([ra, dec]: [number, number]) => [
+    Math.cos(dec * DEG) * Math.cos(ra * DEG), Math.cos(dec * DEG) * Math.sin(ra * DEG), Math.sin(dec * DEG),
+  ]
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n
+    const a = pts[i], b = pts[j]
+    if (!a || !b) continue
+    const u = unit(raDecPts[i]), v = unit(raDecPts[j])
+    const x = u[0] + v[0], y = u[1] + v[1], z = u[2] + v[2]
+    const r = Math.hypot(x, y, z)
+    let broken = r < 1e-12
+    if (!broken) {
+      const mid = proj([raToCelestial(((Math.atan2(y, x) / DEG) + 360) % 360), Math.asin(z / r) / DEG]) as
+        [number, number] | null
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+      broken = !isFinitePoint(mid)
+        || Math.hypot(mid[0] - (a[0] + b[0]) / 2, mid[1] - (a[1] + b[1]) / 2) > Math.max(len, 1)
+    }
+    if (broken) {
+      const far = Math.hypot(a[0] - cx, a[1] - cy) > Math.hypot(b[0] - cx, b[1] - cy) ? i : j
+      out[far] = null
+    }
+  }
+  return out
+}
+
 /** Fits projected points to the circle (or line) they lie on. Every curve we
  *  draw is a circle on the sphere, and stereographic projection maps those to
  *  circles — or to straight lines in the edge-on case. A fitted line is
@@ -196,34 +238,114 @@ export function pointInPolygon(pt: [number, number], poly: [number, number][]): 
   return inside
 }
 
-/** Fills whichever side of the horizon does NOT contain the sky point — the
- *  sky point is always above the horizon, so the other side is the ground. */
+/** Which side of the directed segment a→b the point p lies on: +1 or -1
+ *  (0 when collinear). On a canvas (y down), +1 is to the right of a→b. */
+export function sideOf(a: [number, number], b: [number, number], p: [number, number]): number {
+  return Math.sign((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]))
+}
+
+/** A point just off the polyline, on the given sideOf() side of its segment
+ *  nearest (cx, cy) — the part of the line the user is looking at. Deciding
+ *  a fill by containment of this point stays right where it matters even
+ *  when the closed-up loop crosses itself somewhere far off-screen, which
+ *  makes any whole-loop measure such as its winding unreliable. */
+export function sideProbe(
+  poly: Polyline, cx: number, cy: number, side: 1 | -1,
+): [number, number] | null {
+  const { pts } = poly
+  const n = poly.closed ? pts.length : pts.length - 1
+  let best: [number, number] | null = null, bestD = Infinity
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+    if (len < 1e-9) continue
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2
+    const d = Math.hypot(mx - cx, my - cy)
+    if (d >= bestD) continue
+    // (-uy, ux) is on the sideOf() = +1 side of a→b.
+    const eps = Math.min(0.5, len / 4)
+    bestD = d
+    best = [mx - side * eps * (b[1] - a[1]) / len, my + side * eps * (b[0] - a[0]) / len]
+  }
+  return best
+}
+
+/** Closes an open horizon polyline into a loop: both ends are pushed
+ *  radially out from the view centre onto a circle enclosing every point of
+ *  the line, and joined along that circle — round in the direction of
+ *  increasing screen angle for dir = +1, decreasing for -1. The two choices
+ *  split the disc into the regions on either side of the line. (Joining the
+ *  ends by their chord instead goes wrong once the visible part of the
+ *  horizon curls through more than a half-turn: the stretch between curve
+ *  and chord then lands on the wrong side.) */
+export function closeAround(
+  poly: Polyline, cx: number, cy: number, viewSize: number, dir: 1 | -1,
+): [number, number][] {
+  let reach = viewSize
+  for (const [x, y] of poly.pts) reach = Math.max(reach, Math.hypot(x - cx, y - cy))
+  const R = reach * 1.25
+  const a = poly.pts[0], b = poly.pts[poly.pts.length - 1]
+  const angA = Math.atan2(a[1] - cy, a[0] - cx), angB = Math.atan2(b[1] - cy, b[0] - cx)
+  const on = (th: number): [number, number] => [cx + R * Math.cos(th), cy + R * Math.sin(th)]
+  const span = (((angA - angB) * dir) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)
+  const steps = Math.max(1, Math.ceil(span / (Math.PI / 32)))
+  const loop: [number, number][] = [on(angA), ...poly.pts]
+  for (let i = 0; i <= steps; i++) loop.push(on(angB + dir * span * (i / steps)))
+  return loop
+}
+
+/** Sky side (see fillGround) of a horizon polyline, from a point known to be
+ *  in the sky. Only sound when that point is well clear of the line — true
+ *  of the zenith for the flat 0° horizon, not for a custom skyline, which
+ *  can climb to the zenith and put it on (or across) the line. A point
+ *  beyond the closing circle (the zenith, when looking near the nadir) is
+ *  pulled in along its direction, where it still lands on the sky's side. */
+export function skySideFromPoint(
+  poly: Polyline, skyPt: [number, number], viewW: number, viewH: number,
+): 1 | -1 | null {
+  const cx = viewW / 2, cy = viewH / 2
+  let loop = poly.pts
+  let pt = skyPt
+  if (!poly.closed) {
+    loop = closeAround(poly, cx, cy, Math.max(viewW, viewH), 1)
+    let reach = 0
+    for (const [x, y] of loop) reach = Math.max(reach, Math.hypot(x - cx, y - cy))
+    const d = Math.hypot(skyPt[0] - cx, skyPt[1] - cy)
+    if (d > reach * 0.99) {
+      const k = (reach * 0.99) / d
+      pt = [cx + (skyPt[0] - cx) * k, cy + (skyPt[1] - cy) * k]
+    }
+  }
+  const plus = sideProbe(poly, cx, cy, 1)
+  if (!plus) return null
+  // The sky point and the +1 side are in the same region iff the sky is +1.
+  return pointInPolygon(pt, loop) === pointInPolygon(plus, loop) ? 1 : -1
+}
+
+/** Fills the ground side of a horizon polyline. `skySide` is the sideOf()
+ *  sign of the sky relative to the line in its traversal order. A closed
+ *  line fills its interior or exterior; an open one is closed round the
+ *  view (closeAround) in whichever direction takes in the ground. */
 export function fillGround(
   ctx: CanvasRenderingContext2D, poly: Polyline,
-  skyPt: [number, number], viewW: number, viewH: number,
+  skySide: 1 | -1, viewW: number, viewH: number,
 ): void {
-  const L = Math.max(viewW, viewH) * 3
+  const cx = viewW / 2, cy = viewH / 2
+  const ground = sideProbe(poly, cx, cy, skySide === 1 ? -1 : 1)
+  if (!ground) return
   ctx.fillStyle = GROUND_FILL
   ctx.beginPath()
   if (poly.closed) {
     tracePolyline(ctx, poly)
-    const inside = pointInPolygon(skyPt, poly.pts)
     // Even-odd against a rect covering the canvas inverts the filled region.
-    if (inside) ctx.rect(-viewW, -viewH, viewW * 3, viewH * 3)
-    ctx.fill(inside ? 'evenodd' : 'nonzero')
+    if (!pointInPolygon(ground, poly.pts)) ctx.rect(-viewW, -viewH, viewW * 3, viewH * 3)
+    ctx.fill('evenodd')
     return
   }
-  // Open arc: close it into a polygon by extending both ends off-screen,
-  // perpendicular to the arc, on whichever side the sky point is not.
-  const a = poly.pts[0], b = poly.pts[poly.pts.length - 1]
-  const len = Math.hypot(b[0] - a[0], b[1] - a[1])
-  if (len < 1e-9) return
-  const ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len
-  let nx = -uy, ny = ux
-  if ((skyPt[0] - a[0]) * nx + (skyPt[1] - a[1]) * ny > 0) { nx = -nx; ny = -ny }
-  tracePolyline(ctx, poly)
-  ctx.lineTo(b[0] + nx * L, b[1] + ny * L)
-  ctx.lineTo(a[0] + nx * L, a[1] + ny * L)
-  ctx.closePath()
-  ctx.fill()
+  const viewSize = Math.max(viewW, viewH)
+  let loop = closeAround(poly, cx, cy, viewSize, 1)
+  if (!pointInPolygon(ground, loop)) loop = closeAround(poly, cx, cy, viewSize, -1)
+  tracePolyline(ctx, { pts: loop, closed: true })
+  // Even-odd is what pointInPolygon's ray casting tests.
+  ctx.fill('evenodd')
 }

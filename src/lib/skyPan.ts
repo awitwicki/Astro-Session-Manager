@@ -1,65 +1,54 @@
-// Pure math for panning the Planner sky view by mouse: the sky point under
-// the cursor follows it, and the look direction is kept on the near side of
-// the zenith/nadir so an alt-az mount never flips over the pole.
+// Pure math for dragging the sky views: the sky point grabbed at mouse-down
+// stays under the cursor, while the view stays level — north up in the
+// equatorial view, zenith up (ground level) in the Planner's alt-az view.
 
-type Vec3 = [number, number, number]
 const DEG = Math.PI / 180
 
-/** Altitude the look direction may not exceed in either direction — same
- *  idea as Stellarium's alt-az mount, which stops just short of the zenith
+/** Latitude the view centre may not exceed in either direction — same idea
+ *  as Stellarium, which stops just short of the pole (zenith, celestial pole)
  *  instead of flipping the view by 180° when the centre crosses it. */
 export const LOOK_ALT_LIMIT = 89
 
-function unitVector([lon, lat]: [number, number]): Vec3 {
-  const cl = Math.cos(lat * DEG)
-  return [cl * Math.cos(lon * DEG), cl * Math.sin(lon * DEG), Math.sin(lat * DEG)]
-}
-
-function spherical([x, y, z]: Vec3): [number, number] {
-  return [Math.atan2(y, x) / DEG, Math.asin(Math.max(-1, Math.min(1, z))) / DEG]
-}
-
-function cross(a: Vec3, b: Vec3): Vec3 {
-  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
-}
-
-function dot(a: Vec3, b: Vec3): number {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/** Rodrigues rotation of v about the unit axis k by angle theta (radians). */
-function rotateAbout(v: Vec3, k: Vec3, theta: number): Vec3 {
-  const c = Math.cos(theta), s = Math.sin(theta)
-  const kv = cross(k, v), kd = dot(k, v) * (1 - c)
-  return [
-    v[0] * c + kv[0] * s + k[0] * kd,
-    v[1] * c + kv[1] * s + k[1] * kd,
-    v[2] * c + kv[2] * s + k[2] * kd,
-  ]
-}
-
-/** Where the view centre ends up after a drag that carries the sky point
- *  `from` onto `to` (all three are [lon, lat] degrees in the projection's own
- *  spherical frame): the sky rotates by the shortest rotation taking `from`
- *  to `to`, so the new centre is the old one rotated the opposite way. */
-export function pannedCentre(
-  centre: [number, number], from: [number, number], to: [number, number],
+/** Where to centre a level stereographic view so that the grabbed point
+ *  [lon, lat] (degrees, in the view's own frame: RA/Dec or az/alt) lands at
+ *  screen offset (dx, dy) from the centre, in units of the projection scale
+ *  with y pointing down. Level means the pole of the frame is straight up;
+ *  longitude grows to the left, as on any view of the sky from inside.
+ *
+ *  Solving for the centre directly from the grabbed point, instead of
+ *  panning step by step and re-levelling after each step, is what keeps
+ *  the point pinned: the re-level turns the view about its centre, and over
+ *  a drag those small turns add up to tens of degrees of slip near a pole.
+ *
+ *  Of the two centres that satisfy the offset, the one nearer `prev` wins;
+ *  when the offset is out of reach (the point would have to cross the pole)
+ *  the centre latitude is clamped and the point trails the cursor. */
+export function grabbedCentre(
+  grab: [number, number], dx: number, dy: number, prev: [number, number],
 ): [number, number] {
-  const a = unitVector(from), b = unitVector(to)
-  const axis = cross(a, b)
-  const norm = Math.hypot(axis[0], axis[1], axis[2])
-  if (norm < 1e-12) return [centre[0], centre[1]]
-  const k: Vec3 = [axis[0] / norm, axis[1] / norm, axis[2] / norm]
-  return spherical(rotateAbout(unitVector(centre), k, -Math.atan2(norm, dot(a, b))))
-}
-
-/** Clamps a new look direction against LOOK_ALT_LIMIT. A drag step that
- *  carried the centre over the pole shows up as a ~180° azimuth swing next
- *  to it; that step keeps the previous azimuth and sits at the limit. */
-export function clampLook(prevAz: number, az: number, alt: number): { az: number; alt: number } {
-  const swing = Math.abs(((az - prevAz + 540) % 360) - 180)
-  if (swing > 90 && Math.abs(alt) > LOOK_ALT_LIMIT - 10) {
-    return { az: prevAz, alt: alt > 0 ? LOOK_ALT_LIMIT : -LOOK_ALT_LIMIT }
+  const c = 2 * Math.atan(Math.hypot(dx, dy)) // stereographic: ρ = tan(c/2)
+  const bearing = Math.atan2(-dx, -dy) // from up (the pole), toward the left
+  const lat = grab[1] * DEG
+  // sin(lat) = sin(φ)·cos(c) + cos(φ)·sin(c)·cos(bearing) = R·sin(φ + ψ)
+  const A = Math.cos(c), B = Math.sin(c) * Math.cos(bearing)
+  const R = Math.hypot(A, B), psi = Math.atan2(B, A)
+  const s = Math.asin(Math.max(-1, Math.min(1, Math.sin(lat) / R)))
+  const wrap = (x: number) => Math.atan2(Math.sin(x), Math.cos(x))
+  const limit = LOOK_ALT_LIMIT * DEG
+  let phi = prev[1] * DEG
+  let best = Infinity
+  for (const cand of [wrap(s - psi), wrap(Math.PI - s - psi)]) {
+    if (Math.abs(cand) > Math.PI / 2) continue
+    const d = Math.abs(cand - prev[1] * DEG)
+    if (d < best) { best = d; phi = cand }
   }
-  return { az, alt: Math.max(-LOOK_ALT_LIMIT, Math.min(LOOK_ALT_LIMIT, alt)) }
+  phi = Math.max(-limit, Math.min(limit, phi))
+  // Longitude offset of the grabbed point from the centre along that bearing
+  const latAt = Math.asin(Math.sin(phi) * Math.cos(c) + Math.cos(phi) * Math.sin(c) * Math.cos(bearing))
+  const dLon = Math.atan2(
+    Math.sin(bearing) * Math.sin(c) * Math.cos(phi),
+    Math.cos(c) - Math.sin(phi) * Math.sin(latAt),
+  )
+  const lon = wrap(grab[0] * DEG - dLon) / DEG
+  return [lon, phi / DEG]
 }

@@ -11,6 +11,9 @@ import {
 } from '../../lib/skymap'
 import { NSNS_RGB, NSNS_OHS, NSNS_HA, renderHiPSTiles, setHiPSRedrawCallback, type HiPSConfig } from '../../lib/hips'
 import { ensureCelestialLoaded } from '../../lib/celestialLoader'
+import { isFinitePoint } from '../../lib/altAzView'
+import { grabbedCentre } from '../../lib/skyPan'
+import { takeOverSkyInput, type SkyDrag } from '../../lib/skyPointer'
 import '../../styles/skymap.css'
 
 const HIPS_SURVEYS: HiPSConfig[] = [NSNS_RGB, NSNS_OHS, NSNS_HA]
@@ -19,6 +22,28 @@ const HIPS_SURVEYS: HiPSConfig[] = [NSNS_RGB, NSNS_OHS, NSNS_HA]
 // always read the current value.
 let activeHipsOverlay: HiPSConfig | null = null
 let activeTargets: SkyMapTarget[] = []
+
+/** Mouse drag: the RA/Dec point grabbed at mouse-down stays under the
+ *  cursor with north kept up, and the centre stops just short of a
+ *  celestial pole instead of flipping over it — one rotate(), hence one
+ *  redraw, per mouse move. */
+let grabbed: [number, number] | null = null
+const skyDrag: SkyDrag = {
+  grab(at) {
+    const p = Celestial.map?.projection?.()?.invert(at) ?? null
+    grabbed = isFinitePoint(p) ? p : null
+  },
+  drag(at) {
+    const proj = Celestial.map?.projection?.()
+    if (!proj || !grabbed) return
+    const [cx, cy] = proj.translate()
+    const centre = proj.invert([cx, cy])
+    if (!isFinitePoint(centre)) return
+    const k = proj.scale()
+    const [lon, lat] = grabbedCentre(grabbed, (at[0] - cx) / k, (at[1] - cy) / k, centre)
+    try { Celestial.rotate({ center: [lon, lat, 0] }) } catch { /* ignore */ }
+  },
+}
 
 export function ClassicSkyView() {
   const projects = useAppStore((s) => s.projects)
@@ -29,6 +54,9 @@ export function ClassicSkyView() {
   // (including its cleanup registration) has already executed — so cleanup
   // must reach it through a ref rather than a plain closed-over variable.
   const recenterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Detaches the pointer/wheel listeners takeOverSkyInput installs on the
+  // canvas; created in the same async continuation, hence also a ref.
+  const inputRef = useRef<AbortController | null>(null)
   const [loading, setLoading] = useState(true)
   const [hipsOverlay, setHipsOverlay] = useState<HiPSConfig | null>(activeHipsOverlay)
   const [pointerCoords, setPointerCoords] = useState<{ ra: number; dec: number } | null>(null)
@@ -170,12 +198,10 @@ export function ClassicSkyView() {
         },
       })
 
-      // Remove d3-celestial's own window resize handler to prevent initial jump
-      try {
-        const d3ref = (globalThis as Record<string, unknown>)['d3'] as
-          { select: (t: EventTarget) => { on: (e: string, h: null) => void } } | undefined
-        d3ref?.select(globalThis).on('resize', null)
-      } catch { /* ignore */ }
+      // d3-celestial's window resize handler would make the initial view
+      // jump, and its drag fights the fixed north-up roll — both go, and
+      // mouse input is ours from here (skyPointer.ts).
+      inputRef.current = takeOverSkyInput(containerRef.current, skyDrag)
 
       // Register redraw callback for HiPS tile loading
       setHiPSRedrawCallback(() => {
@@ -229,6 +255,8 @@ export function ClassicSkyView() {
 
     return () => {
       cancelled = true
+      inputRef.current?.abort()
+      inputRef.current = null
       if (recenterIntervalRef.current !== null) {
         clearInterval(recenterIntervalRef.current)
         recenterIntervalRef.current = null

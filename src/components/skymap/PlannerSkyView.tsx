@@ -16,10 +16,12 @@ import { useAppStore } from '../../store/appStore'
 import { usePlannerData } from '../../hooks/usePlanner'
 import { useSimTime } from '../../hooks/useSimTime'
 import {
-  HORIZON_STROKE, fillGround, fitShape, isFinitePoint, longestRunPolyline, projectPoints,
-  raToCelestial, strokePolyline, visiblePolyline,
+  GROUND_FILL, HORIZON_STROKE, cutAtInfinity, fillGround, fitShape, isFinitePoint,
+  longestRunPolyline, projectPoints, raToCelestial, sideOf, skySideFromPoint, strokePolyline,
+  visiblePolyline,
 } from '../../lib/altAzView'
-import { clampLook, pannedCentre } from '../../lib/skyPan'
+import { grabbedCentre } from '../../lib/skyPan'
+import { takeOverSkyInput, type SkyDrag } from '../../lib/skyPointer'
 import { trajectoryPathJ2000, type TrajectoryPoint } from '../../lib/trajectory'
 import { nightWindowStart, formatTimeInZone } from '../../lib/localTime'
 import { PlannerTargetPanel, type TargetRow } from './PlannerTargetPanel'
@@ -66,7 +68,7 @@ let markers: SkyMarker[] = []
 let trajectory: TrajectoryPoint[] | null = null
 // The look direction IS the view state — az/alt, not RA/Dec, so the ground
 // stays down as time flows. Only this module ever moves it: the mouse drag
-// pans in alt-az (panBy), focusTarget aims at a target, and every change
+// (skyDrag), focusTarget aims at a target, and every change
 // reaches d3-celestial through pointCamera's single rotate(). d3-celestial's
 // own drag/zoom behaviour is detached at init, so no redraw ever moves the
 // view behind our back and nothing has to be read back from the projection.
@@ -83,58 +85,36 @@ function pointCamera(): void {
   try { Celestial.rotate({ center: [raToCelestial(ra), dec, roll] }) } catch { /* ignore */ }
 }
 
-/** Drag step: the sky point under `from` (canvas px) moves to `to` and the
- *  horizon stays level — one rotate(), hence one full redraw, per mouse move.
- *  d3-celestial's own drag rotated the sphere freely and left the roll to a
- *  second full redraw queued from drawOverlay, which halved the frame rate
- *  and made the whole view twist visibly at every step. */
-function panBy(from: [number, number], to: [number, number]): void {
-  const f = frame
-  const proj = Celestial.map?.projection?.()
-  if (!f || !proj) return
-  const p0 = proj.invert(from), p1 = proj.invert(to)
-  const centre = proj.invert(proj.translate())
-  if (!isFinitePoint(p0) || !isFinitePoint(p1) || !isFinitePoint(centre)) return
-  const [lon, lat] = pannedCentre(centre, p0, p1)
-  const { az, alt } = equatorialToHorizon(((lon % 360) + 360) % 360, lat, f.time, f.lat, f.lon)
-  const look = clampLook(viewAz, az, alt)
-  viewAz = look.az
-  viewAlt = look.alt
-  pointCamera()
-}
-
-/** Mouse input for the view: left-drag pans (panBy), wheel zooms about the
- *  centre. Pointer capture keeps a drag alive once the cursor leaves the
- *  canvas. */
-function bindPointerInput(canvas: HTMLCanvasElement, signal: AbortSignal): void {
-  let last: [number, number] | null = null
-  const at = (e: PointerEvent): [number, number] => {
-    const r = canvas.getBoundingClientRect()
-    return [e.clientX - r.left, e.clientY - r.top]
-  }
-  canvas.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return
-    e.preventDefault()
-    last = at(e)
-    try { canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
-  }, { signal })
-  canvas.addEventListener('pointermove', (e) => {
-    if (!last) return
-    if (!(e.buttons & 1)) { last = null; return }
-    const now = at(e)
-    panBy(last, now)
-    last = now
-  }, { signal })
-  const end = () => { last = null }
-  canvas.addEventListener('pointerup', end, { signal })
-  canvas.addEventListener('pointercancel', end, { signal })
-  // Same factor per wheel notch as d3.behavior.zoom used (2^(-deltaY/500)),
-  // with line-mode deltas scaled the way it scaled them.
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault()
-    const delta = -e.deltaY * (e.deltaMode ? 120 : 1)
-    try { Celestial.zoomBy(Math.pow(2, delta * 0.002)) } catch { /* ignore */ }
-  }, { signal, passive: false })
+/** Mouse drag: the alt-az point grabbed at mouse-down stays under the
+ *  cursor and the horizon stays level — one rotate(), hence one full redraw,
+ *  per mouse move. d3-celestial's own drag rotated the sphere freely and
+ *  left the roll to a second full redraw queued from drawOverlay, which
+ *  halved the frame rate and made the whole view twist visibly at every
+ *  step. The grab is held in alt-az, so it stays put on the ground while
+ *  the sky turns under it. */
+let grabbed: [number, number] | null = null
+const skyDrag: SkyDrag = {
+  grab(at) {
+    const f = frame
+    const p = Celestial.map?.projection?.()?.invert(at) ?? null
+    if (!f || !isFinitePoint(p)) { grabbed = null; return }
+    const { az, alt } = equatorialToHorizon(((p[0] % 360) + 360) % 360, p[1], f.time, f.lat, f.lon)
+    grabbed = [az, alt]
+  },
+  drag(at) {
+    const proj = Celestial.map?.projection?.()
+    if (!proj || !grabbed) return
+    const [cx, cy] = proj.translate()
+    const k = proj.scale()
+    // Azimuth grows to the right on screen (facing south, west is on the
+    // right) where grabbedCentre's longitude grows to the left, as RA does
+    // — so it works on negated azimuths.
+    const [negAz, alt] = grabbedCentre(
+      [-grabbed[0], grabbed[1]], (at[0] - cx) / k, (at[1] - cy) / k, [-viewAz, viewAlt])
+    viewAz = ((-negAz % 360) + 360) % 360
+    viewAlt = alt
+    pointCamera()
+  },
 }
 
 function drawSkyTint(
@@ -220,6 +200,25 @@ function isAboveGroundFill(profile: HorizonProfile | null, alt: number, az: numb
   return alt > groundAlt - 5
 }
 
+/** Sky side (see fillGround) of a custom skyline, which is traced in
+ *  increasing azimuth. The projection is conformal, so "up" lies on the same
+ *  side of a step in increasing azimuth everywhere on screen — measured here
+ *  on a tiny az/alt triangle at the view centre, where it is always
+ *  well-defined. A
+ *  test point like the zenith cannot be used: a skyline that climbs to 90°
+ *  passes through it, and the fill would flip as the view turns. */
+function skylineSkySide(f: FrameData, proj: CelestialProjection): 1 | -1 | null {
+  const alt = Math.max(-80, Math.min(80, viewAlt))
+  const at = (az: number, a: number) => {
+    const [ra, dec] = horizonToEquatorial(az, a, f.time, f.lat, f.lon)
+    return proj([raToCelestial(ra), dec]) as [number, number] | null
+  }
+  const base = at(viewAz, alt), next = at(viewAz + 1, alt), up = at(viewAz, alt + 1)
+  if (!isFinitePoint(base) || !isFinitePoint(next) || !isFinitePoint(up)) return null
+  const side = sideOf(base, next, up)
+  return side === 0 ? null : side > 0 ? 1 : -1
+}
+
 function drawOverlay(): void {
   const f = frame
   const ctx = Celestial.context
@@ -269,11 +268,15 @@ function drawOverlay(): void {
   // Ground + horizon + compass labels
   const horizonPts = projectPoints(f.horizonPts, proj, cx, cy, maxDist)
   const horizonPoly = f.profile
-    ? longestRunPolyline(horizonPts)
+    ? longestRunPolyline(cutAtInfinity(f.horizonPts, horizonPts, proj, cx, cy))
     : visiblePolyline(fitShape(horizonPts, viewSize, cx, cy), cx, cy, viewW, viewH)
   const zenithPt = proj([raToCelestial(f.zenith[0]), f.zenith[1]]) as [number, number] | null
-  if (horizonPoly && isFinitePoint(zenithPt)) {
-    fillGround(ctx, horizonPoly, zenithPt, viewW, viewH)
+  const skySide = !horizonPoly ? null
+    : f.profile ? skylineSkySide(f, proj)
+    : isFinitePoint(zenithPt) ? skySideFromPoint(horizonPoly, zenithPt, viewW, viewH)
+    : null
+  if (horizonPoly && skySide) {
+    fillGround(ctx, horizonPoly, skySide, viewW, viewH)
     ctx.strokeStyle = HORIZON_STROKE
     ctx.lineWidth = 1.5
     ctx.setLineDash([6, 4])
@@ -290,6 +293,17 @@ function drawOverlay(): void {
       const dist = Math.hypot(dx, dy) || 1
       ctx.fillStyle = label.length === 1 ? '#ffcc88' : 'rgba(255, 204, 136, 0.75)'
       ctx.fillText(label, pt[0] + (dx / dist) * 12, pt[1] + (dy / dist) * 12)
+    }
+  } else if (!horizonPoly) {
+    // No horizon anywhere near the view: if the centre is below it, so is
+    // everything on screen.
+    const c = proj.invert([cx, cy])
+    if (isFinitePoint(c)) {
+      const { az, alt } = equatorialToHorizon((c[0] + 360) % 360, c[1], f.time, f.lat, f.lon)
+      if (alt < (f.profile ? horizonAltAt(f.profile, az) : 0)) {
+        ctx.fillStyle = GROUND_FILL
+        ctx.fillRect(0, 0, viewW, viewH)
+      }
     }
   }
 
@@ -364,7 +378,7 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
   // (including its cleanup registration) has already executed — so cleanup
   // must reach it through a ref rather than a plain closed-over variable.
   const recenterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  // Detaches the pointer/wheel listeners bindPointerInput installs on the
+  // Detaches the pointer/wheel listeners takeOverSkyInput installs on the
   // canvas; created in the same async continuation, hence also a ref.
   const inputRef = useRef<AbortController | null>(null)
 
@@ -566,22 +580,9 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
         background: { fill: '#070b14', stroke: '#1a1d27', opacity: 1, width: 1.5 },
       })
 
-      // Remove d3-celestial's own window resize handler (same as classic view)
-      // and detach its d3.behavior.zoom from the canvas: mouse input is ours
-      // from here (bindPointerInput). Its dblclick handler on the container
-      // stays — that is a pure zoomBy about the centre.
-      const canvas = containerRef.current.querySelector('canvas')
-      try {
-        const d3ref = (globalThis as Record<string, unknown>)['d3'] as
-          { select: (t: EventTarget) => { on: (e: string, h: null) => void } } | undefined
-        d3ref?.select(globalThis).on('resize', null)
-        if (canvas) d3ref?.select(canvas).on('.zoom', null)
-      } catch { /* ignore */ }
-      if (canvas) {
-        const ac = new AbortController()
-        inputRef.current = ac
-        bindPointerInput(canvas, ac.signal)
-      }
+      // Mouse input is ours from here (skyPointer.ts): skyDrag keeps the
+      // horizon level through a single rotate() per move.
+      inputRef.current = takeOverSkyInput(containerRef.current, skyDrag)
 
       // Layers registered by other views persist on the singleton — drop them.
       Celestial.clear()

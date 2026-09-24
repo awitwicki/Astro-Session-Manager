@@ -122,7 +122,12 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   with a ground-fixed alt-az view (`src/lib/altAzView.ts`), a simulated
   clock (`useSimTime`), Sun/Moon + sky-brightness overlays, and Planner
   targets with night trajectories (`src/lib/trajectory.ts`). PlannerDetail
-  deep-links into it via `/skymap?target=<id>`.
+  deep-links into it via `/skymap?target=<id>`. Both views detach
+  d3-celestial's own drag/wheel (it fights the pinned roll) and take mouse
+  input through `src/lib/skyPointer.ts`; a drag re-centres with
+  `grabbedCentre` (`src/lib/skyPan.ts`) so the grabbed point stays under the
+  cursor with the view level — the Planner feeds it negated azimuths, since
+  azimuth grows to the right on screen where RA grows to the left.
 - Weather forecast: Open-Meteo with `models=chmi_aladin_seamless,ecmwf_ifs025,icon_eu`.
   The four cloud rows show an accuracy-weighted blend (ALADIN 0.32 / ECMWF 0.44 /
   ICON-EU 0.24, per-hour renormalization over non-null models — weights from the
