@@ -7,6 +7,7 @@ import { useAppStore } from '../store/appStore'
 import { useProjects } from '../hooks/useProjects'
 import { formatIntegrationTime, formatFileSize, formatTemperature, formatExposure } from '../lib/formatters'
 import { projectPath, fitsGalleryPath } from '../lib/constants'
+import { countNights } from '../lib/projectNights'
 import { isDslrFile } from '../lib/dslrUtils'
 
 export function ProjectView() {
@@ -259,7 +260,7 @@ export function ProjectView() {
           </span>
           <span>{project.filters.length} filters</span>
           <span>
-            {project.filters.reduce((s, f) => s + f.sessions.length, 0)} nights
+            {countNights(project)} nights
           </span>
         </div>
       </div>

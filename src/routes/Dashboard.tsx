@@ -6,6 +6,7 @@ import { useProjects } from '../hooks/useProjects'
 import { useAppStore } from '../store/appStore'
 import { formatIntegrationTime, formatFileSize, formatTimeAgo } from '../lib/formatters'
 import { projectPath } from '../lib/constants'
+import { countNights } from '../lib/projectNights'
 import { nextDashboardSort, sortProjects, type DashboardSort, type ProjectSortColumn } from '../lib/dashboardSort'
 
 const SORT_LABELS: Record<ProjectSortColumn, string> = {
@@ -434,7 +435,7 @@ export function Dashboard() {
                   {project.totalLightFrames} lights
                 </span>
                 <span>
-                  {project.filters.reduce((s, f) => s + f.sessions.length, 0)} nights
+                  {countNights(project)} nights
                 </span>
                 <span>{formatFileSize(project.totalSizeBytes)}</span>
               </div>
