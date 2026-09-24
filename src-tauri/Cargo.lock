@@ -92,6 +92,7 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "image",
+ "libc",
  "log",
  "lru",
  "nom-exif",
@@ -109,6 +110,7 @@ dependencies = [
  "tokio",
  "trash",
  "walkdir",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

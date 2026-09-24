@@ -4,6 +4,7 @@ import type { PlannerTarget } from '../types/planner'
 import type { HorizonProfile } from '../lib/horizon'
 import { isDslrFile } from '../lib/dslrUtils'
 import { DEFAULT_DASHBOARD_SORT, type DashboardSort, type ProjectOpenedMap } from '../lib/dashboardSort'
+import { matchMasters } from '../lib/calibration'
 
 interface ScanResultRaw {
   rootPath: string
@@ -103,37 +104,16 @@ function applyCalibration(projects: Project[], mastersLibrary: MastersLibrary | 
         // Skip calibration for DSLR sessions
         if (isDslrFile(s.lights[0].filename)) return s
 
-        const header = s.lights[0].header
-        if (!header) return s
-
-        const exptime = header.exptime ?? 0
-        const ccdTemp = header.ccdTemp ?? null
-        const resolution =
-          header.naxis1 && header.naxis2 ? `${header.naxis1}x${header.naxis2}` : null
-
-        if (exptime === 0 || ccdTemp === null) return s
-
-        const matchingDarks = mastersLibrary.darks.filter(
-          (d) =>
-            Math.abs(d.exposureTime - exptime) < 0.5 &&
-            d.ccdTemp !== null &&
-            Math.abs(d.ccdTemp - ccdTemp) <= tempTolerance &&
-            (resolution === null || d.resolution === null || d.resolution === resolution)
-        )
-
-        const matchingBiases = mastersLibrary.biases.filter(
-          (b) =>
-            b.ccdTemp !== null &&
-            Math.abs(b.ccdTemp - ccdTemp) <= tempTolerance
-        )
+        const match = matchMasters(s.lights[0].header, mastersLibrary, tempTolerance)
+        if (!match) return s
 
         return {
           ...s,
           calibration: {
-            darksMatched: matchingDarks.length > 0,
-            darkGroupName: matchingDarks[0]?.filename,
-            darkCount: matchingDarks.length,
-            biasCount: matchingBiases.length,
+            darksMatched: match.darks.length > 0,
+            darkGroupName: match.darks[0]?.filename,
+            darkCount: match.darks.length,
+            biasCount: match.biases.length,
             flatsAvailable: s.flats.length > 0,
             flatCount: s.flats.length
           }

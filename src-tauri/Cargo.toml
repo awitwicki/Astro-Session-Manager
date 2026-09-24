@@ -39,3 +39,9 @@ lru = "0.18"
 
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }

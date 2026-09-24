@@ -13,6 +13,7 @@ mod scanner;
 mod settings;
 mod single_flight;
 mod types;
+mod wbpp_export;
 mod xisf_parser;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -96,6 +97,9 @@ pub fn run() {
             // Converter
             converter::scan_raw_files,
             converter::convert_dslr_to_fits,
+            // WBPP export
+            wbpp_export::wbpp_export_preflight,
+            wbpp_export::wbpp_export,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

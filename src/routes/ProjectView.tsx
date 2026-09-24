@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star, Folder, File } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star, Folder, File, Package } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -9,6 +9,8 @@ import { formatIntegrationTime, formatFileSize, formatTemperature, formatExposur
 import { projectPath, fitsGalleryPath } from '../lib/constants'
 import { countNights } from '../lib/projectNights'
 import { isDslrFile } from '../lib/dslrUtils'
+import { isMasterFlat } from '../lib/calibration'
+import { WbppExportDialog } from '../components/export/WbppExportDialog'
 
 export function ProjectView() {
   const { projectName } = useParams<{ projectName: string }>()
@@ -50,6 +52,7 @@ export function ProjectView() {
   const [patternsText, setPatternsText] = useState('')
   const [analyzeModal, setAnalyzeModal] = useState<{ allPaths: string[]; unanalyzed: string[]; analyzed: string[] } | null>(null)
   const [otherFilesOpen, setOtherFilesOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   const currentFilter = activeFilter || (project?.filters.length ? project.filters[0].name : null)
   const filterData = project?.filters.find((f) => f.name === currentFilter)
@@ -248,6 +251,16 @@ export function ProjectView() {
               </button>
             ) : null
           })()}
+          {project.totalLightFrames > 0 && (
+            <button
+              className="btn btn-sm"
+              style={{ padding: '2px 6px' }}
+              onClick={() => setExportOpen(true)}
+              title="Export to WBPP"
+            >
+              <Package size={13} />
+            </button>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -451,6 +464,8 @@ export function ProjectView() {
           </div>
         </div>
       )}
+
+      {exportOpen && <WbppExportDialog project={project} onClose={() => setExportOpen(false)} />}
 
       {/* Rename Project Modal */}
       {renameProject && (
@@ -955,7 +970,7 @@ function SessionAccordion({
                         <tr key={flat.path} style={{ verticalAlign: 'middle' }}>
                           <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              {flat.filename.toLowerCase().startsWith('masterflat') && (
+                              {isMasterFlat(flat.filename) && (
                                 <span title="Master flat"><Star size={12} fill="var(--color-accent)" color="var(--color-accent)" /></span>
                               )}
                               {flat.filename}

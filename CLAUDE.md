@@ -39,6 +39,7 @@ src/                          # Frontend (React + TypeScript)
                               # LightPollutionMap, HorizonEditor, SatelliteCheck
   components/skymap/          # ClassicSkyView, PlannerSkyView,
                               # PlannerTimeToolbar, PlannerTargetPanel
+  components/export/          # WbppExportDialog, ExportTree, ExportSettingsPanel
   store/appStore.ts           # Zustand store (scan state, analysis, queues,
                               # previewQueue slice mirrored from backend)
   context/ThemeContext.tsx    # Theme provider
@@ -59,6 +60,7 @@ src-tauri/src/                # Backend (Rust)
   masters.rs                  # Master frames library (darks/biases/flats matching)
   dslr_parser.rs              # DSLR raw (.cr2/.cr3/.arw) header + EXIF parsing
   converter.rs                # DSLR raw → FITS conversion command
+  wbpp_export.rs              # WBPP export: preflight links + fresh-folder placement
   settings.rs                 # Persistent key-value settings
   cache.rs                    # Filesystem-based header cache
   cancellation.rs             # Global atomic cancel flags (scan/analyze/import/convert)
@@ -137,6 +139,14 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   sits above the table. The logic is duplicated in `src/lib/weather.ts` (app) and
   `docs/astroweather/js/weather.js` (gh-pages); every weather change goes in both
   files, and `tests/web/weather.test.mjs` covers the gh-pages module.
+- WBPP export: `src/lib/wbppExport.ts` (pure, unit-tested) turns a project into
+  a Filter → Night → frame tree (per-frame DATE-OBS, Moon separation via
+  `ephemeris.ts`, FWHM/ecc from `subAnalysis`) and a plan of `{src, relDst}` in
+  WBPP keyword folders (`Lights/NIGHT_<date>/FILTER_<f>/`, `Flats/…`, `Darks/`,
+  `Bias/`). `wbpp_export.rs` creates a fresh folder outside the root and places
+  each file by symlink → hard link → copy (`create_new`). It never overwrites,
+  and never moves, renames or deletes a source. Master matching lives in
+  `src/lib/calibration.ts`.
 
 ## Documentation Conventions
 

@@ -271,6 +271,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub horizon_profile: Option<serde_json::Value>,
     #[serde(default)]
+    pub wbpp_export_settings: Option<serde_json::Value>,
+    #[serde(default)]
     pub exclude_patterns: String,
     #[serde(default)]
     pub converter_output_path: Option<String>,
@@ -295,6 +297,7 @@ impl Default for AppSettings {
             daylight_timezone: None,
             planner_targets: None,
             horizon_profile: None,
+            wbpp_export_settings: None,
             exclude_patterns: String::new(),
             converter_output_path: None,
             new_project_filter_presets: Vec::new(),
@@ -374,6 +377,21 @@ mod app_settings_tests {
                 "points": [{ "az": 0, "alt": 14 }, { "az": 90, "alt": 7 }],
                 "name": "home.hrz"
             }))
+        );
+    }
+
+    #[test]
+    fn wbpp_export_settings_round_trips_through_app_settings() {
+        let mut obj = serde_json::to_value(AppSettings::default()).unwrap();
+        obj.as_object_mut()
+            .unwrap()
+            .insert("wbppExportSettings".to_string(), serde_json::json!({"moonMinSepDeg": 45}));
+
+        let settings: AppSettings = serde_json::from_value(obj).unwrap();
+
+        assert_eq!(
+            settings.wbpp_export_settings,
+            Some(serde_json::json!({"moonMinSepDeg": 45}))
         );
     }
 }

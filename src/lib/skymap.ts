@@ -60,7 +60,7 @@ function getRawStr(raw: Record<string, string | number | boolean>, ...keys: stri
 const DEG_PER_RAD = 180 / Math.PI
 const DEFAULT_FOV = 1.5 // degrees, fallback when we can't compute FOV
 
-function extractCoordinates(
+export function extractCoordinates(
   raw: Record<string, string | number | boolean>,
   naxis1: number,
   naxis2: number
