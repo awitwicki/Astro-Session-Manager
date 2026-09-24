@@ -10,7 +10,6 @@ use lru::LruCache;
 use crate::fits_parser;
 use crate::single_flight::SingleFlight;
 use crate::types::FitsPreviewResult;
-use crate::xisf_parser;
 
 const MAX_PREVIEW_WIDTH: u32 = 1920;
 const MAX_PREVIEW_HEIGHT: u32 = 1080;
@@ -148,16 +147,6 @@ pub fn cache_stats() -> (usize, usize) {
     (used, max)
 }
 
-// ─── Header reader ───────────────────────────────────────────────────────────
-
-fn read_header(file_path: &str) -> Result<crate::types::FitsHeader, String> {
-    if file_path.to_lowercase().ends_with(".xisf") {
-        xisf_parser::read_xisf_header(file_path)
-    } else {
-        fits_parser::read_fits_header(file_path)
-    }
-}
-
 /// Encode a ProcessedImage as JPEG in memory and return base64 string.
 ///
 /// Uses rustafits' own encoder (pure-Rust libjpeg-turbo with SIMD paths)
@@ -228,7 +217,7 @@ fn generate_preview_inner(file_path: &str) -> Result<Arc<FitsPreviewResult>, Str
     }
 
     let pool = get_thread_pool();
-    let header = read_header(file_path)?;
+    let header = fits_parser::read_image_header(file_path)?;
     let original_width = header.naxis1 as u32;
     let original_height = header.naxis2 as u32;
 

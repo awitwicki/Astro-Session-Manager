@@ -258,11 +258,79 @@ pub fn read_fits_header(file_path: &str) -> Result<FitsHeader, String> {
     Ok(map_to_fits_header(&parsed.keywords))
 }
 
-/// Batch read FITS headers from multiple files sequentially
+/// Read the header of a FITS or XISF file, picking the parser by extension.
+pub fn read_image_header(file_path: &str) -> Result<FitsHeader, String> {
+    if file_path.to_lowercase().ends_with(".xisf") {
+        crate::xisf_parser::read_xisf_header(file_path)
+    } else {
+        read_fits_header(file_path)
+    }
+}
+
+/// Batch read FITS/XISF headers from multiple files sequentially
 /// Returns Vec<Option<FitsHeader>> - None for files that fail to parse
 pub fn batch_read_fits_headers(file_paths: &[String]) -> Vec<Option<FitsHeader>> {
     file_paths
         .iter()
-        .map(|fp| read_fits_header(fp).ok())
+        .map(|fp| read_image_header(fp).ok())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fits_writer::{write_fits_u16, FitsMetadata};
+
+    fn temp_path(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("asm-fits-parser-{}-{}", std::process::id(), name))
+    }
+
+    /// Master import reads resolution through the batch reader, and masters
+    /// are often XISF (PixInsight) — both formats must yield NAXIS1/NAXIS2.
+    #[test]
+    fn batch_read_headers_reads_fits_and_xisf_dimensions() {
+        let fits = temp_path("master.fits");
+        write_fits_u16(
+            &fits,
+            &[0u16; 4 * 3],
+            &FitsMetadata {
+                width: 4,
+                height: 3,
+                exptime: Some(300.0),
+                gain: None,
+                date_obs: None,
+                instrume: None,
+                bayerpat: None,
+            },
+        )
+        .unwrap();
+
+        let xisf = temp_path("master.xisf");
+        let xml = concat!(
+            r#"<?xml version="1.0" encoding="UTF-8"?><xisf version="1.0">"#,
+            r#"<Image geometry="4144:2822:1" sampleFormat="Float32" colorSpace="Gray" location="attachment:4096:0">"#,
+            r#"<FITSKeyword name="EXPTIME" value="120." comment="" />"#,
+            r#"<FITSKeyword name="CCD-TEMP" value="-10." comment="" />"#,
+            r#"</Image></xisf>"#
+        );
+        let mut bytes = b"XISF0100".to_vec();
+        bytes.extend_from_slice(&(xml.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&[0u8; 4]);
+        bytes.extend_from_slice(xml.as_bytes());
+        std::fs::write(&xisf, bytes).unwrap();
+
+        let paths = vec![
+            fits.to_string_lossy().into_owned(),
+            xisf.to_string_lossy().into_owned(),
+        ];
+        let headers = batch_read_fits_headers(&paths);
+        let _ = std::fs::remove_file(&fits);
+        let _ = std::fs::remove_file(&xisf);
+
+        let f = headers[0].as_ref().expect("FITS header");
+        assert_eq!((f.naxis1, f.naxis2), (4, 3));
+        let x = headers[1].as_ref().expect("XISF header");
+        assert_eq!((x.naxis1, x.naxis2), (4144, 2822));
+        assert_eq!(x.exptime, Some(120.0));
+    }
 }
