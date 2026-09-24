@@ -3,6 +3,7 @@ import type { Project, MastersLibrary, SubAnalysisResult } from '../types'
 import type { PlannerTarget } from '../types/planner'
 import type { HorizonProfile } from '../lib/horizon'
 import { isDslrFile } from '../lib/dslrUtils'
+import { DEFAULT_DASHBOARD_SORT, type DashboardSort, type ProjectOpenedMap } from '../lib/dashboardSort'
 
 interface ScanResultRaw {
   rootPath: string
@@ -304,6 +305,8 @@ interface AppState {
   theme: 'dark' | 'light'
   darkTempTolerance: number
   dashboardViewMode: 'grid' | 'table'
+  dashboardSort: DashboardSort
+  projectLastOpened: ProjectOpenedMap
   importQueue: ImportJob[]
   subAnalysis: Record<string, SubAnalysisResult>
   isAnalyzing: boolean
@@ -320,6 +323,8 @@ interface AppState {
 
   setRootFolder: (path: string | null) => void
   setDashboardViewMode: (mode: 'grid' | 'table') => void
+  setDashboardSort: (sort: DashboardSort) => void
+  setProjectLastOpened: (map: ProjectOpenedMap) => void
   setDarkTempTolerance: (val: number) => void
   setScanResult: (raw: ScanResultRaw) => void
   setScanning: (v: boolean) => void
@@ -372,6 +377,8 @@ export const useAppStore = create<AppState>((set) => ({
   theme: 'dark',
 
   dashboardViewMode: 'grid',
+  dashboardSort: DEFAULT_DASHBOARD_SORT,
+  projectLastOpened: {},
   darkTempTolerance: 2,
   importQueue: [],
   subAnalysis: {},
@@ -388,6 +395,10 @@ export const useAppStore = create<AppState>((set) => ({
   setRootFolder: (path) => set({ rootFolder: path }),
 
   setDashboardViewMode: (mode) => set({ dashboardViewMode: mode }),
+
+  setDashboardSort: (sort) => set({ dashboardSort: sort }),
+
+  setProjectLastOpened: (map) => set({ projectLastOpened: map }),
 
   setDarkTempTolerance: (val) => set((state) => ({
     darkTempTolerance: val,

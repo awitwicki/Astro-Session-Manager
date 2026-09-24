@@ -74,3 +74,15 @@ export function azToCompass(azDeg: number): string {
   return COMPASS[Math.round((((azDeg % 360) + 360) % 360) / 45) % 8]
 }
 
+
+/** Coarse "time ago" label for a past epoch-ms timestamp. */
+export function formatTimeAgo(epochMs: number, nowMs: number = Date.now()): string {
+  const minutes = Math.floor((nowMs - epochMs) / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days} d ago`
+  return new Date(epochMs).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}

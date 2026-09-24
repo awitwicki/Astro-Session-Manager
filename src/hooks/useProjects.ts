@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
+import { isDashboardSort, parseProjectOpenedMap } from '../lib/dashboardSort'
 
 export function useProjects() {
   const projects = useAppStore((s) => s.projects)
@@ -172,6 +173,14 @@ export function useProjects() {
     if (viewMode === 'grid' || viewMode === 'table') {
       useAppStore.getState().setDashboardViewMode(viewMode)
     }
+
+    // Load dashboard sort and per-project "last opened" timestamps
+    const dashboardSort = await invoke<unknown>('get_setting', { key: 'dashboardSort' })
+    if (isDashboardSort(dashboardSort)) {
+      useAppStore.getState().setDashboardSort(dashboardSort)
+    }
+    const lastOpened = await invoke<unknown>('get_setting', { key: 'projectLastOpened' })
+    useAppStore.getState().setProjectLastOpened(parseProjectOpenedMap(lastOpened))
 
     // Load exclude patterns into store before any scan results
     const excludePatterns = await invoke<unknown>('get_setting', { key: 'excludePatterns' })

@@ -27,6 +27,15 @@ export function ProjectView() {
   useEffect(() => {
     setActiveFilter(null)
   }, [projectName])
+  // Record the visit so the Dashboard can sort by "recently opened"
+  const openedName = project?.name
+  useEffect(() => {
+    if (!openedName) return
+    const { projectLastOpened, setProjectLastOpened } = useAppStore.getState()
+    const updated = { ...projectLastOpened, [openedName]: Date.now() }
+    setProjectLastOpened(updated)
+    invoke('set_setting', { key: 'projectLastOpened', value: updated }).catch(() => {})
+  }, [openedName])
   const [renameProject, setRenameProject] = useState(false)
   const [renameProjectName, setRenameProjectName] = useState('')
   const [renameFilter, setRenameFilter] = useState<string | null>(null)

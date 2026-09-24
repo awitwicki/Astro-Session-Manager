@@ -1,14 +1,21 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, Clock, Image, Camera, Plus, LayoutGrid, List, EyeOff } from 'lucide-react'
+import { FolderOpen, Clock, Image, Camera, Plus, LayoutGrid, List, EyeOff, ArrowUp, ArrowDown } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { useProjects } from '../hooks/useProjects'
 import { useAppStore } from '../store/appStore'
-import { formatIntegrationTime, formatFileSize } from '../lib/formatters'
+import { formatIntegrationTime, formatFileSize, formatTimeAgo } from '../lib/formatters'
 import { projectPath } from '../lib/constants'
+import { nextDashboardSort, sortProjects, type DashboardSort, type ProjectSortColumn } from '../lib/dashboardSort'
 
-type ProjectSortColumn = 'name' | 'integration' | 'size' | 'lastDate' | 'lights'
-type SortDirection = 'asc' | 'desc'
+const SORT_LABELS: Record<ProjectSortColumn, string> = {
+  name: 'Name',
+  opened: 'Recently opened',
+  lastDate: 'Last sub',
+  integration: 'Integration',
+  lights: 'Lights',
+  size: 'Size',
+}
 
 export function Dashboard() {
   const { projects, isScanning, scanError, rootFolder, selectFolder, scan, scanProject, init } = useProjects()
@@ -16,6 +23,9 @@ export function Dashboard() {
 
   const viewMode = useAppStore((s) => s.dashboardViewMode)
   const setDashboardViewMode = useAppStore((s) => s.setDashboardViewMode)
+  const sort = useAppStore((s) => s.dashboardSort)
+  const setDashboardSort = useAppStore((s) => s.setDashboardSort)
+  const lastOpened = useAppStore((s) => s.projectLastOpened)
 
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
@@ -32,8 +42,6 @@ export function Dashboard() {
   })
   const [presetsLoaded, setPresetsLoaded] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [sortColumn, setSortColumn] = useState<ProjectSortColumn>('name')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [showExcluded, setShowExcluded] = useState(false)
   const [patternsText, setPatternsText] = useState('')
   const [patternsLoaded, setPatternsLoaded] = useState(false)
@@ -41,6 +49,11 @@ export function Dashboard() {
   const setViewMode = (mode: 'grid' | 'table') => {
     setDashboardViewMode(mode)
     invoke('set_setting', { key: 'dashboardViewMode', value: mode }).catch(() => {})
+  }
+
+  const setSort = (next: DashboardSort) => {
+    setDashboardSort(next)
+    invoke('set_setting', { key: 'dashboardSort', value: next }).catch(() => {})
   }
 
   useEffect(() => {
@@ -107,54 +120,18 @@ export function Dashboard() {
   }
 
   const handleSort = (col: ProjectSortColumn): void => {
-    if (sortColumn === col) {
-      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortColumn(col)
-      setSortDirection('asc')
-    }
+    setSort(nextDashboardSort(sort, col))
   }
 
   const sortIndicator = (col: ProjectSortColumn): string => {
-    if (sortColumn !== col) return ''
-    return sortDirection === 'asc' ? ' \u2191' : ' \u2193'
+    if (sort.column !== col) return ''
+    return sort.direction === 'asc' ? ' \u2191' : ' \u2193'
   }
 
-  const sortedProjects = useMemo(() => {
-    const sorted = [...projects]
-    sorted.sort((a, b) => {
-      let va: string | number
-      let vb: string | number
-      switch (sortColumn) {
-        case 'name':
-          va = a.name
-          vb = b.name
-          break
-        case 'integration':
-          va = a.totalIntegrationSeconds
-          vb = b.totalIntegrationSeconds
-          break
-        case 'size':
-          va = a.totalSizeBytes
-          vb = b.totalSizeBytes
-          break
-        case 'lastDate':
-          va = a.lastCaptureDate || ''
-          vb = b.lastCaptureDate || ''
-          break
-        case 'lights':
-          va = a.totalLightFrames
-          vb = b.totalLightFrames
-          break
-        default:
-          va = a.name
-          vb = b.name
-      }
-      const cmp = va < vb ? -1 : va > vb ? 1 : 0
-      return sortDirection === 'asc' ? cmp : -cmp
-    })
-    return sorted
-  }, [projects, sortColumn, sortDirection])
+  const sortedProjects = useMemo(
+    () => sortProjects(projects, sort, lastOpened),
+    [projects, sort, lastOpened]
+  )
 
   if (!rootFolder) {
     return (
@@ -224,6 +201,26 @@ export function Dashboard() {
           <h1 className="page-title">Dashboard</h1>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <select
+              className="settings-input"
+              style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }}
+              value={sort.column}
+              onChange={(e) => handleSort(e.target.value as ProjectSortColumn)}
+              title="Sort projects"
+            >
+              {(Object.keys(SORT_LABELS) as ProjectSortColumn[]).map((col) => (
+                <option key={col} value={col}>{SORT_LABELS[col]}</option>
+              ))}
+            </select>
+            <button
+              className="btn btn-sm"
+              onClick={() => handleSort(sort.column)}
+              title={sort.direction === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sort.direction === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+            </button>
+          </div>
           <div style={{ display: 'flex', gap: 4 }}>
             <button
               className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : ''}`}
@@ -305,6 +302,9 @@ export function Dashboard() {
               <th style={{ cursor: 'pointer' }} onClick={() => handleSort('lastDate')}>
                 Last Sub{sortIndicator('lastDate')}
               </th>
+              <th style={{ cursor: 'pointer' }} onClick={() => handleSort('opened')}>
+                Opened{sortIndicator('opened')}
+              </th>
               <th>Filters</th>
               <th style={{ cursor: 'pointer' }} onClick={() => handleSort('lights')}>
                 Lights{sortIndicator('lights')}
@@ -323,6 +323,7 @@ export function Dashboard() {
                 <td>{formatIntegrationTime(project.totalIntegrationSeconds)}</td>
                 <td>{formatFileSize(project.totalSizeBytes)}</td>
                 <td>{project.lastCaptureDate || '-'}</td>
+                <td>{lastOpened[project.name] ? formatTimeAgo(lastOpened[project.name]) : '-'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                     {project.filters.map((f) => (
@@ -406,9 +407,12 @@ export function Dashboard() {
                   </button>
                 </div>
               </div>
-              {project.lastCaptureDate && (
+              {(project.lastCaptureDate || lastOpened[project.name]) && (
                 <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8 }}>
-                  Last sub: {project.lastCaptureDate}
+                  {[
+                    project.lastCaptureDate && `Last sub: ${project.lastCaptureDate}`,
+                    lastOpened[project.name] && `Opened ${formatTimeAgo(lastOpened[project.name])}`,
+                  ].filter(Boolean).join(' \u00b7 ')}
                 </div>
               )}
 
