@@ -190,84 +190,86 @@ export function ProjectView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div className="page-header" style={{ flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h1 className="page-title" style={{ textTransform: 'uppercase' }}>
+      <div className="page-header project-header" style={{ flexShrink: 0 }}>
+        <div className="project-title-row">
+          <h1 className="page-title project-title" title={project.name}>
             {project.name}
           </h1>
-          <button
-            className="btn btn-sm"
-            style={{ padding: '2px 6px' }}
-            onClick={() => invoke('show_in_folder', { path: project.path })}
-            title="Show in Finder"
-          >
-            <FolderOpen size={13} />
-          </button>
-          <button
-            className="btn btn-sm"
-            style={{ padding: '2px 6px' }}
-            onClick={() => {
-              setRenameProjectName(project.name)
-              setRenameProject(true)
-            }}
-            title="Rename project"
-          >
-            <Pencil size={13} />
-          </button>
-          <button
-            className="btn btn-sm"
-            style={{ padding: '2px 6px' }}
-            onClick={() => scanProject(project.path)}
-            title="Rescan project"
-          >
-            <RefreshCw size={13} />
-          </button>
-          <button
-            className="btn btn-sm"
-            style={{ padding: '2px 6px' }}
-            onClick={() => setExcludeConfirm({ name: project.name, type: 'project' })}
-            title="Exclude project"
-          >
-            <EyeOff size={13} />
-          </button>
-          <button
-            className="btn btn-sm"
-            style={{ padding: '2px 6px', opacity: project.hasNotes ? 1 : 0.5 }}
-            onClick={() => openNotes(project.path, `Project: ${project.name}`)}
-            title={project.hasNotes ? 'View notes' : 'Create notes'}
-          >
-            <FileText size={13} />
-          </button>
-          {project.totalLightFrames > 0 && (() => {
-            const firstLight = project.filters.flatMap((f) => f.sessions.flatMap((s) => s.lights))[0]
-            return firstLight ? (
-              <button
-                className="btn btn-sm"
-                style={{ padding: '2px 6px' }}
-                onClick={() => navigate(fitsGalleryPath(firstLight.path, 'project', project.name))}
-                title="View all project frames"
-              >
-                <Eye size={13} />
-              </button>
-            ) : null
-          })()}
-          {project.totalLightFrames > 0 && (
+          <div className="project-actions">
             <button
               className="btn btn-sm"
               style={{ padding: '2px 6px' }}
-              onClick={() => setExportOpen(true)}
-              title="Export to WBPP"
+              onClick={() => invoke('show_in_folder', { path: project.path })}
+              title="Show in Finder"
             >
-              <Package size={13} />
+              <FolderOpen size={13} />
             </button>
-          )}
+            <button
+              className="btn btn-sm"
+              style={{ padding: '2px 6px' }}
+              onClick={() => {
+                setRenameProjectName(project.name)
+                setRenameProject(true)
+              }}
+              title="Rename project"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
+              className="btn btn-sm"
+              style={{ padding: '2px 6px' }}
+              onClick={() => scanProject(project.path)}
+              title="Rescan project"
+            >
+              <RefreshCw size={13} />
+            </button>
+            <button
+              className="btn btn-sm"
+              style={{ padding: '2px 6px' }}
+              onClick={() => setExcludeConfirm({ name: project.name, type: 'project' })}
+              title="Exclude project"
+            >
+              <EyeOff size={13} />
+            </button>
+            <button
+              className="btn btn-sm"
+              style={{ padding: '2px 6px', opacity: project.hasNotes ? 1 : 0.5 }}
+              onClick={() => openNotes(project.path, `Project: ${project.name}`)}
+              title={project.hasNotes ? 'View notes' : 'Create notes'}
+            >
+              <FileText size={13} />
+            </button>
+            {project.totalLightFrames > 0 && (() => {
+              const firstLight = project.filters.flatMap((f) => f.sessions.flatMap((s) => s.lights))[0]
+              return firstLight ? (
+                <button
+                  className="btn btn-sm"
+                  style={{ padding: '2px 6px' }}
+                  onClick={() => navigate(fitsGalleryPath(firstLight.path, 'project', project.name))}
+                  title="View all project frames"
+                >
+                  <Eye size={13} />
+                </button>
+              ) : null
+            })()}
+            {project.totalLightFrames > 0 && (
+              <button
+                className="btn btn-sm"
+                style={{ padding: '2px 6px' }}
+                onClick={() => setExportOpen(true)}
+                title="Export to WBPP"
+              >
+                <Package size={13} />
+              </button>
+            )}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div className="project-stats">
+          <span>
             <Clock size={13} />
             {formatIntegrationTime(project.totalIntegrationSeconds)} total
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span>
             <Image size={13} />
             {project.totalLightFrames} lights
           </span>
