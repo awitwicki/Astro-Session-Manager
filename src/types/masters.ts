@@ -21,6 +21,7 @@ export interface OtherEntry {
 export interface MastersLibrary {
   darks: MasterFileEntry[]
   biases: MasterFileEntry[]
+  darkFlats: MasterFileEntry[]
   otherFiles: OtherEntry[]
   rootPath: string
 }

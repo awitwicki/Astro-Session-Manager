@@ -330,7 +330,37 @@ fn scan_project(project_path: &Path, project_name: &str, exclude_patterns: &[Str
     }
 }
 
-/// Enrich scan results with FITS headers by reading the first light of each session.
+/// Files whose headers a scan reads: the first light of each session and its
+/// first raw flat (a stacked `masterFlat_*` only when there are no raw flats),
+/// so darkflats can be matched against the flats' exposure and temperature.
+fn header_targets(scan_result: &ScanResult) -> Vec<&FitsFileRef> {
+    scan_result
+        .projects
+        .iter()
+        .flat_map(|p| &p.filters)
+        .flat_map(|f| &f.sessions)
+        .flat_map(|s| {
+            let flat = s
+                .flats
+                .iter()
+                .find(|f| !f.filename.to_lowercase().starts_with("masterflat"))
+                .or_else(|| s.flats.first());
+            s.lights.first().into_iter().chain(flat)
+        })
+        .collect()
+}
+
+fn read_header(file: &FitsFileRef) -> Result<FitsHeader, String> {
+    if file.filename.to_lowercase().ends_with(".xisf") {
+        xisf_parser::read_xisf_header(&file.path)
+    } else if is_dslr_file(&file.filename) {
+        crate::dslr_parser::read_dslr_header(&file.path)
+    } else {
+        fits_parser::read_fits_header(&file.path)
+    }
+}
+
+/// Enrich scan results with FITS headers by reading the first light and first raw flat of each session.
 /// Re-uses cached headers for files that have already been parsed; only reads new ones.
 fn enrich_with_headers(
     scan_result: &ScanResult,
@@ -345,17 +375,10 @@ fn enrich_with_headers(
         .unwrap_or_default();
 
     // Collect all first-light paths for progress tracking
-    let first_lights: Vec<&FitsFileRef> = scan_result
-        .projects
-        .iter()
-        .flat_map(|p| &p.filters)
-        .flat_map(|f| &f.sessions)
-        .filter_map(|s| s.lights.first())
-        .collect();
+    let targets = header_targets(scan_result);
+    let total = targets.len();
 
-    let total = first_lights.len();
-
-    for (i, first_light) in first_lights.iter().enumerate() {
+    for (i, file) in targets.iter().enumerate() {
         if cancellation::is_cancelled("scan") {
             log::info!("[scan] cancelled at header {}/{}", i, total);
             break;
@@ -369,27 +392,19 @@ fn enrich_with_headers(
                     phase: "headers".to_string(),
                     current: i + 1,
                     total,
-                    file_path: first_light.path.clone(),
+                    file_path: file.path.clone(),
                 },
             );
         }
 
         // Re-use cached header if available
-        if let Some(existing) = cached.get(&first_light.path) {
-            project_headers.insert(first_light.path.clone(), existing.clone());
+        if let Some(existing) = cached.get(&file.path) {
+            project_headers.insert(file.path.clone(), existing.clone());
             continue;
         }
 
-        let header_result = if first_light.filename.to_lowercase().ends_with(".xisf") {
-            xisf_parser::read_xisf_header(&first_light.path)
-        } else if is_dslr_file(&first_light.filename) {
-            crate::dslr_parser::read_dslr_header(&first_light.path)
-        } else {
-            fits_parser::read_fits_header(&first_light.path)
-        };
-
-        if let Ok(header) = header_result {
-            project_headers.insert(first_light.path.clone(), header);
+        if let Ok(header) = read_header(file) {
+            project_headers.insert(file.path.clone(), header);
         }
     }
 
@@ -414,17 +429,10 @@ fn enrich_with_headers_merge(
         .map(|c| c.clone())
         .unwrap_or_default();
 
-    let first_lights: Vec<&FitsFileRef> = scan_result
-        .projects
-        .iter()
-        .flat_map(|p| &p.filters)
-        .flat_map(|f| &f.sessions)
-        .filter_map(|s| s.lights.first())
-        .collect();
+    let targets = header_targets(scan_result);
+    let total = targets.len();
 
-    let total = first_lights.len();
-
-    for (i, first_light) in first_lights.iter().enumerate() {
+    for (i, file) in targets.iter().enumerate() {
         if cancellation::is_cancelled("scan") {
             log::info!("[scan] cancelled at header {}/{}", i, total);
             break;
@@ -437,26 +445,18 @@ fn enrich_with_headers_merge(
                     phase: "headers".to_string(),
                     current: i + 1,
                     total,
-                    file_path: first_light.path.clone(),
+                    file_path: file.path.clone(),
                 },
             );
         }
 
-        if let Some(existing) = cached.get(&first_light.path) {
-            project_headers.insert(first_light.path.clone(), existing.clone());
+        if let Some(existing) = cached.get(&file.path) {
+            project_headers.insert(file.path.clone(), existing.clone());
             continue;
         }
 
-        let header_result = if first_light.filename.to_lowercase().ends_with(".xisf") {
-            xisf_parser::read_xisf_header(&first_light.path)
-        } else if is_dslr_file(&first_light.filename) {
-            crate::dslr_parser::read_dslr_header(&first_light.path)
-        } else {
-            fits_parser::read_fits_header(&first_light.path)
-        };
-
-        if let Ok(header) = header_result {
-            project_headers.insert(first_light.path.clone(), header);
+        if let Ok(header) = read_header(file) {
+            project_headers.insert(file.path.clone(), header);
         }
     }
 
@@ -598,4 +598,43 @@ pub fn scan_root_directory(
     }
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{FilterScanNode, ProjectScanNode, SessionScanNode};
+
+    fn f(name: &str) -> FitsFileRef {
+        FitsFileRef { filename: name.into(), path: format!("/s/{}", name), size_bytes: 1, modified_at: String::new() }
+    }
+
+    fn scan(sessions: Vec<SessionScanNode>) -> ScanResult {
+        ScanResult {
+            root_path: "/".into(),
+            projects: vec![ProjectScanNode {
+                name: "P".into(), path: "/P".into(), total_size_bytes: 0, has_notes: false,
+                filters: vec![FilterScanNode {
+                    name: "Ha".into(), path: "/P/Ha".into(), sessions, other_files: vec![],
+                    total_size_bytes: 0, has_notes: false,
+                }],
+            }],
+            scan_duration_ms: 0,
+            project_headers: HashMap::new(),
+        }
+    }
+
+    fn session(lights: Vec<FitsFileRef>, flats: Vec<FitsFileRef>) -> SessionScanNode {
+        SessionScanNode { date: "n".into(), path: "/s".into(), lights, flats, darks: vec![], biases: vec![], total_size_bytes: 0, has_notes: false }
+    }
+
+    #[test]
+    fn header_targets_include_first_raw_flat() {
+        let r = scan(vec![
+            session(vec![f("L1.fits"), f("L2.fits")], vec![f("masterFlat_Ha.xisf"), f("F1.fits"), f("F2.fits")]),
+            session(vec![], vec![f("masterFlat_OIII.xisf")]),
+        ]);
+        let names: Vec<&str> = header_targets(&r).iter().map(|x| x.filename.as_str()).collect();
+        assert_eq!(names, vec!["L1.fits", "F1.fits", "masterFlat_OIII.xisf"]);
+    }
 }

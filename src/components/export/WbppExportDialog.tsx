@@ -32,6 +32,7 @@ export function WbppExportDialog({ project, onClose }: Props) {
 
   const [headers, setHeaders] = useState<Record<string, FitsHeader | null> | null>(null)
   const [settings, setSettings] = useState<ExportSettings>(DEFAULT_EXPORT_SETTINGS)
+  const [warnMissingDarkFlat, setWarnMissingDarkFlat] = useState(true)
   const [selection, setSelection] = useState<ExportSelection>(EMPTY_SELECTION)
   const [preflight, setPreflight] = useState<PreflightResult | null>(null)
   const [preflightError, setPreflightError] = useState<string | null>(null)
@@ -50,6 +51,9 @@ export function WbppExportDialog({ project, onClose }: Props) {
   )
 
   useEffect(() => {
+    invoke<unknown>('get_setting', { key: 'warnMissingDarkFlat' })
+      .then((v) => { if (typeof v === 'boolean') setWarnMissingDarkFlat(v) })
+      .catch(() => {})
     invoke<unknown>('get_setting', { key: SETTINGS_KEY })
       .then((saved) => setSettings(mergeSettings(saved)))
       .catch(() => {})
@@ -98,7 +102,7 @@ export function WbppExportDialog({ project, onClose }: Props) {
   const plan = buildPlan(tree, settings, selection)
   const placement = predictPlacement(preflight)
   const { sourceBytes, diskBytes } = estimateSize(plan, placement)
-  const warnings = exportWarnings(tree, settings, selection, moon.reason)
+  const warnings = exportWarnings(tree, settings, selection, moon.reason, { warnMissingDarkFlat })
   const folderName = exportFolderName(project.name, new Date())
   const freeBytes = preflight?.freeBytes ?? null
   const tooBig = freeBytes !== null && diskBytes > freeBytes

@@ -655,6 +655,9 @@ function SessionAccordion({
       darkGroupName?: string
       darkCount?: number
       biasCount?: number
+      darkFlatMatched?: boolean
+      darkFlatName?: string
+      rawFlatCount?: number
       flatsAvailable: boolean
       flatCount?: number
     }
@@ -751,6 +754,12 @@ function SessionAccordion({
               ) : (
                 <span className="badge badge-error"><X size={10} /> No flats</span>
               )}
+
+              {(cal.rawFlatCount ?? 0) > 0 && (cal.darkFlatMatched ? (
+                <span className="badge badge-success" title={cal.darkFlatName}><Check size={10} /> Darkflat</span>
+              ) : (
+                <span className="badge badge-warning"><AlertCircle size={10} /> No darkflat</span>
+              ))}
             </>
           )}
 

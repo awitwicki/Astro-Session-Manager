@@ -1,11 +1,11 @@
 import type { FitsHeader, MastersLibrary, Project, SubAnalysisResult } from '../types'
 import type { Placement, PreflightResult } from '../types/wbppExport'
-import { isMasterFlat, matchMasters } from './calibration'
+import { isMasterFlat, matchDarkFlats, matchMasters } from './calibration'
 import { isDslrFile } from './dslrUtils'
 import { moonInfo, separationDeg } from './ephemeris'
 import { extractCoordinates } from './skymap'
 
-export type ExportKind = 'light' | 'flat' | 'masterFlat' | 'masterDark' | 'masterBias' | 'dark' | 'bias'
+export type ExportKind = 'light' | 'flat' | 'masterFlat' | 'masterDark' | 'masterDarkFlat' | 'masterBias' | 'dark' | 'bias'
 export type CalKind = Exclude<ExportKind, 'light'>
 
 export interface FileRef {
@@ -38,7 +38,10 @@ export interface NightNode {
   darks: FileRef[]
   biases: FileRef[]
   masterDark: FileRef | null
+  masterDarkFlat: FileRef | null
   masterBias: FileRef | null
+  /** Exposure of the first raw flat, when known. */
+  flatExposure: number | null
 }
 
 export interface FilterNode {
@@ -179,6 +182,9 @@ export function buildExportTree(input: {
         const isDslr = isDslrFile(s.lights[0].filename)
         const match = isDslr ? null : matchMasters(first, library, tempTolerance)
         const masterFlat = s.flats.find((f) => isMasterFlat(f.filename))
+        const rawFlats = s.flats.filter((f) => !isMasterFlat(f.filename))
+        const flatHeader = rawFlats[0]?.header ?? null
+        const darkFlat = isDslr ? null : matchDarkFlats(flatHeader, first, library, tempTolerance)?.[0]
         return {
           key: s.path,
           sessionName: s.date,
@@ -188,11 +194,13 @@ export function buildExportTree(input: {
           isDslr,
           frames,
           masterFlat: masterFlat ? ref(masterFlat) : null,
-          rawFlats: s.flats.filter((f) => !isMasterFlat(f.filename)).map(ref),
+          rawFlats: rawFlats.map(ref),
           darks: s.darks.map(ref),
           biases: s.biases.map(ref),
           masterDark: match?.darks[0] ? ref(match.darks[0]) : null,
+          masterDarkFlat: darkFlat ? ref(darkFlat) : null,
           masterBias: match?.biases[0] ? ref(match.biases[0]) : null,
+          flatExposure: flatHeader?.exptime ?? null,
         }
       })
     return {
@@ -224,7 +232,7 @@ export interface ExportSettings {
 }
 
 export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
-  include: { light: true, flat: true, masterFlat: true, masterDark: true, masterBias: true, dark: false, bias: false },
+  include: { light: true, flat: true, masterFlat: true, masterDark: true, masterDarkFlat: true, masterBias: false, dark: false, bias: false },
   moonCutoffEnabled: false,
   moonMinSepDeg: 30,
   moonOnlyAboveHorizon: true,
@@ -300,6 +308,7 @@ export function calFiles(night: NightNode, kind: CalKind): FileRef[] {
     case 'flat': return night.rawFlats
     case 'masterFlat': return night.masterFlat ? [night.masterFlat] : []
     case 'masterDark': return night.masterDark ? [night.masterDark] : []
+    case 'masterDarkFlat': return night.masterDarkFlat ? [night.masterDarkFlat] : []
     case 'masterBias': return night.masterBias ? [night.masterBias] : []
     case 'dark': return night.darks
     case 'bias': return night.biases
@@ -312,6 +321,8 @@ export function calEnabled(night: NightNode, kind: CalKind, settings: ExportSett
   if (!settings.include[kind]) return false
   // A stacked master flat replaces the raw flats unless asked otherwise.
   if (kind === 'flat' && night.masterFlat && settings.include.masterFlat) return false
+  // Darkflats calibrate raw flats; a stacked master flat already used them.
+  if (kind === 'masterDarkFlat') return calEnabled(night, 'flat', settings, selection) && night.rawFlats.length > 0
   return true
 }
 
@@ -332,13 +343,14 @@ function uniqueDst(dir: string, filename: string, used: Set<string>): string {
   return candidate
 }
 
-const CAL_ORDER: CalKind[] = ['masterFlat', 'flat', 'masterDark', 'masterBias', 'dark', 'bias']
+const CAL_ORDER: CalKind[] = ['masterFlat', 'flat', 'masterDark', 'masterDarkFlat', 'masterBias', 'dark', 'bias']
 
 function calDir(kind: CalKind, nightKw: string, filterKw: string): string {
   switch (kind) {
     case 'flat':
     case 'masterFlat': return `Flats/${nightKw}/${filterKw}`
-    case 'masterDark': return 'Darks'
+    case 'masterDark':
+    case 'masterDarkFlat': return 'Darks' // WBPP groups darks by exposure, so a darkflat pairs with the flats
     case 'masterBias': return 'Bias'
     case 'dark': return `Darks/${nightKw}`
     case 'bias': return `Bias/${nightKw}`
@@ -385,7 +397,7 @@ export function estimateSize(plan: PlanEntry[], placement: Placement | null): { 
 }
 
 export function countByKind(plan: PlanEntry[]): Record<ExportKind, number> {
-  const counts: Record<ExportKind, number> = { light: 0, flat: 0, masterFlat: 0, masterDark: 0, masterBias: 0, dark: 0, bias: 0 }
+  const counts: Record<ExportKind, number> = { light: 0, flat: 0, masterFlat: 0, masterDark: 0, masterDarkFlat: 0, masterBias: 0, dark: 0, bias: 0 }
   for (const e of plan) counts[e.kind]++
   return counts
 }
@@ -395,6 +407,7 @@ export function exportWarnings(
   settings: ExportSettings,
   selection: ExportSelection,
   moonReason: string | null,
+  opts: { warnMissingDarkFlat?: boolean } = {},
 ): string[] {
   const warnings: string[] = []
   if (settings.moonCutoffEnabled && moonReason) warnings.push(`Moon filter unavailable: ${moonReason}`)
@@ -414,6 +427,14 @@ export function exportWarnings(
             ? `${label}: no master dark matches ${night.exposure} s @ ${night.ccdTemp} °C`
             : `${label}: no master dark match (exposure or temperature unknown)`,
         )
+      }
+      const rawFlatsOut = calEnabled(night, 'flat', settings, selection) && night.rawFlats.length > 0
+      if ((opts.warnMissingDarkFlat ?? true) && rawFlatsOut && !night.masterDarkFlat && !night.isDslr) {
+        const what = [
+          night.flatExposure !== null ? `${night.flatExposure} s` : null,
+          night.ccdTemp !== null ? `${night.ccdTemp} °C` : null,
+        ].filter(Boolean).join(' @ ')
+        warnings.push(`${label}: raw flats but no master darkflat matches ${what || '(exposure and temperature unknown)'}`)
       }
       if (settings.moonCutoffEnabled && !moonReason) undated += lights.filter((f) => f.moonSepDeg === null).length
     }

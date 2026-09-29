@@ -129,6 +129,7 @@ pub struct OtherEntry {
 pub struct MastersLibrary {
     pub darks: Vec<MasterFileEntry>,
     pub biases: Vec<MasterFileEntry>,
+    pub dark_flats: Vec<MasterFileEntry>,
     pub other_files: Vec<OtherEntry>,
     pub root_path: String,
 }

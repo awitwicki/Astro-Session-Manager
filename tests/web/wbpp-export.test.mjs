@@ -94,7 +94,7 @@ test('buildExportTree builds rows, flats split, masters, Moon and FWHM', () => {
     project: p, headers,
     subAnalysis: { '/r/P/Ha/Night 1/lights/a.fits': { medianFwhm: 2.5, medianEccentricity: 0.4, starsDetected: 100 } },
     moon: { targetRa: 10.68, targetDec: 41.27, lat: 49.26, lon: 22.68 },
-    library: { darks: [master({ filename: 'md.xisf', path: '/m/md.xisf' })], biases: [master({ filename: 'mb.xisf', path: '/m/mb.xisf' })], otherFiles: [], rootPath: '/m' },
+    library: { darks: [master({ filename: 'md.xisf', path: '/m/md.xisf' })], biases: [master({ filename: 'mb.xisf', path: '/m/mb.xisf' })], darkFlats: [], otherFiles: [], rootPath: '/m' },
     tempTolerance: 2,
   })
   assert.equal(tree.length, 1)
@@ -123,7 +123,7 @@ test('buildExportTree skips sessions without lights and DSLR masters', () => {
   ])])
   const tree = buildExportTree({
     project: p, headers: {}, subAnalysis: {}, moon: null,
-    library: { darks: [master({})], biases: [], otherFiles: [], rootPath: '/m' }, tempTolerance: 2,
+    library: { darks: [master({})], biases: [], darkFlats: [], otherFiles: [], rootPath: '/m' }, tempTolerance: 2,
   })
   assert.deepEqual(tree[0].nights.map((n) => n.key), ['/s2'])
   assert.equal(tree[0].nights[0].isDslr, true)
@@ -155,7 +155,8 @@ const row = (path, o = {}) => ({
 const night = (o = {}) => ({
   key: '/s1', sessionName: 'Night 1', nightDate: '2026-09-01', exposure: 300, ccdTemp: -10, isDslr: false,
   frames: [row('/l/a.fits'), row('/l/b.fits')],
-  masterFlat: null, rawFlats: [], darks: [], biases: [], masterDark: null, masterBias: null, ...o,
+  masterFlat: null, rawFlats: [], darks: [], biases: [], masterDark: null, masterBias: null,
+  masterDarkFlat: null, flatExposure: null, ...o,
 })
 const tree1 = (n, name = 'Ha', keyword = 'Ha') => [{ name, keyword, nights: Array.isArray(n) ? n : [n], analyzed: true }]
 const S = (o = {}) => ({ ...DEFAULT_EXPORT_SETTINGS, ...o, include: { ...DEFAULT_EXPORT_SETTINGS.include, ...(o.include ?? {}) } })
@@ -259,4 +260,51 @@ test('exportWarnings', () => {
   const w2 = exportWarnings(tree1(n), S({ moonCutoffEnabled: true }), sel(), 'no target coordinates in FITS headers')
   assert.ok(w2.includes('Moon filter unavailable: no target coordinates in FITS headers'))
   assert.deepEqual(exportWarnings(tree1(n), S(), sel({ disabledNights: ['/s1'] }), null), [])
+})
+
+const df = { path: '/m/mdf.xisf', filename: 'mdf.xisf', sizeBytes: 900 }
+const raw = [{ path: '/f/1.fits', filename: '1.fits', sizeBytes: 1 }]
+const mf = { path: '/f/mf.xisf', filename: 'mf.xisf', sizeBytes: 1 }
+
+test('buildExportTree matches a darkflat against the raw flat header', () => {
+  const p = project([filterGroup('Ha', [session({
+    lights: [{ ...file('/l/a.fits'), header: hdr({ exptime: 300, ccdTemp: -19 }) }],
+    flats: [{ ...file('/f/F1.fits'), header: hdr({ exptime: 0.04, ccdTemp: -19 }) }],
+  })])])
+  const tree = buildExportTree({
+    project: p, headers: {}, subAnalysis: {}, moon: null, tempTolerance: 2,
+    library: { darks: [], biases: [], darkFlats: [master({ filename: 'mdf.xisf', path: '/m/mdf.xisf', exposureTime: 0.04, ccdTemp: -19 })], otherFiles: [], rootPath: '/m' },
+  })
+  assert.equal(tree[0].nights[0].masterDarkFlat.path, '/m/mdf.xisf')
+  assert.equal(tree[0].nights[0].flatExposure, 0.04)
+})
+
+test('calEnabled: darkflat follows raw flats; per-night override wins', () => {
+  assert.equal(calEnabled(night({ rawFlats: raw, masterDarkFlat: df }), 'masterDarkFlat', S(), sel()), true)
+  assert.equal(calEnabled(night({ masterFlat: mf, rawFlats: raw, masterDarkFlat: df }), 'masterDarkFlat', S(), sel()), false)
+  assert.equal(calEnabled(night({ masterFlat: mf, masterDarkFlat: df }), 'masterDarkFlat', S(), sel({ nightCal: { '/s1': { masterDarkFlat: true } } })), true)
+  assert.equal(calEnabled(night({ rawFlats: raw, masterDarkFlat: df }), 'masterDarkFlat', S({ include: { masterDarkFlat: false } }), sel()), false)
+})
+
+test('buildPlan puts one shared darkflat in Darks/', () => {
+  const n1 = night({ key: '/s1', rawFlats: raw, masterDarkFlat: df })
+  const n2 = night({ key: '/s2', nightDate: '2026-09-03', frames: [row('/l2/c.fits')], rawFlats: [{ path: '/f/2.fits', filename: '2.fits', sizeBytes: 1 }], masterDarkFlat: df })
+  const plan = buildPlan(tree1([n1, n2]), S(), sel())
+  assert.deepEqual(plan.filter((e) => e.kind === 'masterDarkFlat').map((e) => e.relDst), ['Darks/mdf.xisf'])
+})
+
+test('master bias is off by default, master darkflat on', () => {
+  assert.equal(DEFAULT_EXPORT_SETTINGS.include.masterBias, false)
+  assert.equal(DEFAULT_EXPORT_SETTINGS.include.masterDarkFlat, true)
+})
+
+test('exportWarnings: missing darkflat only with raw flats, and can be switched off', () => {
+  const n = night({ rawFlats: raw, flatExposure: 0.04, ccdTemp: -19 })
+  const msg = 'Night 1 / Ha: raw flats but no master darkflat matches 0.04 s @ -19 °C'
+  assert.ok(exportWarnings(tree1(n), S(), sel(), null).includes(msg))
+  assert.ok(!exportWarnings(tree1(n), S(), sel(), null, { warnMissingDarkFlat: false }).includes(msg))
+  assert.ok(!exportWarnings(tree1(night({ masterFlat: mf, rawFlats: raw })), S(), sel(), null).some((w) => w.includes('darkflat')))
+  assert.ok(!exportWarnings(tree1(night({ rawFlats: raw, masterDarkFlat: df })), S(), sel(), null).some((w) => w.includes('darkflat')))
+  const unknown = exportWarnings(tree1(night({ rawFlats: raw })), S(), sel(), null)
+  assert.ok(unknown.includes('Night 1 / Ha: raw flats but no master darkflat matches -10 °C'))
 })

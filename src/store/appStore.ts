@@ -1,10 +1,10 @@
 import { create } from 'zustand'
-import type { Project, MastersLibrary, SubAnalysisResult } from '../types'
+import type { FitsHeader, Project, MastersLibrary, SubAnalysisResult } from '../types'
 import type { PlannerTarget } from '../types/planner'
 import type { HorizonProfile } from '../lib/horizon'
 import { isDslrFile } from '../lib/dslrUtils'
 import { DEFAULT_DASHBOARD_SORT, type DashboardSort, type ProjectOpenedMap } from '../lib/dashboardSort'
-import { matchMasters } from '../lib/calibration'
+import { isMasterFlat, matchDarkFlats, matchMasters } from '../lib/calibration'
 
 interface ScanResultRaw {
   rootPath: string
@@ -107,6 +107,9 @@ function applyCalibration(projects: Project[], mastersLibrary: MastersLibrary | 
         const match = matchMasters(s.lights[0].header, mastersLibrary, tempTolerance)
         if (!match) return s
 
+        const rawFlats = s.flats.filter((f) => !isMasterFlat(f.filename))
+        const darkFlats = matchDarkFlats(rawFlats[0]?.header, s.lights[0].header, mastersLibrary, tempTolerance)
+
         return {
           ...s,
           calibration: {
@@ -114,6 +117,9 @@ function applyCalibration(projects: Project[], mastersLibrary: MastersLibrary | 
             darkGroupName: match.darks[0]?.filename,
             darkCount: match.darks.length,
             biasCount: match.biases.length,
+            darkFlatMatched: (darkFlats?.length ?? 0) > 0,
+            darkFlatName: darkFlats?.[0]?.filename,
+            rawFlatCount: rawFlats.length,
             flatsAvailable: s.flats.length > 0,
             flatCount: s.flats.length
           }
@@ -182,7 +188,8 @@ function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | nul
           flats: s.flats.map((fl) => ({
             filename: fl.filename,
             path: fl.path,
-            sizeBytes: fl.sizeBytes
+            sizeBytes: fl.sizeBytes,
+            header: scan.projectHeaders[fl.path] as unknown as FitsHeader | undefined
           })),
           darks: s.darks.map((d) => ({
             filename: d.filename,

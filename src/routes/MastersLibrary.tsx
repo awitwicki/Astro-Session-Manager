@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Database, Plus, FolderOpen, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, File, Folder, Info, Star, Undo2, RefreshCw } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -6,8 +6,16 @@ import { useAppStore } from '../store/appStore'
 import { formatFileSize, formatTemperature, formatExposure } from '../lib/formatters'
 import type { MastersLibrary as MastersLibraryType, MasterFileEntry } from '../types'
 
+type MasterType = 'darks' | 'biases' | 'darkFlats'
+
+const MASTER_TYPES: Record<MasterType, { prefix: string; title: string; singular: string; hasExposure: boolean }> = {
+  darks: { prefix: 'masterDark', title: 'Darks', singular: 'Dark', hasExposure: true },
+  darkFlats: { prefix: 'masterDarkFlat', title: 'Dark flats', singular: 'Dark Flat', hasExposure: true },
+  biases: { prefix: 'masterBias', title: 'Biases', singular: 'Bias', hasExposure: false },
+}
+
 function generateFilename(
-  type: 'darks' | 'biases',
+  type: MasterType,
   temperature: string,
   binning: string,
   width: string,
@@ -15,7 +23,7 @@ function generateFilename(
   exposure: string,
   ext: string,
 ): string {
-  const prefix = type === 'darks' ? 'masterDark' : 'masterBias'
+  const prefix = MASTER_TYPES[type].prefix
   const temp = Number.parseInt(temperature)
   const tempStr = Number.isNaN(temp) ? 'undefinedC' : `${temp >= 0 ? '+' : ''}${temp}C`
   const bin = Number.parseInt(binning)
@@ -26,7 +34,7 @@ function generateFilename(
 
   let name = `${prefix}_${tempStr}_${binStr}_${resStr}`
   const exp = Number.parseFloat(exposure)
-  if (type === 'darks' && !Number.isNaN(exp) && exp > 0) {
+  if (MASTER_TYPES[type].hasExposure && !Number.isNaN(exp) && exp > 0) {
     name += `_EXPOSURE-${exp.toFixed(2)}s`
   }
   return `${name}.${ext}`
@@ -42,7 +50,7 @@ interface HeaderValues {
 
 interface FormModal {
   mode: 'import' | 'edit'
-  type: 'darks' | 'biases'
+  type: MasterType
   files: string[]
   entry: MasterFileEntry | null
   temperature: string
@@ -143,6 +151,83 @@ function HeaderInput({
   )
 }
 
+function MasterSection({ type, entries, importing, onImport, onEdit, renderTempCell }: {
+  type: MasterType
+  entries: MasterFileEntry[]
+  importing: boolean
+  onImport: (type: MasterType) => void
+  onEdit: (entry: MasterFileEntry, type: MasterType) => void
+  renderTempCell: (entry: MasterFileEntry) => ReactNode
+}) {
+  const { title, hasExposure } = MASTER_TYPES[type]
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600 }}>{title}</h2>
+        <button className="btn btn-sm" onClick={() => onImport(type)} disabled={importing}>
+          <Plus size={14} />
+          Import {title}
+        </button>
+      </div>
+
+      {entries.length === 0 ? (
+        <p style={{ color: 'var(--color-text-muted)', marginBottom: 24 }}>No {title.toLowerCase()} found.</p>
+      ) : (
+        <table className="table" style={{ marginBottom: 24 }}>
+          <thead>
+            <tr>
+              <th>Filename</th>
+              {hasExposure && <th>Exposure</th>}
+              <th>Temperature</th>
+              <th>Binning</th>
+              <th>Resolution</th>
+              <th>Size</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((f, i) => (
+              <tr key={i}>
+                <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.filename}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <Star size={12} fill="var(--color-accent)" color="var(--color-accent)" />
+                    {f.filename}
+                  </span>
+                </td>
+                {hasExposure && <td>{formatExposure(f.exposureTime)}</td>}
+                <td>{renderTempCell(f)}</td>
+                <td>{f.binning !== null ? `${f.binning}x${f.binning}` : '-'}</td>
+                <td>{f.resolution ?? '-'}</td>
+                <td>{formatFileSize(f.sizeBytes)}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      className="btn btn-sm"
+                      style={{ padding: '2px 6px' }}
+                      onClick={() => invoke('show_in_folder', { path: f.path })}
+                      title="Show in Finder"
+                    >
+                      <FolderOpen size={13} />
+                    </button>
+                    <button
+                      className="btn btn-sm"
+                      style={{ padding: '2px 6px' }}
+                      onClick={() => onEdit(f, type)}
+                      title="Edit metadata & rename"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
+}
+
 export function MastersLibrary() {
   const mastersLibrary = useAppStore((s) => s.mastersLibrary)
   const setMastersLibrary = useAppStore((s) => s.setMastersLibrary)
@@ -202,11 +287,11 @@ export function MastersLibrary() {
     return null
   }
 
-  const openImportDialog = async (type: 'darks' | 'biases'): Promise<void> => {
+  const openImportDialog = async (type: MasterType): Promise<void> => {
     if (!rootFolder) return
     const files = await open({
       multiple: true,
-      title: type === 'darks' ? 'Import Dark Frames' : 'Import Bias Frames',
+      title: `Import ${MASTER_TYPES[type].singular} Frames`,
       filters: [
         { name: 'FITS/XISF files', extensions: ['fits', 'fit', 'fts', 'xisf'] },
         { name: 'All files', extensions: ['*'] }
@@ -231,7 +316,7 @@ export function MastersLibrary() {
     })
   }
 
-  const openEditModal = async (entry: MasterFileEntry, type: 'darks' | 'biases'): Promise<void> => {
+  const openEditModal = async (entry: MasterFileEntry, type: MasterType): Promise<void> => {
     const [w, h] = entry.resolution?.split('x') ?? ['', '']
 
     // Pre-fill from filename-parsed values
@@ -437,6 +522,21 @@ export function MastersLibrary() {
             >
               masterDark_&#123;temperature&#125;C_BIN-&#123;binning&#125;_&#123;width&#125;x&#123;height&#125;_EXPOSURE-&#123;xx.xx&#125;s.fits
             </code>
+            <p style={{ marginBottom: 4, color: 'var(--color-text-muted)', fontSize: 12, fontWeight: 500 }}>Dark flats (flat exposure):</p>
+            <code
+              style={{
+                display: 'block',
+                padding: '8px 12px',
+                background: 'var(--color-bg)',
+                borderRadius: 6,
+                fontFamily: 'monospace',
+                fontSize: 12,
+                wordBreak: 'break-all',
+                marginBottom: 10,
+              }}
+            >
+              masterDarkFlat_&#123;temperature&#125;C_BIN-&#123;binning&#125;_&#123;width&#125;x&#123;height&#125;_EXPOSURE-&#123;xx.xx&#125;s.xisf
+            </code>
             <p style={{ marginBottom: 4, color: 'var(--color-text-muted)', fontSize: 12, fontWeight: 500 }}>Biases (no exposure):</p>
             <code
               style={{
@@ -481,143 +581,35 @@ export function MastersLibrary() {
             >
               masterBias_-20C_BIN-1_6248x4176.xisf
             </code>
+            <code
+              style={{
+                display: 'block',
+                paddingLeft: '12px',
+                background: 'var(--color-bg)',
+                borderRadius: 6,
+                fontFamily: 'monospace',
+                fontSize: 12,
+                wordBreak: 'break-all',
+                marginBottom: 4,
+              }}
+            >
+              masterDarkFlat_-19C_BIN-1_6248x4176_EXPOSURE-0.04s.xisf
+            </code>
           </div>
         )}
       </div>
 
-      {/* Darks */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Darks</h2>
-        <button
-          className="btn btn-sm"
-          onClick={() => openImportDialog('darks')}
-          disabled={importing}
-        >
-          <Plus size={14} />
-          Import Darks
-        </button>
-      </div>
-
-      {mastersLibrary.darks.length === 0 ? (
-        <p style={{ color: 'var(--color-text-muted)', marginBottom: 24 }}>No dark frames found.</p>
-      ) : (
-        <table className="table" style={{ marginBottom: 24 }}>
-          <thead>
-            <tr>
-              <th>Filename</th>
-              <th>Exposure</th>
-              <th>Temperature</th>
-              <th>Binning</th>
-              <th>Resolution</th>
-              <th>Size</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {mastersLibrary.darks.map((f, i) => (
-              <tr key={i}>
-                <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.filename}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <Star size={12} fill="var(--color-accent)" color="var(--color-accent)" />
-                    {f.filename}
-                  </span>
-                </td>
-                <td>{formatExposure(f.exposureTime)}</td>
-                <td>{renderTempCell(f)}</td>
-                <td>{f.binning !== null ? `${f.binning}x${f.binning}` : '-'}</td>
-                <td>{f.resolution ?? '-'}</td>
-                <td>{formatFileSize(f.sizeBytes)}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button
-                      className="btn btn-sm"
-                      style={{ padding: '2px 6px' }}
-                      onClick={() => invoke('show_in_folder', { path: f.path })}
-                      title="Show in Finder"
-                    >
-                      <FolderOpen size={13} />
-                    </button>
-                    <button
-                      className="btn btn-sm"
-                      style={{ padding: '2px 6px' }}
-                      onClick={() => openEditModal(f, 'darks')}
-                      title="Edit metadata & rename"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {/* Biases */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Biases</h2>
-        <button
-          className="btn btn-sm"
-          onClick={() => openImportDialog('biases')}
-          disabled={importing}
-        >
-          <Plus size={14} />
-          Import Biases
-        </button>
-      </div>
-
-      {mastersLibrary.biases.length === 0 ? (
-        <p style={{ color: 'var(--color-text-muted)' }}>No bias frames found.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Filename</th>
-              <th>Temperature</th>
-              <th>Binning</th>
-              <th>Resolution</th>
-              <th>Size</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {mastersLibrary.biases.map((f, i) => (
-              <tr key={i}>
-                <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.filename}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <Star size={12} fill="var(--color-accent)" color="var(--color-accent)" />
-                    {f.filename}
-                  </span>
-                </td>
-                <td>{renderTempCell(f)}</td>
-                <td>{f.binning !== null ? `${f.binning}x${f.binning}` : '-'}</td>
-                <td>{f.resolution ?? '-'}</td>
-                <td>{formatFileSize(f.sizeBytes)}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button
-                      className="btn btn-sm"
-                      style={{ padding: '2px 6px' }}
-                      onClick={() => invoke('show_in_folder', { path: f.path })}
-                      title="Show in Finder"
-                    >
-                      <FolderOpen size={13} />
-                    </button>
-                    <button
-                      className="btn btn-sm"
-                      style={{ padding: '2px 6px' }}
-                      onClick={() => openEditModal(f, 'biases')}
-                      title="Edit metadata & rename"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {(['darks', 'darkFlats', 'biases'] as const).map((type) => (
+        <MasterSection
+          key={type}
+          type={type}
+          entries={mastersLibrary[type]}
+          importing={importing}
+          onImport={openImportDialog}
+          onEdit={openEditModal}
+          renderTempCell={renderTempCell}
+        />
+      ))}
 
       {/* Other Files */}
       {(mastersLibrary.otherFiles?.length ?? 0) > 0 && (
@@ -695,8 +687,8 @@ export function MastersLibrary() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px 0' }}>
                 <h3 style={{ fontSize: 16, fontWeight: 600 }}>
                   {isImport
-                    ? `Import ${formModal.type === 'darks' ? 'Dark' : 'Bias'} Frames`
-                    : `Edit ${formModal.type === 'darks' ? 'Dark' : 'Bias'} Frame`
+                    ? `Import ${MASTER_TYPES[formModal.type].singular} Frames`
+                    : `Edit ${MASTER_TYPES[formModal.type].singular} Frame`
                   }
                 </h3>
                 <button className="btn btn-sm" onClick={() => setFormModal(null)}>
@@ -751,7 +743,7 @@ export function MastersLibrary() {
                     onChange={(v) => updateField('height', v)}
                     onRevert={() => formModal.header && updateField('height', formModal.header.height)}
                   />
-                  {formModal.type === 'darks' && (
+                  {MASTER_TYPES[formModal.type].hasExposure && (
                     <HeaderInput
                       label="Exposure (s)"
                       value={formModal.exposure}

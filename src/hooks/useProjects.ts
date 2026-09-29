@@ -205,8 +205,15 @@ export function useProjects() {
               invoke('seed_header_cache', { headers: scanResult.projectHeaders }).catch(() => {})
             }
           }
-          if (cached.mastersLibrary) {
+          if (cached.mastersLibrary && Array.isArray((cached.mastersLibrary as { darkFlats?: unknown }).darkFlats)) {
             setMastersLibrary(cached.mastersLibrary as Parameters<typeof setMastersLibrary>[0])
+          } else if (cached.mastersLibrary) {
+            // Cached before darkflats existed (no `darkFlats`): rescan the masters now and refresh the cache.
+            try {
+              const masters = await invoke('scan_masters', { rootFolder: saved })
+              setMastersLibrary(masters as Parameters<typeof setMastersLibrary>[0])
+              await invoke('save_cache', { rootFolder: saved, data: { ...cached, mastersLibrary: masters } })
+            } catch { /* best-effort */ }
           }
           if (cached.subAnalysis && typeof cached.subAnalysis === 'object') {
             useAppStore.getState().setSubAnalysis(cached.subAnalysis as Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>)

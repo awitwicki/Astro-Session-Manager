@@ -9,7 +9,7 @@ import {
 type SortKey = 'filename' | 'dateObs' | 'moonSepDeg' | 'moonIllum' | 'fwhm' | 'ecc'
 
 const CAL_LABELS: Record<CalKind, string> = {
-  masterFlat: 'Master flat', flat: 'Flats', masterDark: 'Master dark', masterBias: 'Master bias', dark: 'Darks', bias: 'Biases',
+  masterFlat: 'Master flat', flat: 'Flats', masterDark: 'Master dark', masterDarkFlat: 'Master darkflat', masterBias: 'Master bias', dark: 'Darks', bias: 'Biases',
 }
 
 function TriCheckbox({ checked, indeterminate, onChange }: { checked: boolean; indeterminate: boolean; onChange: () => void }) {

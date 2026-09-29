@@ -127,10 +127,10 @@ fn generate_filename(
     exposure_time: f64,
     ext: &str,
 ) -> String {
-    let prefix = if master_type == "darks" {
-        "masterDark"
-    } else {
-        "masterBias"
+    let prefix = match master_type {
+        "darks" => "masterDark",
+        "darkFlats" => "masterDarkFlat",
+        _ => "masterBias",
     };
 
     let temp_str = if ccd_temp >= 0 {
@@ -144,7 +144,7 @@ fn generate_filename(
 
     let mut name = format!("{}_{}_{}_{}", prefix, temp_str, bin_str, res_str);
 
-    if master_type == "darks" && exposure_time > 0.0 {
+    if master_type != "biases" && exposure_time > 0.0 {
         name = format!("{}_EXPOSURE-{:.2}s", name, exposure_time);
     }
 
@@ -167,7 +167,7 @@ fn collect_other_entries(dir_path: &Path) -> Vec<OtherEntry> {
         let name = entry.file_name().to_string_lossy().to_string();
         let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
 
-        // Skip proper master files (they are in the darks/biases lists)
+        // Skip proper master files (they are in the darks/darkflats/biases lists)
         if !is_dir && (name.starts_with("masterDark") || name.starts_with("masterBias")) && is_supported_file(&name) {
             continue;
         }
@@ -198,57 +198,57 @@ fn collect_other_entries(dir_path: &Path) -> Vec<OtherEntry> {
     others
 }
 
-/// Scan the masters library (darks and biases) from root_folder/masters/
+/// Build a library entry from a scanned file, reading metadata from its name
+fn master_entry(file: &ScannedFile) -> MasterFileEntry {
+    let meta = parse_filename_metadata(&file.filename);
+    MasterFileEntry {
+        filename: file.filename.clone(),
+        path: file.path.clone(),
+        size_bytes: file.size_bytes,
+        format: file.format.clone(),
+        exposure_time: meta.exposure_time.unwrap_or(0.0),
+        ccd_temp: meta.ccd_temp,
+        binning: meta.binning,
+        resolution: meta.resolution,
+        camera: "Unknown".to_string(),
+        temp_source: if meta.ccd_temp.is_some() { "filename".to_string() } else { "unknown".to_string() },
+    }
+}
+
+fn by_exposure_then_temp(a: &MasterFileEntry, b: &MasterFileEntry) -> std::cmp::Ordering {
+    a.exposure_time
+        .partial_cmp(&b.exposure_time)
+        .unwrap_or(std::cmp::Ordering::Equal)
+        .then(
+            a.ccd_temp
+                .unwrap_or(0.0)
+                .partial_cmp(&b.ccd_temp.unwrap_or(0.0))
+                .unwrap_or(std::cmp::Ordering::Equal),
+        )
+}
+
+/// Scan the masters library (darks, darkflats and biases) from root_folder/masters/
 pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
     let masters_path = PathBuf::from(root_folder).join("masters");
     let all_files = scan_files(&masters_path);
 
     let mut darks: Vec<MasterFileEntry> = Vec::new();
+    let mut dark_flats: Vec<MasterFileEntry> = Vec::new();
     let mut biases: Vec<MasterFileEntry> = Vec::new();
 
     for file in &all_files {
-        if file.filename.starts_with("masterDark") {
-            let meta = parse_filename_metadata(&file.filename);
-            darks.push(MasterFileEntry {
-                filename: file.filename.clone(),
-                path: file.path.clone(),
-                size_bytes: file.size_bytes,
-                format: file.format.clone(),
-                exposure_time: meta.exposure_time.unwrap_or(0.0),
-                ccd_temp: meta.ccd_temp,
-                binning: meta.binning,
-                resolution: meta.resolution,
-                camera: "Unknown".to_string(),
-                temp_source: if meta.ccd_temp.is_some() { "filename".to_string() } else { "unknown".to_string() },
-            });
+        // masterDarkFlat must be tested before its prefix masterDark
+        if file.filename.starts_with("masterDarkFlat") {
+            dark_flats.push(master_entry(file));
+        } else if file.filename.starts_with("masterDark") {
+            darks.push(master_entry(file));
         } else if file.filename.starts_with("masterBias") {
-            let meta = parse_filename_metadata(&file.filename);
-            biases.push(MasterFileEntry {
-                filename: file.filename.clone(),
-                path: file.path.clone(),
-                size_bytes: file.size_bytes,
-                format: file.format.clone(),
-                exposure_time: meta.exposure_time.unwrap_or(0.0),
-                ccd_temp: meta.ccd_temp,
-                binning: meta.binning,
-                resolution: meta.resolution,
-                camera: "Unknown".to_string(),
-                temp_source: if meta.ccd_temp.is_some() { "filename".to_string() } else { "unknown".to_string() },
-            });
+            biases.push(master_entry(file));
         }
     }
 
-    darks.sort_by(|a, b| {
-        a.exposure_time
-            .partial_cmp(&b.exposure_time)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(
-                a.ccd_temp
-                    .unwrap_or(0.0)
-                    .partial_cmp(&b.ccd_temp.unwrap_or(0.0))
-                    .unwrap_or(std::cmp::Ordering::Equal),
-            )
-    });
+    darks.sort_by(by_exposure_then_temp);
+    dark_flats.sort_by(by_exposure_then_temp);
 
     biases.sort_by(|a, b| {
         a.ccd_temp
@@ -262,6 +262,7 @@ pub fn scan_masters(root_folder: &str) -> Result<MastersLibrary, String> {
     Ok(MastersLibrary {
         darks,
         biases,
+        dark_flats,
         other_files,
         root_path: masters_path.to_string_lossy().to_string(),
     })
@@ -363,4 +364,41 @@ pub fn import_masters(
         imported: imported.len(),
         files: imported,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn touch(dir: &Path, name: &str) {
+        fs::write(dir.join(name), b"x").unwrap();
+    }
+
+    #[test]
+    fn darkflats_are_not_darks() {
+        let root = std::env::temp_dir().join(format!("asm-masters-{}", std::process::id()));
+        let masters = root.join("masters");
+        fs::create_dir_all(&masters).unwrap();
+        touch(&masters, "masterDarkFlat_-19C_BIN-1_6248x4176_EXPOSURE-0.04s.xisf");
+        touch(&masters, "masterDark_-20C_BIN-1_6248x4176_EXPOSURE-300.00s.xisf");
+        touch(&masters, "masterBias_-20C_BIN-1_6248x4176.xisf");
+        let lib = scan_masters(root.to_str().unwrap()).unwrap();
+        fs::remove_dir_all(&root).ok();
+
+        assert_eq!(lib.darks.len(), 1);
+        assert_eq!(lib.darks[0].exposure_time, 300.0);
+        assert_eq!(lib.biases.len(), 1);
+        assert_eq!(lib.dark_flats.len(), 1);
+        let df = &lib.dark_flats[0];
+        assert_eq!(df.exposure_time, 0.04);
+        assert_eq!(df.ccd_temp, Some(-19.0));
+        assert_eq!(df.resolution.as_deref(), Some("6248x4176"));
+        assert!(lib.other_files.is_empty());
+    }
+
+    #[test]
+    fn darkflat_filename_has_exposure() {
+        let name = generate_filename("darkFlats", -19, Some(1), &Some("6248x4176".into()), 0.04, "xisf");
+        assert_eq!(name, "masterDarkFlat_-19C_BIN-1_6248x4176_EXPOSURE-0.04s.xisf");
+    }
 }

@@ -6,12 +6,12 @@ import type { Placement, PreflightResult } from '../../types/wbppExport'
 // Laid out column-first in two columns: raw frames on the left, masters on the right.
 const INCLUDE_LABELS: [ExportKind, string][] = [
   ['light', 'Lights'], ['flat', 'Flats'], ['dark', 'Session darks'], ['bias', 'Session biases'],
-  ['masterFlat', 'Master flats'], ['masterDark', 'Master dark'], ['masterBias', 'Master bias'],
+  ['masterFlat', 'Master flats'], ['masterDark', 'Master dark'], ['masterDarkFlat', 'Master darkflat'], ['masterBias', 'Master bias'],
 ]
 
 const KIND_SHORT: Record<ExportKind, string> = {
   light: 'lights', flat: 'flats', masterFlat: 'master flats', masterDark: 'master darks',
-  masterBias: 'master biases', dark: 'darks', bias: 'biases',
+  masterDarkFlat: 'master darkflats', masterBias: 'master biases', dark: 'darks', bias: 'biases',
 }
 
 interface Props {

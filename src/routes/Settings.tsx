@@ -11,6 +11,7 @@ export function Settings() {
   const { selectFolder } = useProjects()
 
   const [darkTempTolerance, setDarkTempTolerance] = useState(2)
+  const [warnMissingDarkFlat, setWarnMissingDarkFlat] = useState(true)
   const [autoScan, setAutoScan] = useState(true)
   const [previewCacheLimitMb, setPreviewCacheLimitMb] = useState(500)
   const [previewConcurrency, setPreviewConcurrency] = useState(4)
@@ -19,6 +20,9 @@ export function Settings() {
     invoke<Record<string, unknown>>('get_all_settings').then((settings) => {
       if (typeof settings.darkTempTolerance === 'number') {
         setDarkTempTolerance(settings.darkTempTolerance)
+      }
+      if (typeof settings.warnMissingDarkFlat === 'boolean') {
+        setWarnMissingDarkFlat(settings.warnMissingDarkFlat)
       }
       if (typeof settings.autoScanOnStartup === 'boolean') {
         setAutoScan(settings.autoScanOnStartup)
@@ -103,6 +107,30 @@ export function Settings() {
           />
           <span style={{ fontSize: 13, fontWeight: 600, minWidth: 40 }}>
             +/-{darkTempTolerance}C
+          </span>
+        </div>
+      </div>
+
+      {/* Missing darkflat warning */}
+      <div className="settings-group">
+        <label className="settings-label">Missing Darkflat Warning</label>
+        <p className="settings-description">
+          Warn in the WBPP export when exported raw flats have no matching master darkflat.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={warnMissingDarkFlat}
+              onChange={(e) => {
+                setWarnMissingDarkFlat(e.target.checked)
+                saveSetting('warnMissingDarkFlat', e.target.checked)
+              }}
+            />
+            <span className="toggle-slider" />
+          </label>
+          <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            {warnMissingDarkFlat ? 'Enabled' : 'Disabled'}
           </span>
         </div>
       </div>

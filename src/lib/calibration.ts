@@ -23,7 +23,7 @@ export function matchMasters(
   const exptime = header.exptime ?? 0
   const ccdTemp = header.ccdTemp ?? null
   if (exptime === 0 || ccdTemp === null) return null
-  const resolution = header.naxis1 && header.naxis2 ? `${header.naxis1}x${header.naxis2}` : null
+  const resolution = resolutionOf(header)
 
   const tempOk = (m: MasterFileEntry) => m.ccdTemp !== null && Math.abs(m.ccdTemp - ccdTemp) <= tempTolerance
   const byTemp = (a: MasterFileEntry, b: MasterFileEntry) =>
@@ -39,4 +39,34 @@ export function matchMasters(
     .sort(byTemp)
   const biases = library.biases.filter(tempOk).sort(byTemp)
   return { darks, biases }
+}
+
+const resolutionOf = (h: FitsHeader | null | undefined): string | null =>
+  h?.naxis1 && h?.naxis2 ? `${h.naxis1}x${h.naxis2}` : null
+
+/** Master darkflats for a session's flats: exposure ±0.5 s when the flat's
+ *  exposure is known, temperature (the flat's, else the lights') and
+ *  resolution. Closest exposure first, then closest temperature. Null when
+ *  the flat's header is unknown — a darkflat can't be vouched for then. */
+export function matchDarkFlats(
+  flatHeader: FitsHeader | null | undefined,
+  lightHeader: FitsHeader | null | undefined,
+  library: MastersLibrary | null,
+  tempTolerance: number,
+): MasterFileEntry[] | null {
+  if (!library || !flatHeader) return null
+  const ccdTemp = flatHeader.ccdTemp ?? lightHeader?.ccdTemp ?? null
+  if (ccdTemp === null) return null
+  const exptime = flatHeader.exptime ?? null
+  const resolution = resolutionOf(flatHeader) ?? resolutionOf(lightHeader)
+  const expDiff = (d: MasterFileEntry) => (exptime === null ? 0 : Math.abs(d.exposureTime - exptime))
+  return library.darkFlats
+    .filter(
+      (d) =>
+        expDiff(d) < 0.5 &&
+        d.ccdTemp !== null &&
+        Math.abs(d.ccdTemp - ccdTemp) <= tempTolerance &&
+        (resolution === null || d.resolution === null || d.resolution === resolution),
+    )
+    .sort((a, b) => expDiff(a) - expDiff(b) || Math.abs(a.ccdTemp! - ccdTemp) - Math.abs(b.ccdTemp! - ccdTemp))
 }
