@@ -5,7 +5,8 @@ export interface TargetCoordinates {
   dec: number      // Declination in degrees (-90 to +90)
   fovWidth: number   // Field of view width in degrees
   fovHeight: number  // Field of view height in degrees
-  rotation: number   // Rotation angle in degrees
+  rotation: number   // Position angle of the frame's vertical (NAXIS2) axis,
+                     // degrees from north through east, folded to [0, 180)
 }
 
 export interface SkyMapTarget {
@@ -60,6 +61,32 @@ function getRawStr(raw: Record<string, string | number | boolean>, ...keys: stri
 const DEG_PER_RAD = 180 / Math.PI
 const DEFAULT_FOV = 1.5 // degrees, fallback when we can't compute FOV
 
+/** Fold an angle to [0, 180): a rectangle's axis has no direction, so angles
+ *  180° apart (and mirror images) describe the same tile on the sky. */
+function foldAxis(deg: number): number {
+  return ((deg % 180) + 180) % 180
+}
+
+/** The linear part of a FITS WCS as a CD matrix [cd11, cd12, cd21, cd22] in
+ *  degrees per pixel: CDi_j as written, else CDELTi·PCi_j, else the legacy
+ *  CDELT + CROTA2 form — all per Calabretta & Greisen 2002, §6.1. Absent
+ *  CD elements default to 0 and absent PC elements to the identity. */
+function readCdMatrix(raw: Record<string, string | number | boolean>): [number, number, number, number] | null {
+  const cd = ['CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'].map((k) => getRawNum(raw, k))
+  if (cd.some((v) => v !== null)) {
+    return [cd[0] ?? 0, cd[1] ?? 0, cd[2] ?? 0, cd[3] ?? 0]
+  }
+  const cdelt1 = getRawNum(raw, 'CDELT1')
+  const cdelt2 = getRawNum(raw, 'CDELT2')
+  if (cdelt1 === null || cdelt2 === null) return null
+  const pc = ['PC1_1', 'PC1_2', 'PC2_1', 'PC2_2'].map((k) => getRawNum(raw, k))
+  if (pc.some((v) => v !== null)) {
+    return [cdelt1 * (pc[0] ?? 1), cdelt1 * (pc[1] ?? 0), cdelt2 * (pc[2] ?? 0), cdelt2 * (pc[3] ?? 1)]
+  }
+  const rho = (getRawNum(raw, 'CROTA2', 'CROTA1') ?? 0) / DEG_PER_RAD
+  return [cdelt1 * Math.cos(rho), -cdelt2 * Math.sin(rho), cdelt1 * Math.sin(rho), cdelt2 * Math.cos(rho)]
+}
+
 export function extractCoordinates(
   raw: Record<string, string | number | boolean>,
   naxis1: number,
@@ -71,20 +98,32 @@ export function extractCoordinates(
   let fovHeight = DEFAULT_FOV
   let rotation = 0
 
-  // Strategy 1: WCS keywords (most accurate)
+  // Strategy 1: a plate solve. CRVAL is the sky position of the reference
+  // pixel CRPIX, which solvers (the ASIAIR's included) rarely put at the
+  // middle of the frame — walk from it to the centre pixel through the CD
+  // matrix, which also carries the true scale and orientation.
   const crval1 = getRawNum(raw, 'CRVAL1')
   const crval2 = getRawNum(raw, 'CRVAL2')
-  const cdelt1 = getRawNum(raw, 'CDELT1')
-  const cdelt2 = getRawNum(raw, 'CDELT2')
+  const cd = crval1 !== null && crval2 !== null ? readCdMatrix(raw) : null
 
-  if (crval1 !== null && crval2 !== null) {
+  if (crval1 !== null && crval2 !== null && cd) {
+    const [cd11, cd12, cd21, cd22] = cd
+    // FITS pixels are 1-based, so the centre of an N-pixel axis is (N + 1) / 2.
+    const cx = (naxis1 + 1) / 2
+    const cy = (naxis2 + 1) / 2
+    const di = cx - (getRawNum(raw, 'CRPIX1') ?? cx)
+    const dj = cy - (getRawNum(raw, 'CRPIX2') ?? cy)
+    const xi = cd11 * di + cd12 * dj
+    const eta = cd21 * di + cd22 * dj
+    const centre = inverseGnomonic(xi / DEG_PER_RAD, eta / DEG_PER_RAD, crval1, crval2)
+    ra = centre[0]
+    dec = centre[1]
+    fovWidth = naxis1 * Math.hypot(cd11, cd21)
+    fovHeight = naxis2 * Math.hypot(cd12, cd22)
+    rotation = foldAxis(Math.atan2(cd12, cd22) * DEG_PER_RAD)
+  } else if (crval1 !== null && crval2 !== null) {
     ra = crval1
     dec = crval2
-    if (cdelt1 !== null && cdelt2 !== null) {
-      fovWidth = Math.abs(cdelt1) * naxis1
-      fovHeight = Math.abs(cdelt2) * naxis2
-    }
-    rotation = getRawNum(raw, 'CROTA2', 'CROTA1') ?? 0
   }
 
   // Strategy 2: OBJCTRA/OBJCTDEC (sexagesimal strings from capture software)
@@ -108,8 +147,8 @@ export function extractCoordinates(
   // Normalize RA to 0-360
   ra = ((ra % 360) + 360) % 360
 
-  // Compute FOV from focal length + pixel size if we don't have CDELT
-  if (fovWidth === DEFAULT_FOV) {
+  // Compute FOV from focal length + pixel size if we don't have a WCS
+  if (!cd) {
     const focalLen = getRawNum(raw, 'FOCALLEN', 'FOCAL', 'FOCALLENGTH')
     const pixSizeX = getRawNum(raw, 'XPIXSZ', 'PIXSIZE1', 'PIXSCALE')
     const pixSizeY = getRawNum(raw, 'YPIXSZ', 'PIXSIZE2')
@@ -119,6 +158,15 @@ export function extractCoordinates(
       fovWidth = (naxis1 * pixSizeX) / (focalLen * 1000) * DEG_PER_RAD
       fovHeight = (naxis2 * (pixSizeY ?? pixSizeX)) / (focalLen * 1000) * DEG_PER_RAD
     }
+
+    // Unsolved frame: the ASIAIR writes the sky angle of its last solve as
+    // ROTATOR, with the opposite sense to a position angle (checked against
+    // 23 solved frames: PA of the vertical axis ≈ 360° − ROTATOR). Other
+    // software uses ROTATOR for the mechanical rotator position, whose zero
+    // is arbitrary — leave those unrotated.
+    const creator = getRawStr(raw, 'CREATOR', 'SWCREATE') ?? ''
+    const rotator = getRawNum(raw, 'ROTATOR')
+    if (rotator !== null && /ASIAIR/i.test(creator)) rotation = foldAxis(-rotator)
   }
 
   return { ra, dec, fovWidth, fovHeight, rotation }
