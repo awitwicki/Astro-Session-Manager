@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star, Folder, File, Package } from 'lucide-react'
+import { ChevronRight, ChevronDown, Clock, Image, Check, X, AlertCircle, FolderOpen, Plus, Pencil, Eye, RefreshCw, FileText, BarChart3, EyeOff, Star, Folder, File, Package, Link2 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
@@ -10,6 +10,7 @@ import { projectPath, fitsGalleryPath } from '../lib/constants'
 import { countNights } from '../lib/projectNights'
 import { isDslrFile } from '../lib/dslrUtils'
 import { isMasterFlat } from '../lib/calibration'
+import type { Session } from '../types'
 import { WbppExportDialog } from '../components/export/WbppExportDialog'
 
 export function ProjectView() {
@@ -641,29 +642,7 @@ function SessionAccordion({
   onOpenNotes,
   onExclude
 }: {
-  session: {
-    date: string
-    path: string
-    lights: { filename: string; path: string; sizeBytes: number }[]
-    flats: { filename: string; path: string; sizeBytes: number }[]
-    darks: { filename: string; path: string; sizeBytes: number }[]
-    biases: { filename: string; path: string; sizeBytes: number }[]
-    integrationSeconds: number
-    totalSizeBytes: number
-    calibration: {
-      darksMatched: boolean
-      darkGroupName?: string
-      darkCount?: number
-      biasCount?: number
-      darkFlatMatched?: boolean
-      darkFlatName?: string
-      rawFlatCount?: number
-      flatsAvailable: boolean
-      flatCount?: number
-    }
-    hasNotes: boolean
-    subsDateRange: string | null
-  }
+  session: Session
   projectName: string
   filterName: string
   subAnalysis: Record<string, { medianFwhm: number; medianEccentricity: number; starsDetected: number }>
@@ -751,6 +730,13 @@ function SessionAccordion({
                 <span className="badge badge-success"><Check size={10} /> Flats</span>
               ) : session.lights.length === 0 ? (
                 <span className="badge">Flats</span>
+              ) : cal.sharedFlats ? (
+                <span
+                  className="badge badge-warning"
+                  title={`${cal.sharedFlats.flats.length} flat${cal.sharedFlats.flats.length === 1 ? '' : 's'} from ${cal.sharedFlats.projectName} / ${cal.sharedFlats.filterName} / ${cal.sharedFlats.sessionDate}`}
+                >
+                  <Link2 size={10} /> Flats (shared)
+                </span>
               ) : (
                 <span className="badge badge-error"><X size={10} /> No flats</span>
               )}
@@ -799,6 +785,11 @@ function SessionAccordion({
               <div>
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Flat Frames</div>
                 <div style={{ fontSize: 20, fontWeight: 600 }}>{session.flats.length}</div>
+                {cal.sharedFlats && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    shared: {cal.sharedFlats.flats.length}
+                  </div>
+                )}
               </div>
               <div>
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Integration</div>
@@ -818,10 +809,16 @@ function SessionAccordion({
           </div>
 
           {!isDslr && (
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               {cal.darksMatched && cal.darkGroupName && (
                 <span className="badge badge-success">
                   Dark match from masters library: {cal.darkGroupName}
+                </span>
+              )}
+              {cal.sharedFlats && (
+                <span className="badge badge-warning">
+                  <Link2 size={10} />
+                  Flats shared from {cal.sharedFlats.projectName} / {cal.sharedFlats.filterName} / {cal.sharedFlats.sessionDate}
                 </span>
               )}
             </div>

@@ -5,13 +5,21 @@ import { isDslrFile } from './dslrUtils'
 import { moonInfo, separationDeg } from './ephemeris'
 import { extractCoordinates } from './skymap'
 
-export type ExportKind = 'light' | 'flat' | 'masterFlat' | 'masterDark' | 'masterDarkFlat' | 'masterBias' | 'dark' | 'bias'
+export type ExportKind = 'light' | 'flat' | 'sharedFlat' | 'masterFlat' | 'masterDark' | 'masterDarkFlat' | 'masterBias' | 'dark' | 'bias'
 export type CalKind = Exclude<ExportKind, 'light'>
 
 export interface FileRef {
   path: string
   filename: string
   sizeBytes: number
+}
+
+/** A flat set borrowed from another session of the same observing night. */
+export interface SharedFlatNode {
+  /** `<source project> / <source session>`, for the chip and the warning. */
+  label: string
+  isMaster: boolean
+  files: FileRef[]
 }
 
 export interface FrameRow extends FileRef {
@@ -35,6 +43,8 @@ export interface NightNode {
   frames: FrameRow[]
   masterFlat: FileRef | null
   rawFlats: FileRef[]
+  /** Null unless the night has no flats of its own and a match was resolved. */
+  sharedFlats: SharedFlatNode | null
   darks: FileRef[]
   biases: FileRef[]
   masterDark: FileRef | null
@@ -183,7 +193,17 @@ export function buildExportTree(input: {
         const match = isDslr ? null : matchMasters(first, library, tempTolerance)
         const masterFlat = s.flats.find((f) => isMasterFlat(f.filename))
         const rawFlats = s.flats.filter((f) => !isMasterFlat(f.filename))
-        const flatHeader = rawFlats[0]?.header ?? null
+        const shared = s.flats.length === 0 ? (s.calibration.sharedFlats ?? null) : null
+        const sharedFlats: SharedFlatNode | null = shared
+          ? {
+              label: `${shared.projectName} / ${shared.sessionDate}`,
+              isMaster: shared.isMaster,
+              files: shared.flats.map(ref),
+            }
+          : null
+        // A borrowed raw set still needs its darkflat, and supplies the flat exposure.
+        const sharedRawHeader = shared && !shared.isMaster ? (shared.flats[0]?.header ?? null) : null
+        const flatHeader = rawFlats[0]?.header ?? sharedRawHeader
         const darkFlat = isDslr ? null : matchDarkFlats(flatHeader, first, library, tempTolerance)?.[0]
         return {
           key: s.path,
@@ -195,6 +215,7 @@ export function buildExportTree(input: {
           frames,
           masterFlat: masterFlat ? ref(masterFlat) : null,
           rawFlats: rawFlats.map(ref),
+          sharedFlats,
           darks: s.darks.map(ref),
           biases: s.biases.map(ref),
           masterDark: match?.darks[0] ? ref(match.darks[0]) : null,
@@ -232,7 +253,7 @@ export interface ExportSettings {
 }
 
 export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
-  include: { light: true, flat: true, masterFlat: true, masterDark: true, masterDarkFlat: true, masterBias: false, dark: false, bias: false },
+  include: { light: true, flat: true, sharedFlat: false, masterFlat: true, masterDark: true, masterDarkFlat: true, masterBias: false, dark: false, bias: false },
   moonCutoffEnabled: false,
   moonMinSepDeg: 30,
   moonOnlyAboveHorizon: true,
@@ -306,6 +327,7 @@ export function isFrameIncluded(row: FrameRow, night: NightNode, settings: Expor
 export function calFiles(night: NightNode, kind: CalKind): FileRef[] {
   switch (kind) {
     case 'flat': return night.rawFlats
+    case 'sharedFlat': return night.sharedFlats?.files ?? []
     case 'masterFlat': return night.masterFlat ? [night.masterFlat] : []
     case 'masterDark': return night.masterDark ? [night.masterDark] : []
     case 'masterDarkFlat': return night.masterDarkFlat ? [night.masterDarkFlat] : []
@@ -322,7 +344,14 @@ export function calEnabled(night: NightNode, kind: CalKind, settings: ExportSett
   // A stacked master flat replaces the raw flats unless asked otherwise.
   if (kind === 'flat' && night.masterFlat && settings.include.masterFlat) return false
   // Darkflats calibrate raw flats; a stacked master flat already used them.
-  if (kind === 'masterDarkFlat') return calEnabled(night, 'flat', settings, selection) && night.rawFlats.length > 0
+  if (kind === 'masterDarkFlat') {
+    const ownRawOut = calEnabled(night, 'flat', settings, selection) && night.rawFlats.length > 0
+    const sharedRawOut =
+      calEnabled(night, 'sharedFlat', settings, selection) &&
+      night.sharedFlats !== null &&
+      !night.sharedFlats.isMaster
+    return ownRawOut || sharedRawOut
+  }
   return true
 }
 
@@ -343,11 +372,12 @@ function uniqueDst(dir: string, filename: string, used: Set<string>): string {
   return candidate
 }
 
-const CAL_ORDER: CalKind[] = ['masterFlat', 'flat', 'masterDark', 'masterDarkFlat', 'masterBias', 'dark', 'bias']
+const CAL_ORDER: CalKind[] = ['masterFlat', 'flat', 'sharedFlat', 'masterDark', 'masterDarkFlat', 'masterBias', 'dark', 'bias']
 
 function calDir(kind: CalKind, nightKw: string, filterKw: string): string {
   switch (kind) {
     case 'flat':
+    case 'sharedFlat':
     case 'masterFlat': return `Flats/${nightKw}/${filterKw}`
     case 'masterDark':
     case 'masterDarkFlat': return 'Darks' // WBPP groups darks by exposure, so a darkflat pairs with the flats
@@ -359,11 +389,14 @@ function calDir(kind: CalKind, nightKw: string, filterKw: string): string {
 
 export function buildPlan(tree: FilterNode[], settings: ExportSettings, selection: ExportSelection): PlanEntry[] {
   const plan: PlanEntry[] = []
-  const seenSrc = new Set<string>()
+  // Keyed by destination folder + source, so a master dark reused by several
+  // nights lands once in Darks/ while a shared flat set lands once per night.
+  const placed = new Set<string>()
   const usedDst = new Set<string>()
   const add = (file: FileRef, dir: string, kind: ExportKind) => {
-    if (seenSrc.has(file.path)) return
-    seenSrc.add(file.path)
+    const key = `${dir}\u0000${file.path}`
+    if (placed.has(key)) return
+    placed.add(key)
     plan.push({ src: file.path, relDst: uniqueDst(dir, file.filename, usedDst), kind, sizeBytes: file.sizeBytes })
   }
   for (const filter of tree) {
@@ -397,7 +430,7 @@ export function estimateSize(plan: PlanEntry[], placement: Placement | null): { 
 }
 
 export function countByKind(plan: PlanEntry[]): Record<ExportKind, number> {
-  const counts: Record<ExportKind, number> = { light: 0, flat: 0, masterFlat: 0, masterDark: 0, masterDarkFlat: 0, masterBias: 0, dark: 0, bias: 0 }
+  const counts: Record<ExportKind, number> = { light: 0, flat: 0, sharedFlat: 0, masterFlat: 0, masterDark: 0, masterDarkFlat: 0, masterBias: 0, dark: 0, bias: 0 }
   for (const e of plan) counts[e.kind]++
   return counts
 }
@@ -417,10 +450,17 @@ export function exportWarnings(
       const lights = night.frames.filter((f) => isFrameIncluded(f, night, settings, selection))
       if (lights.length === 0) continue
       const label = `${night.sessionName} / ${filter.name}`
-      const hasFlats = (['masterFlat', 'flat'] as const).some(
+      const hasFlats = (['masterFlat', 'flat', 'sharedFlat'] as const).some(
         (k) => calEnabled(night, k, settings, selection) && calFiles(night, k).length > 0,
       )
-      if (!hasFlats) warnings.push(`${label}: no flats`)
+      if (!hasFlats) {
+        const available = night.sharedFlats?.files.length ?? 0
+        warnings.push(
+          available > 0
+            ? `${label}: no flats — ${available} shared flat${available === 1 ? '' : 's'} available from ${night.sharedFlats!.label}`
+            : `${label}: no flats`,
+        )
+      }
       if (settings.include.masterDark && !night.masterDark && !night.isDslr) {
         warnings.push(
           night.exposure !== null && night.ccdTemp !== null
@@ -428,7 +468,9 @@ export function exportWarnings(
             : `${label}: no master dark match (exposure or temperature unknown)`,
         )
       }
-      const rawFlatsOut = calEnabled(night, 'flat', settings, selection) && night.rawFlats.length > 0
+      const rawFlatsOut =
+        (calEnabled(night, 'flat', settings, selection) && night.rawFlats.length > 0) ||
+        (calEnabled(night, 'sharedFlat', settings, selection) && night.sharedFlats !== null && !night.sharedFlats.isMaster)
       if ((opts.warnMissingDarkFlat ?? true) && rawFlatsOut && !night.masterDarkFlat && !night.isDslr) {
         const what = [
           night.flatExposure !== null ? `${night.flatExposure} s` : null,

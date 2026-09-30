@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Star } from 'lucide-react'
+import { ChevronDown, ChevronRight, Link2, Star } from 'lucide-react'
 import { formatFileSize } from '../../lib/formatters'
 import {
   calEnabled, calFiles, frameExclusion, isFrameIncluded,
@@ -9,7 +9,7 @@ import {
 type SortKey = 'filename' | 'dateObs' | 'moonSepDeg' | 'moonIllum' | 'fwhm' | 'ecc'
 
 const CAL_LABELS: Record<CalKind, string> = {
-  masterFlat: 'Master flat', flat: 'Flats', masterDark: 'Master dark', masterDarkFlat: 'Master darkflat', masterBias: 'Master bias', dark: 'Darks', bias: 'Biases',
+  masterFlat: 'Master flat', flat: 'Flats', sharedFlat: 'Shared flats', masterDark: 'Master dark', masterDarkFlat: 'Master darkflat', masterBias: 'Master bias', dark: 'Darks', bias: 'Biases',
 }
 
 function TriCheckbox({ checked, indeterminate, onChange }: { checked: boolean; indeterminate: boolean; onChange: () => void }) {
@@ -127,10 +127,16 @@ export function ExportTree({ tree, settings, selection, onSelectionChange }: Pro
                           key={kind}
                           className={`wbpp-chip${on ? ' wbpp-chip-on' : ''}`}
                           onClick={() => toggleCal(n, kind)}
-                          title={files.map((f) => f.filename).join('\n')}
+                          title={
+                            kind === 'sharedFlat' && n.sharedFlats
+                              ? `From ${n.sharedFlats.label}\n${files.map((f) => f.filename).join('\n')}`
+                              : files.map((f) => f.filename).join('\n')
+                          }
                         >
                           {kind === 'masterFlat' && <Star size={11} />}
+                          {kind === 'sharedFlat' && <Link2 size={11} />}
                           {CAL_LABELS[kind]}{files.length > 1 ? ` (${files.length})` : ''}
+                          {kind === 'sharedFlat' && n.sharedFlats ? ` · ${n.sharedFlats.label}` : ''}
                         </button>
                       )
                     })}

@@ -100,6 +100,18 @@ yarn test:web     # frontend unit tests (node:test via tsx)
 - Preview generation (`fits_preview.rs`): rustafits `ImageConverter::read_raw` → `process_data` → `encode_jpeg` (max 1920×1080, quality 90). For FITS the metadata's `flip_vertical` is cleared before processing so previews stay in raw pixel space (rustafits ≥ 1.0 would flip files without `ROWORDER` bottom-up) and line up with the star overlay from `analyzer.rs`, which never flips; XISF is left as rustafits reads it. A unit test pins this. Results are cached by file path in a bounded LRU (default 500 MB, 30 min TTL, runtime-adjustable concurrency). rustafits' full-resolution VNG debayer is deliberately not used here — previews are downscaled anyway and the super-pixel path inside `process_data` is the cheaper fit.
 - Preview/star-analysis prefetch uses a persistent global queue (`preview_queue.rs`): navigating frames calls `enqueue_prefetch_window`, which replaces pending work with the selected frame ±3 (preview job per path, plus star-detail job when heatmap/tilt overlays are on). Direct `get_fits_preview` / `analyze_stars_detail` commands hold a foreground guard that pauses new queue admissions so the visible frame renders first; per-path single-flight (`single_flight.rs`) prevents duplicate concurrent generation.
 - Masters matching: by exposure (±0.5 s), temperature (configurable tolerance), resolution. Darkflats (`masterDarkFlat_*`, checked before the `masterDark` prefix) match the session's first raw flat the same way — the scan reads that flat's header alongside the first light; a library cached without `darkFlats` is ignored until the next masters scan.
+- Shared flats: a session with no flats of its own borrows another session's
+  set when both resolve to the same observing night (`nightDateFor`, earliest
+  `DATE-OBS` − 12 h) and the same optical train — `INSTRUME`, `FILTER` and
+  resolution required and exact, binning / `FOCALLEN` / `FOCRATIO` compared
+  when both sides report them (2 % tolerance). `FILTER` comes from the header
+  only, never the folder name, so mosaic panels pair. `src/lib/sharedFlats.ts`
+  is pure and unit-tested; `applySharedFlats` runs over *all* projects
+  whenever the store's project list changes, since the index is global. The
+  session view shows "Flats (shared)" instead of "No flats"; the WBPP export
+  offers them as the `sharedFlat` kind, off by default, placed in the
+  borrowing night's `Flats/NIGHT_<date>/FILTER_<f>/`. `buildPlan` dedupes per
+  destination folder so one set can serve several nights.
 - Supported formats: FITS (`.fits`, `.fit`, `.fts`), XISF (`.xisf`), DSLR RAW (`.cr2`, `.cr3`, `.arw`).
 - Error handling: `Result<T, String>` across the IPC boundary — Rust errors become plain strings for the frontend.
 - Async: `tauri::async_runtime::spawn_blocking` for CPU-intensive work; `tokio::spawn` for I/O-bound or long-running tasks (e.g. preview worker, background cache sweeper).

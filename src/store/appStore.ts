@@ -5,6 +5,7 @@ import type { HorizonProfile } from '../lib/horizon'
 import { isDslrFile } from '../lib/dslrUtils'
 import { DEFAULT_DASHBOARD_SORT, type DashboardSort, type ProjectOpenedMap } from '../lib/dashboardSort'
 import { isMasterFlat, matchDarkFlats, matchMasters } from '../lib/calibration'
+import { applySharedFlats } from '../lib/sharedFlats'
 
 interface ScanResultRaw {
   rootPath: string
@@ -127,6 +128,12 @@ function applyCalibration(projects: Project[], mastersLibrary: MastersLibrary | 
       })
     }))
   }))
+}
+
+/** Masters matching then shared-flat resolution. Shared flats are resolved
+ *  across every project, so this runs over the whole list, never one project. */
+function rebuild(projects: Project[], mastersLibrary: MastersLibrary | null, tempTolerance: number): Project[] {
+  return applySharedFlats(applyCalibration(projects, mastersLibrary, tempTolerance))
 }
 
 function buildProjects(scan: ScanResultRaw, mastersLibrary: MastersLibrary | null, tempTolerance: number): Project[] {
@@ -389,14 +396,14 @@ export const useAppStore = create<AppState>((set) => ({
 
   setDarkTempTolerance: (val) => set((state) => ({
     darkTempTolerance: val,
-    projects: applyCalibration(state.projects, state.mastersLibrary, val)
+    projects: rebuild(state.projects, state.mastersLibrary, val)
   })),
 
   setScanResult: (raw) => set((state) => ({
-    projects: filterByPatterns(
+    projects: applySharedFlats(filterByPatterns(
       buildProjects(raw, state.mastersLibrary, state.darkTempTolerance),
       parseExcludePatterns(state.excludePatternsText)
-    ),
+    )),
     scanError: null
   })),
 
@@ -406,7 +413,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   setMastersLibrary: (lib) => set((state) => ({
     mastersLibrary: lib,
-    projects: applyCalibration(state.projects, lib, state.darkTempTolerance)
+    projects: rebuild(state.projects, lib, state.darkTempTolerance)
   })),
 
   setTheme: (theme) => {
@@ -478,7 +485,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   removeProject: (projectPath) =>
     set((state) => ({
-      projects: state.projects.filter((p) => p.path !== projectPath)
+      projects: applySharedFlats(state.projects.filter((p) => p.path !== projectPath))
     })),
 
   removeLight: (filePath) =>
@@ -497,7 +504,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   applyExcludePatterns: (patternsText) => set((state) => ({
     excludePatternsText: patternsText,
-    projects: filterByPatterns(state.projects, parseExcludePatterns(patternsText))
+    projects: applySharedFlats(filterByPatterns(state.projects, parseExcludePatterns(patternsText)))
   })),
 
   setSubAnalysis: (data) => set((state) => ({
@@ -579,6 +586,6 @@ export const useAppStore = create<AppState>((set) => ({
         projects = [...state.projects, updatedProject].sort((a, b) => a.name.localeCompare(b.name))
       }
 
-      return { projects }
+      return { projects: applySharedFlats(projects) }
     }),
 }))

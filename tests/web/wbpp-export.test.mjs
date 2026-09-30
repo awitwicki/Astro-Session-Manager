@@ -308,3 +308,118 @@ test('exportWarnings: missing darkflat only with raw flats, and can be switched 
   const unknown = exportWarnings(tree1(night({ rawFlats: raw })), S(), sel(), null)
   assert.ok(unknown.includes('Night 1 / Ha: raw flats but no master darkflat matches -10 °C'))
 })
+
+const RIG = { instrume: 'ASI2600MM', filter: 'Ha', xbinning: 1, ybinning: 1, raw: { FOCALLEN: 540 } }
+const sharedSet = (o = {}) => ({
+  projectName: 'NGC 7000', projectPath: '/r/N', filterName: 'Ha', sessionDate: '2026-09-29',
+  sessionPath: '/r/N/Ha/2026-09-29', nightDate: '2026-09-29', isMaster: false,
+  takenAt: '2026-09-30T05:30:00',
+  flats: [{ ...file('/r/N/Ha/2026-09-29/flats/f1.fits'), header: hdr({ ...RIG, exptime: 0.04, ccdTemp: -10 }) }],
+  ...o,
+})
+const borrowingProject = (shared) => project([filterGroup('Ha', [session({
+  path: '/r/P/Ha/Night 1',
+  lights: [{ ...file('/r/P/Ha/Night 1/lights/l1.fits'), header: hdr({ ...RIG, dateObs: '2026-09-29T22:00:00', exptime: 300, ccdTemp: -10 }) }],
+  calibration: { darksMatched: false, flatsAvailable: false, sharedFlats: shared },
+})])])
+
+test('buildExportTree carries the shared flat set with its source label', () => {
+  const [f] = buildExportTree({ project: borrowingProject(sharedSet()), headers: {}, subAnalysis: {}, moon: null, library: null, tempTolerance: 2 })
+  assert.equal(f.nights[0].sharedFlats.label, 'NGC 7000 / 2026-09-29')
+  assert.equal(f.nights[0].sharedFlats.isMaster, false)
+  assert.deepEqual(f.nights[0].sharedFlats.files.map((x) => x.filename), ['f1.fits'])
+  assert.equal(f.nights[0].flatExposure, 0.04, 'the borrowed flat supplies the flat exposure')
+})
+
+test('shared flats are off by default and land in the borrowing night when enabled', () => {
+  assert.equal(DEFAULT_EXPORT_SETTINGS.include.sharedFlat, false)
+  const tree = buildExportTree({ project: borrowingProject(sharedSet()), headers: {}, subAnalysis: {}, moon: null, library: null, tempTolerance: 2 })
+  const off = buildPlan(tree, DEFAULT_EXPORT_SETTINGS, EMPTY_SELECTION)
+  assert.equal(off.filter((e) => e.kind === 'sharedFlat').length, 0)
+  const on = buildPlan(tree, { ...DEFAULT_EXPORT_SETTINGS, include: { ...DEFAULT_EXPORT_SETTINGS.include, sharedFlat: true } }, EMPTY_SELECTION)
+  const entry = on.find((e) => e.kind === 'sharedFlat')
+  assert.equal(entry.relDst, 'Flats/NIGHT_2026-09-29/FILTER_Ha/f1.fits')
+  assert.equal(countByKind(on).sharedFlat, 1)
+})
+
+test('a night with its own flats ignores any shared set', () => {
+  const p = project([filterGroup('Ha', [session({
+    lights: [{ ...file('/r/P/Ha/Night 1/lights/l1.fits'), header: hdr({ ...RIG, dateObs: '2026-09-29T22:00:00' }) }],
+    flats: [file('/r/P/Ha/Night 1/flats/own.fits')],
+    calibration: { darksMatched: false, flatsAvailable: true, sharedFlats: sharedSet() },
+  })])])
+  const [f] = buildExportTree({ project: p, headers: {}, subAnalysis: {}, moon: null, library: null, tempTolerance: 2 })
+  assert.equal(f.nights[0].sharedFlats, null)
+})
+
+test('a shared master flat is exported as a single file', () => {
+  const shared = sharedSet({ isMaster: true, flats: [{ ...file('/r/N/Ha/2026-09-29/flats/masterFlat_Ha.xisf'), header: hdr(RIG) }] })
+  const tree = buildExportTree({ project: borrowingProject(shared), headers: {}, subAnalysis: {}, moon: null, library: null, tempTolerance: 2 })
+  const on = buildPlan(tree, { ...DEFAULT_EXPORT_SETTINGS, include: { ...DEFAULT_EXPORT_SETTINGS.include, sharedFlat: true } }, EMPTY_SELECTION)
+  assert.equal(on.find((e) => e.kind === 'sharedFlat').relDst, 'Flats/NIGHT_2026-09-29/FILTER_Ha/masterFlat_Ha.xisf')
+})
+
+const withSharedFlats = { ...DEFAULT_EXPORT_SETTINGS, include: { ...DEFAULT_EXPORT_SETTINGS.include, sharedFlat: true } }
+
+test('a borrowed raw flat set pulls in its master darkflat', () => {
+  const darkFlat = master({ filename: 'masterDarkFlat.xisf', path: '/m/mdf.xisf', exposureTime: 0.04, ccdTemp: -10 })
+  const library = { darks: [], biases: [], darkFlats: [darkFlat], otherFiles: [], rootPath: '/m' }
+  const tree = buildExportTree({ project: borrowingProject(sharedSet()), headers: {}, subAnalysis: {}, moon: null, library, tempTolerance: 2 })
+  const n = tree[0].nights[0]
+  assert.equal(n.masterDarkFlat.filename, 'masterDarkFlat.xisf')
+  assert.equal(calEnabled(n, 'masterDarkFlat', DEFAULT_EXPORT_SETTINGS, EMPTY_SELECTION), false, 'not while the shared flats are off')
+  assert.equal(calEnabled(n, 'masterDarkFlat', withSharedFlats, EMPTY_SELECTION), true)
+})
+
+test('a borrowed master flat needs no darkflat', () => {
+  const darkFlat = master({ filename: 'masterDarkFlat.xisf', path: '/m/mdf.xisf', exposureTime: 0.04, ccdTemp: -10 })
+  const library = { darks: [], biases: [], darkFlats: [darkFlat], otherFiles: [], rootPath: '/m' }
+  const shared = sharedSet({ isMaster: true, flats: [{ ...file('/r/N/Ha/2026-09-29/flats/masterFlat_Ha.xisf'), header: hdr({ ...RIG, exptime: 0.04, ccdTemp: -10 }) }] })
+  const tree = buildExportTree({ project: borrowingProject(shared), headers: {}, subAnalysis: {}, moon: null, library, tempTolerance: 2 })
+  assert.equal(calEnabled(tree[0].nights[0], 'masterDarkFlat', withSharedFlats, EMPTY_SELECTION), false)
+})
+
+test('the no-flats warning names the available shared set, and clears once enabled', () => {
+  const tree = buildExportTree({ project: borrowingProject(sharedSet()), headers: {}, subAnalysis: {}, moon: null, library: null, tempTolerance: 2 })
+  const off = exportWarnings(tree, DEFAULT_EXPORT_SETTINGS, EMPTY_SELECTION, null, { warnMissingDarkFlat: false })
+  assert.ok(off.some((w) => w === 'Night 1 / Ha: no flats — 1 shared flat available from NGC 7000 / 2026-09-29'), off.join('\n'))
+  const on = exportWarnings(tree, withSharedFlats, EMPTY_SELECTION, null, { warnMissingDarkFlat: false })
+  assert.equal(on.some((w) => w.includes('no flats')), false)
+})
+
+test('a night with neither own nor shared flats keeps the bare warning', () => {
+  const p = project([filterGroup('Ha', [session({
+    lights: [{ ...file('/r/P/Ha/Night 1/lights/l1.fits'), header: hdr({ ...RIG, dateObs: '2026-09-29T22:00:00' }) }],
+  })])])
+  const tree = buildExportTree({ project: p, headers: {}, subAnalysis: {}, moon: null, library: null, tempTolerance: 2 })
+  const w = exportWarnings(tree, DEFAULT_EXPORT_SETTINGS, EMPTY_SELECTION, null, { warnMissingDarkFlat: false })
+  assert.ok(w.includes('Night 1 / Ha: no flats'))
+})
+
+test('one shared flat set is placed under every night that borrows it', () => {
+  const night = (name, dateObs) => session({
+    date: name, path: `/r/P/Ha/${name}`,
+    lights: [{ ...file(`/r/P/Ha/${name}/lights/l1.fits`), header: hdr({ ...RIG, dateObs, exptime: 300, ccdTemp: -10 }) }],
+    calibration: { darksMatched: false, flatsAvailable: false, sharedFlats: sharedSet() },
+  })
+  const p = project([filterGroup('Ha', [night('N1', '2026-09-29T22:00:00'), night('N2', '2026-09-30T22:00:00')])])
+  const tree = buildExportTree({ project: p, headers: {}, subAnalysis: {}, moon: null, library: null, tempTolerance: 2 })
+  const plan = buildPlan(tree, withSharedFlats, EMPTY_SELECTION)
+  assert.deepEqual(
+    plan.filter((e) => e.kind === 'sharedFlat').map((e) => e.relDst).sort(),
+    ['Flats/NIGHT_2026-09-29/FILTER_Ha/f1.fits', 'Flats/NIGHT_2026-09-30/FILTER_Ha/f1.fits'],
+  )
+})
+
+test('a master dark shared by several nights is still placed once', () => {
+  const night = (name, dateObs) => session({
+    date: name, path: `/r/P/Ha/${name}`,
+    lights: [{ ...file(`/r/P/Ha/${name}/lights/l1.fits`), header: hdr({ ...RIG, dateObs, exptime: 300, ccdTemp: -10 }) }],
+    flats: [file(`/r/P/Ha/${name}/flats/f.fits`)],
+  })
+  const library = { darks: [master({ filename: 'masterDark.xisf', path: '/m/md.xisf' })], biases: [], darkFlats: [], otherFiles: [], rootPath: '/m' }
+  const p = project([filterGroup('Ha', [night('N1', '2026-09-29T22:00:00'), night('N2', '2026-09-30T22:00:00')])])
+  const tree = buildExportTree({ project: p, headers: {}, subAnalysis: {}, moon: null, library, tempTolerance: 2 })
+  const plan = buildPlan(tree, DEFAULT_EXPORT_SETTINGS, EMPTY_SELECTION)
+  assert.deepEqual(plan.filter((e) => e.kind === 'masterDark').map((e) => e.relDst), ['Darks/masterDark.xisf'])
+})

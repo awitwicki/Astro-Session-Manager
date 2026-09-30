@@ -58,6 +58,26 @@ export interface FlatFrame {
   header?: FitsHeader
 }
 
+/** A flat set borrowed from another session of the same observing night and
+ *  the same optical train. Resolved in `src/lib/sharedFlats.ts`. */
+export interface SharedFlatSet {
+  /** Project the flats physically live in. */
+  projectName: string
+  projectPath: string
+  /** Filter-group folder name in the source project. */
+  filterName: string
+  /** Source session folder name. */
+  sessionDate: string
+  sessionPath: string
+  /** Observing night both sessions resolve to. */
+  nightDate: string
+  /** True when the set is a single stacked `masterFlat_*`. */
+  isMaster: boolean
+  flats: FlatFrame[]
+  /** DATE-OBS of the first flat, for the tooltip. */
+  takenAt: string | null
+}
+
 export interface CalibrationMatch {
   darksMatched: boolean
   darkGroupName?: string
@@ -68,6 +88,8 @@ export interface CalibrationMatch {
   rawFlatCount?: number
   flatsAvailable: boolean
   flatCount?: number
+  /** Set only when the session has no flats of its own and a match exists. */
+  sharedFlats?: SharedFlatSet
 }
 
 export interface SubAnalysisResult {

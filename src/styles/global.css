@@ -846,7 +846,7 @@ input, select, textarea {
 .wbpp-reason { color: var(--color-warning); }
 .wbpp-check { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
 .wbpp-num { width: 70px; }
-.wbpp-include { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto); grid-auto-flow: column; column-gap: 8px; }
+.wbpp-include { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(5, auto); grid-auto-flow: column; column-gap: 8px; }
 .wbpp-include .wbpp-check { margin: 2px 0; white-space: nowrap; }
 .wbpp-cutoffs { display: grid; grid-template-columns: max-content max-content; align-items: center; gap: 6px 8px; margin: 3px 0; }
 .wbpp-cutoffs label { display: contents; }
