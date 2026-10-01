@@ -45,9 +45,12 @@ const resolutionOf = (h: FitsHeader | null | undefined): string | null =>
   h?.naxis1 && h?.naxis2 ? `${h.naxis1}x${h.naxis2}` : null
 
 /** Master darkflats for a session's flats: exposure ±0.5 s when the flat's
- *  exposure is known, temperature (the flat's, else the lights') and
- *  resolution. Closest exposure first, then closest temperature. Null when
- *  the flat's header is unknown — a darkflat can't be vouched for then. */
+ *  exposure is known, resolution, and temperature within tolerance of the
+ *  flat's *or* the lights' — flats are often shot before the cooler settles,
+ *  and a darkflat at the lights' set point is fine for such short exposures.
+ *  Closest exposure first, then closest temperature (the flat's own wins a
+ *  tie). Null when the flat's header is unknown — a darkflat can't be
+ *  vouched for then. */
 export function matchDarkFlats(
   flatHeader: FitsHeader | null | undefined,
   lightHeader: FitsHeader | null | undefined,
@@ -55,18 +58,24 @@ export function matchDarkFlats(
   tempTolerance: number,
 ): MasterFileEntry[] | null {
   if (!library || !flatHeader) return null
-  const ccdTemp = flatHeader.ccdTemp ?? lightHeader?.ccdTemp ?? null
-  if (ccdTemp === null) return null
+  const temps = [flatHeader.ccdTemp, lightHeader?.ccdTemp].filter((t): t is number => t != null)
+  if (temps.length === 0) return null
   const exptime = flatHeader.exptime ?? null
   const resolution = resolutionOf(flatHeader) ?? resolutionOf(lightHeader)
   const expDiff = (d: MasterFileEntry) => (exptime === null ? 0 : Math.abs(d.exposureTime - exptime))
+  const tempDiff = (d: MasterFileEntry) => Math.min(...temps.map((t) => Math.abs(d.ccdTemp! - t)))
   return library.darkFlats
     .filter(
       (d) =>
         expDiff(d) < 0.5 &&
         d.ccdTemp !== null &&
-        Math.abs(d.ccdTemp - ccdTemp) <= tempTolerance &&
+        tempDiff(d) <= tempTolerance &&
         (resolution === null || d.resolution === null || d.resolution === resolution),
     )
-    .sort((a, b) => expDiff(a) - expDiff(b) || Math.abs(a.ccdTemp! - ccdTemp) - Math.abs(b.ccdTemp! - ccdTemp))
+    .sort(
+      (a, b) =>
+        expDiff(a) - expDiff(b) ||
+        tempDiff(a) - tempDiff(b) ||
+        Math.abs(a.ccdTemp! - temps[0]) - Math.abs(b.ccdTemp! - temps[0]),
+    )
 }

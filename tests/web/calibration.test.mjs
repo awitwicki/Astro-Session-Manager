@@ -72,3 +72,13 @@ test('matchDarkFlats returns null without library or any temperature', () => {
   assert.equal(matchDarkFlats(header({ exptime: 0.04, ccdTemp: -19 }), null, null, 2), null)
   assert.equal(matchDarkFlats(header({ exptime: 0.04 }), header({ exptime: 300 }), lib([]), 2), null)
 })
+
+test('matchDarkFlats accepts the lights\' temperature when the flats ran warmer', () => {
+  const cold = master({ filename: 'cold', exposureTime: 0.04, ccdTemp: -20, resolution: '6248x4176' })
+  const warm = master({ filename: 'warm', exposureTime: 0.04, ccdTemp: -6, resolution: '6248x4176' })
+  const mid = master({ filename: 'mid', exposureTime: 0.04, ccdTemp: -13, resolution: '6248x4176' })
+  const flat = header({ exptime: 0.04, ccdTemp: -6 })
+  const light = header({ exptime: 300, ccdTemp: -20 })
+  assert.deepEqual(matchDarkFlats(flat, light, lib([], [], [mid, cold]), 2).map((d) => d.filename), ['cold'])
+  assert.deepEqual(matchDarkFlats(flat, light, lib([], [], [cold, warm]), 2).map((d) => d.filename), ['warm', 'cold'])
+})
