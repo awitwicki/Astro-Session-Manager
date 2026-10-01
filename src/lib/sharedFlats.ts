@@ -4,10 +4,12 @@ import { isDslrFile } from './dslrUtils'
 import { nightDateFor, parseDateObs } from './wbppExport'
 
 /** Header fields that decide whether two sessions shot through the same
- *  optical train. `instrume`, `filter` and `resolution` are required and
- *  compared exactly; the rest are compared only when both sides report them. */
+ *  optical train. `instrume`, `filter` and `resolution` are compared exactly;
+ *  the rest only when both sides report them. */
 export interface FlatIdentity {
   instrume: string
+  /** Empty when the header has no FILTER — a one-shot colour camera without a
+   *  filter wheel writes none — so such sessions pair only with each other. */
   filter: string
   resolution: string
   binning: string | null
@@ -26,13 +28,13 @@ const positive = (v: unknown): number | null => {
 /** Focal length and f-ratio are not in `FitsHeader`'s typed fields. */
 const rawPositive = (h: FitsHeader, key: string): number | null => positive(h.raw?.[key])
 
-/** Null when a required field is missing — such a session neither offers nor
+/** Null without INSTRUME or a resolution — such a session neither offers nor
  *  borrows. Nothing is ever guessed from the filename. */
 export function flatIdentity(h: FitsHeader | null | undefined): FlatIdentity | null {
   if (!h) return null
   const instrume = norm(h.instrume)
-  const filter = norm(h.filter)
-  if (!instrume || !filter || !h.naxis1 || !h.naxis2) return null
+  const filter = norm(h.filter) ?? ''
+  if (!instrume || !h.naxis1 || !h.naxis2) return null
   const xb = positive(h.xbinning)
   const yb = positive(h.ybinning)
   return {

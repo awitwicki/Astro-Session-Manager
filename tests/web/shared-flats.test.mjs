@@ -5,12 +5,12 @@ import { flatIdentity, identityKey, identityCompatible, nightKeyFor, buildFlatIn
 const hdr = (o = {}) => ({ simple: true, bitpix: 16, naxis: 2, naxis1: 6248, naxis2: 4176, bscale: 1, bzero: 0, raw: {}, ...o })
 const sess = (date, subsDateRange = null) => ({ date, subsDateRange })
 
-test('flatIdentity requires INSTRUME, FILTER and a resolution', () => {
+test('flatIdentity requires INSTRUME and a resolution; a missing FILTER is its own value', () => {
   assert.equal(flatIdentity(null), null)
   assert.equal(flatIdentity(hdr({ filter: 'Ha' })), null)
-  assert.equal(flatIdentity(hdr({ instrume: 'ASI2600MM' })), null)
-  assert.equal(flatIdentity(hdr({ instrume: 'ASI2600MM', filter: '  ' })), null)
   assert.equal(flatIdentity(hdr({ instrume: 'ASI2600MM', filter: 'Ha', naxis1: 0 })), null)
+  assert.equal(flatIdentity(hdr({ instrume: 'ASI2600MC' })).filter, '')
+  assert.equal(flatIdentity(hdr({ instrume: 'ASI2600MC', filter: '  ' })).filter, '')
   const id = flatIdentity(hdr({ instrume: 'ASI2600MM', filter: 'Ha' }))
   assert.equal(id.instrume, 'asi2600mm')
   assert.equal(id.filter, 'ha')
@@ -144,6 +144,17 @@ test('no match on a different filter, camera, binning or focal length', () => {
     const out = applySharedFlats([lender('A'), borrower('B', 'Ha', o)])
     assert.equal(sharedOf(out, 1), null, `should not match ${JSON.stringify(o)}`)
   }
+})
+
+// One-shot colour cameras without a filter wheel write no FILTER at all.
+test('sessions without FILTER pair with each other, never with a filtered one', () => {
+  const out = applySharedFlats([lender('A', 'OSC'), borrower('B', 'OSC', { filter: undefined })].map((p) => {
+    for (const s of p.filters[0].sessions) for (const f of [...s.lights, ...s.flats]) delete f.header.filter
+    return p
+  }))
+  assert.equal(sharedOf(out, 1).projectName, 'A')
+  const mixed = applySharedFlats([lender('A', 'Ha'), borrower('B', 'Ha', { filter: undefined })])
+  assert.equal(sharedOf(mixed, 1), null)
 })
 
 test('no match on a different night', () => {

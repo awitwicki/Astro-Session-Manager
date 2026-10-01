@@ -102,8 +102,9 @@ yarn test:web     # frontend unit tests (node:test via tsx)
 - Masters matching: by exposure (±0.5 s), temperature (configurable tolerance), resolution. Darkflats (`masterDarkFlat_*`, checked before the `masterDark` prefix) match the session's first raw flat the same way, except the temperature may match either the flat's or the lights' (flats often run warmer before the cooler settles) — the scan reads that flat's header alongside the first light; a library cached without `darkFlats` is ignored until the next masters scan.
 - Shared flats: a session with no flats of its own borrows another session's
   set when both resolve to the same observing night (`nightDateFor`, earliest
-  `DATE-OBS` − 12 h) and the same optical train — `INSTRUME`, `FILTER` and
-  resolution required and exact, binning / `FOCALLEN` / `FOCRATIO` compared
+  `DATE-OBS` − 12 h) and the same optical train — `INSTRUME` and
+  resolution required and exact, `FILTER` exact with a missing one counting
+  as its own value (OSC cameras without a filter wheel write none), binning / `FOCALLEN` / `FOCRATIO` compared
   when both sides report them (2 % tolerance). `FILTER` comes from the header
   only, never the folder name, so mosaic panels pair. `src/lib/sharedFlats.ts`
   is pure and unit-tested; `applySharedFlats` runs over *all* projects
