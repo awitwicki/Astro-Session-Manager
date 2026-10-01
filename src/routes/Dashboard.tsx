@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, Clock, Image, Camera, Plus, LayoutGrid, List, EyeOff, ArrowUp, ArrowDown } from 'lucide-react'
+import { FolderOpen, Clock, Image, Camera, Plus, LayoutGrid, List, EyeOff, ArrowUp, ArrowDown, HardDriveDownload } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { useProjects } from '../hooks/useProjects'
 import { useAppStore } from '../store/appStore'
+import { AsiairImportDialog } from '../components/import/AsiairImportDialog'
 import { formatIntegrationTime, formatFileSize, formatTimeAgo } from '../lib/formatters'
 import { projectPath } from '../lib/constants'
 import { countNights } from '../lib/projectNights'
@@ -29,6 +30,8 @@ export function Dashboard() {
   const lastOpened = useAppStore((s) => s.projectLastOpened)
 
   const [showNewProject, setShowNewProject] = useState(false)
+  const [showAsiairImport, setShowAsiairImport] = useState(false)
+  const importBusy = useAppStore((s) => s.importQueue.length > 0)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectFilters, setNewProjectFilters] = useState('')
   const [filterPresets, setFilterPresets] = useState<Record<string, boolean>>({
@@ -243,6 +246,15 @@ export function Dashboard() {
             title="Manage exclusions"
           >
             <EyeOff size={14} />
+          </button>
+          <button
+            className="btn btn-sm"
+            onClick={() => setShowAsiairImport(true)}
+            disabled={importBusy}
+            title={importBusy ? 'Wait for the current import to finish' : 'Import new subs from an ASIAIR folder'}
+          >
+            <HardDriveDownload size={14} />
+            Import from ASIAIR
           </button>
           <button className="btn btn-sm btn-primary" onClick={() => setShowNewProject(true)}>
             <Plus size={14} />
@@ -491,6 +503,8 @@ export function Dashboard() {
       )}
 
       {/* New Project Modal */}
+      {showAsiairImport && <AsiairImportDialog onClose={() => setShowAsiairImport(false)} />}
+
       {showNewProject && (
         <div className="modal-overlay" onClick={() => setShowNewProject(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>

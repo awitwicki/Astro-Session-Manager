@@ -6,6 +6,10 @@ import { isDslrFile } from '../lib/dslrUtils'
 import { DEFAULT_DASHBOARD_SORT, type DashboardSort, type ProjectOpenedMap } from '../lib/dashboardSort'
 import { isMasterFlat, matchDarkFlats, matchMasters } from '../lib/calibration'
 import { applySharedFlats } from '../lib/sharedFlats'
+import {
+  EMPTY_BATCH, batchEnqueued, batchFinished,
+  type AnalyzeProgress, type ImportBatch, type ScanProgress,
+} from '../lib/operations'
 
 interface ScanResultRaw {
   rootPath: string
@@ -302,6 +306,10 @@ interface AppState {
   dashboardSort: DashboardSort
   projectLastOpened: ProjectOpenedMap
   importQueue: ImportJob[]
+  importNotice: string | null
+  importBatch: ImportBatch
+  scanProgress: ScanProgress | null
+  analyzeProgress: AnalyzeProgress | null
   subAnalysis: Record<string, SubAnalysisResult>
   isAnalyzing: boolean
   previewQueue: PreviewQueueState
@@ -330,9 +338,13 @@ interface AppState {
   removeProject: (projectPath: string) => void
   enqueueImport: (job: { files: string[]; targetDir: string; label: string }) => void
   cancelImport: (id: string) => void
+  cancelAllQueuedImports: () => void
+  setScanProgress: (p: ScanProgress) => void
+  setAnalyzeProgress: (p: AnalyzeProgress) => void
   updateImportProgress: (current: number, total: number, filename: string) => void
   completeImport: () => void
   failImport: (error: string) => void
+  setImportNotice: (msg: string | null) => void
   mergeProjectScan: (raw: ScanResultRaw) => void
   applyExcludePatterns: (patternsText: string) => void
   setSubAnalysis: (data: Record<string, SubAnalysisResult>) => void
@@ -375,6 +387,10 @@ export const useAppStore = create<AppState>((set) => ({
   projectLastOpened: {},
   darkTempTolerance: 2,
   importQueue: [],
+  importNotice: null,
+  importBatch: EMPTY_BATCH,
+  scanProgress: null,
+  analyzeProgress: null,
   subAnalysis: {},
   isAnalyzing: false,
   previewQueue: { completed: 0, total: 0, active: false, bulkCompleted: 0, bulkTotal: 0, bulkActive: false },
@@ -407,7 +423,13 @@ export const useAppStore = create<AppState>((set) => ({
     scanError: null
   })),
 
-  setScanning: (v) => set({ isScanning: v }),
+  // Progress resets on both edges so a new scan never starts with the last
+  // one's numbers.
+  setScanning: (v) => set({ isScanning: v, scanProgress: null }),
+
+  // scan_single_project (run after every import job) emits scan:progress too;
+  // only a scan the status bar knows about may report.
+  setScanProgress: (p) => set((state) => (state.isScanning ? { scanProgress: p } : {})),
 
   setScanError: (err) => set({ scanError: err }),
 
@@ -444,6 +466,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   enqueueImport: (job) =>
     set((state) => ({
+      importBatch: batchEnqueued(state.importBatch),
       importQueue: [
         ...state.importQueue,
         {
@@ -460,9 +483,18 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   cancelImport: (id) =>
-    set((state) => ({
-      importQueue: state.importQueue.filter((j) => j.id !== id),
-    })),
+    set((state) => {
+      const importQueue = state.importQueue.filter((j) => j.id !== id)
+      if (importQueue.length === state.importQueue.length) return {}
+      return { importQueue, importBatch: batchFinished(state.importBatch, 1, importQueue.length) }
+    }),
+
+  cancelAllQueuedImports: () =>
+    set((state) => {
+      const importQueue = state.importQueue.filter((j) => j.status !== 'queued')
+      const removed = state.importQueue.length - importQueue.length
+      return { importQueue, importBatch: batchFinished(state.importBatch, removed, importQueue.length) }
+    }),
 
   updateImportProgress: (current, total, filename) =>
     set((state) => ({
@@ -472,16 +504,24 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   completeImport: () =>
-    set((state) => ({
-      importQueue: state.importQueue.filter((j) => j.status !== 'active'),
-    })),
+    set((state) => {
+      const importQueue = state.importQueue.filter((j) => j.status !== 'active')
+      const removed = state.importQueue.length - importQueue.length
+      return { importQueue, importBatch: batchFinished(state.importBatch, removed, importQueue.length) }
+    }),
+
+  setImportNotice: (msg) => set({ importNotice: msg }),
 
   failImport: (error) =>
-    set((state) => ({
-      importQueue: state.importQueue.map((j) =>
-        j.status === 'active' ? { ...j, status: 'error' as const, error } : j
-      ).filter((j) => j.status !== 'error'),
-    })),
+    set((state) => {
+      const importQueue = state.importQueue.filter((j) => j.status !== 'active')
+      const removed = state.importQueue.length - importQueue.length
+      return {
+        importNotice: error,
+        importQueue,
+        importBatch: batchFinished(state.importBatch, removed, importQueue.length),
+      }
+    }),
 
   removeProject: (projectPath) =>
     set((state) => ({
@@ -517,7 +557,9 @@ export const useAppStore = create<AppState>((set) => ({
     return { subAnalysis: updated }
   }),
 
-  setAnalyzing: (v) => set({ isAnalyzing: v }),
+  setAnalyzing: (v) => set({ isAnalyzing: v, analyzeProgress: null }),
+
+  setAnalyzeProgress: (p) => set((state) => (state.isAnalyzing ? { analyzeProgress: p } : {})),
 
   setPreviewQueueState: (state) => set({ previewQueue: state }),
 

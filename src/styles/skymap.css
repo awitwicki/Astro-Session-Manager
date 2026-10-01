@@ -110,10 +110,7 @@
   white-space: nowrap;
 }
 
-.skymap-grid-toggle input {
-  accent-color: rgba(91, 155, 213, 0.9);
-  cursor: pointer;
-}
+.skymap-grid-toggle input { --check-size: 18px; }
 
 .skymap-btn {
   display: flex;

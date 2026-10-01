@@ -34,13 +34,16 @@ src/                          # Frontend (React + TypeScript)
   routes/                     # Dashboard, ProjectView, FitsDetailView,
                               # MastersLibrary, Settings, SkyMap, Weather,
                               # Converter, Planner, PlannerDetail
-  components/layout/          # AppShell, TopBar, Sidebar, StatusBar
+  components/layout/          # AppShell, TopBar, Sidebar, StatusBar, OperationsPopover
   components/astroweather/    # WeatherForecast, SeasonalDaylightChart,
                               # LightPollutionMap, HorizonEditor, SatelliteCheck
   components/skymap/          # ClassicSkyView, PlannerSkyView,
                               # PlannerTimeToolbar, PlannerTargetPanel
   components/export/          # WbppExportDialog, ExportTree, ExportSettingsPanel
+  components/import/          # AsiairImportDialog
+  components/ui/              # Checkbox (tri-state wrapper over the global style)
   store/appStore.ts           # Zustand store (scan state, analysis, queues,
+                              # import batch + scan/analysis progress,
                               # previewQueue slice mirrored from backend)
   context/ThemeContext.tsx    # Theme provider
   types/                      # TypeScript interfaces
@@ -61,6 +64,7 @@ src-tauri/src/                # Backend (Rust)
   dslr_parser.rs              # DSLR raw (.cr2/.cr3/.arw) header + EXIF parsing
   converter.rs                # DSLR raw → FITS conversion command
   wbpp_export.rs              # WBPP export: preflight links + fresh-folder placement
+  import_source.rs            # Import-source scan (ASIAIR share / USB): lights + flats with headers
   settings.rs                 # Persistent key-value settings
   cache.rs                    # Filesystem-based header cache
   cancellation.rs             # Global atomic cancel flags (scan/analyze/import/convert)
@@ -97,6 +101,23 @@ yarn test:web     # frontend unit tests (node:test via tsx)
 - Frontend calls Rust via Tauri IPC commands (defined in `commands.rs`, registered in `lib.rs`).
 - Long operations emit progress events via Tauri window events; the preview queue emits state snapshots (`preview:queue_state`) while holding its mutex so events are ordered.
 - FITS parsing handles keyword aliases for N.I.N.A., ASIAIR, SGPro, SharpCap.
+- Status bar: `src/lib/operations.ts` (pure, unit-tested) turns the import
+  queue, scan and analysis progress into one `Operation[]` list; the bar shows
+  only the first (running import > scan > analysis > first queued) with one
+  progress bar plus `op N/M · K queued · +N running`, and clicking it opens
+  `OperationsPopover` with stop (running) / skip (queued) / Cancel all.
+  `importBatch` counts jobs since the queue was last empty. Scan/analysis
+  progress lives in the store (`useOperationProgress`); `setScanProgress` is
+  ignored unless `isScanning`, because the post-import `scan_single_project`
+  emits `scan:progress` too.
+- Checkboxes and tables: every `input[type=checkbox]` is styled app-wide by
+  one `:where()` rule in `global.css` (soft tile, `--check-size` 22 px, 18 px in
+  compact toolbars via `.check-compact` or a scoped override; tokens
+  `--check-bg/-mark/-halo` per theme). `components/ui/Checkbox.tsx` only adds
+  the `indeterminate` DOM property for group select-all; `groupCheckState`
+  (`src/lib/groupCheck.ts`) gives all/some/none. The ASIAIR import and the WBPP
+  export tree render as a `.data-grid` table (sticky headers, cell borders,
+  shaded `.data-grid-group` rows per night / filter).
 - Preview generation (`fits_preview.rs`): rustafits `ImageConverter::read_raw` → `process_data` → `encode_jpeg` (max 1920×1080, quality 90). For FITS the metadata's `flip_vertical` is cleared before processing so previews stay in raw pixel space (rustafits ≥ 1.0 would flip files without `ROWORDER` bottom-up) and line up with the star overlay from `analyzer.rs`, which never flips; XISF is left as rustafits reads it. A unit test pins this. Results are cached by file path in a bounded LRU (default 500 MB, 30 min TTL, runtime-adjustable concurrency). rustafits' full-resolution VNG debayer is deliberately not used here — previews are downscaled anyway and the super-pixel path inside `process_data` is the cheaper fit.
 - Preview/star-analysis prefetch uses a persistent global queue (`preview_queue.rs`): navigating frames calls `enqueue_prefetch_window`, which replaces pending work with the selected frame ±3 (preview job per path, plus star-detail job when heatmap/tilt overlays are on). Direct `get_fits_preview` / `analyze_stars_detail` commands hold a foreground guard that pauses new queue admissions so the visible frame renders first; per-path single-flight (`single_flight.rs`) prevents duplicate concurrent generation.
 - Masters matching: by exposure (±0.5 s), temperature (configurable tolerance), resolution. Darkflats (`masterDarkFlat_*`, checked before the `masterDark` prefix) match the session's first raw flat the same way, except the temperature may match either the flat's or the lights' (flats often run warmer before the cooler settles) — the scan reads that flat's header alongside the first light; a library cached without `darkFlats` is ignored until the next masters scan.
@@ -113,6 +134,9 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   offers them as the `sharedFlat` kind, off by default, placed in the
   borrowing night's `Flats/NIGHT_<date>/FILTER_<f>/`. `buildPlan` dedupes per
   destination folder so one set can serve several nights.
+- New Night (ProjectView) asks which subfolders to create (`lights` / `flats` /
+  `darks` / `biases`, default `lights`) and remembers the last choice in the
+  `newNightSubfolders` setting; `create_session` takes an explicit list.
 - Supported formats: FITS (`.fits`, `.fit`, `.fts`), XISF (`.xisf`), DSLR RAW (`.cr2`, `.cr3`, `.arw`).
 - Error handling: `Result<T, String>` across the IPC boundary — Rust errors become plain strings for the frontend.
 - Async: `tauri::async_runtime::spawn_blocking` for CPU-intensive work; `tokio::spawn` for I/O-bound or long-running tasks (e.g. preview worker, background cache sweeper).
@@ -161,6 +185,20 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   each file by symlink → hard link → copy (`create_new`). It never overwrites,
   and never moves, renames or deletes a source. Master matching lives in
   `src/lib/calibration.ts`.
+- ASIAIR import: the Dashboard's "Import from ASIAIR" reads a folder path
+  (`importSourcePath` setting — a mounted SMB share, USB stick or SD card;
+  no network code). `import_source.rs` lists lights/flats with headers
+  (dot-files skipped — macOS AppleDouble). `src/lib/asiairImport.ts` (pure,
+  unit-tested) drops subs already in the library (filename + size), groups
+  the rest by night / FILTER / exposure / temperature (optional) / 0.5° /
+  rig, proposes a project folder per group from each folder's latest
+  first-light header (within 1°, then exposure, then FILTER), names it
+  `Night <max+1>`, and sends each night's flats to one chosen session so
+  the others borrow them via shared flats. A new session gets `flats/` only
+  when this import copies flats into it. Groups matching no project are
+  only counted. `copy_to_directory` copies via `.<name>.part` + size check
+  + rename and never overwrites; failures reach the StatusBar
+  (`importNotice`).
 
 ## Documentation Conventions
 

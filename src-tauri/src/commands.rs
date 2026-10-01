@@ -248,6 +248,60 @@ pub fn load_cache(root_folder: String) -> Result<serde_json::Value, String> {
 
 // ─── File Operation Commands ────────────────────────────────────────────────
 
+pub const SOURCE_UNREACHABLE: &str =
+    "Source folder not reachable — is the share mounted / USB plugged in?";
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum CopyOutcome {
+    Copied(PathBuf),
+    Skipped(PathBuf),
+    Failed(String),
+}
+
+/// Copies through a hidden `.<name>.part` file and renames it into place only
+/// once its size matches the source, so an interrupted copy (a dropped SMB
+/// link) never leaves a truncated frame behind. Never overwrites: a file of
+/// the same name and size is taken as already imported, a different size is
+/// a conflict.
+pub(crate) fn copy_file_safely(src: &Path, target_dir: &Path) -> CopyOutcome {
+    let name = match src.file_name() {
+        Some(n) => n.to_string_lossy().to_string(),
+        None => return CopyOutcome::Failed("Not a file path".to_string()),
+    };
+    let src_len = match fs::metadata(src) {
+        Ok(m) => m.len(),
+        Err(e) => return CopyOutcome::Failed(format!("Cannot read source: {e}")),
+    };
+    let dst = target_dir.join(&name);
+    if let Ok(existing) = fs::metadata(&dst) {
+        return if existing.len() == src_len {
+            CopyOutcome::Skipped(dst)
+        } else {
+            CopyOutcome::Failed("A different file with this name already exists".to_string())
+        };
+    }
+    let part = target_dir.join(format!(".{name}.part"));
+    let result = fs::copy(src, &part)
+        .map_err(|e| format!("Copy failed: {e}"))
+        .and_then(|written| {
+            if written != src_len {
+                return Err(format!("Copied {written} of {src_len} bytes"));
+            }
+            fs::rename(&part, &dst).map_err(|e| format!("Rename failed: {e}"))
+        });
+    match result {
+        Ok(()) => CopyOutcome::Copied(dst),
+        Err(e) => {
+            let _ = fs::remove_file(&part);
+            CopyOutcome::Failed(e)
+        }
+    }
+}
+
+fn source_gone(file_path: &str) -> bool {
+    Path::new(file_path).parent().is_none_or(|p| !p.exists())
+}
+
 #[tauri::command]
 pub async fn copy_to_directory(
     files: Vec<String>,
@@ -258,9 +312,14 @@ pub async fn copy_to_directory(
     fs::create_dir_all(&target_path)
         .map_err(|e| format!("Failed to create target directory: {}", e))?;
 
+    // An unmounted share fails the whole job at once instead of per file.
+    if files.first().is_some_and(|f| source_gone(f)) {
+        return Err(SOURCE_UNREACHABLE.to_string());
+    }
+
     cancellation::reset_cancel("import");
     let total = files.len();
-    let mut copied: Vec<String> = Vec::new();
+    let mut result = CopyResult { copied: Vec::new(), skipped: Vec::new(), failed: Vec::new() };
 
     for (i, file_path) in files.iter().enumerate() {
         if cancellation::is_cancelled("import") {
@@ -268,45 +327,44 @@ pub async fn copy_to_directory(
             break;
         }
 
-        let source = Path::new(file_path);
-        let filename = source
+        let filename = Path::new(file_path)
             .file_name()
             .map(|f| f.to_string_lossy().to_string())
             .unwrap_or_default();
-        let target = target_path.join(&filename);
-
         let _ = app_handle.emit("import:progress", serde_json::json!({
             "current": i + 1,
             "total": total,
             "filename": &filename,
         }));
 
-        let src = source.to_path_buf();
-        let dst = target.clone();
-        let result = tauri::async_runtime::spawn_blocking(move || {
-            fs::copy(&src, &dst)
-        })
-        .await;
+        let src = PathBuf::from(file_path);
+        let dir = target_path.clone();
+        let outcome = tauri::async_runtime::spawn_blocking(move || copy_file_safely(&src, &dir))
+            .await
+            .unwrap_or_else(|e| CopyOutcome::Failed(e.to_string()));
 
-        match result {
-            Ok(Ok(_)) => {
-                copied.push(target.to_string_lossy().to_string());
-            }
-            _ => {
-                // Skip failed copies
+        match outcome {
+            CopyOutcome::Copied(p) => result.copied.push(p.to_string_lossy().to_string()),
+            CopyOutcome::Skipped(p) => result.skipped.push(p.to_string_lossy().to_string()),
+            CopyOutcome::Failed(error) => {
+                if source_gone(file_path) {
+                    // The share dropped: fail the rest without touching them.
+                    for rest in &files[i..] {
+                        result.failed.push(CopyFailure { file: rest.clone(), error: SOURCE_UNREACHABLE.to_string() });
+                    }
+                    break;
+                }
+                result.failed.push(CopyFailure { file: file_path.clone(), error });
             }
         }
     }
 
     let _ = app_handle.emit("import:done", serde_json::json!({
-        "copied": copied.len(),
+        "copied": result.copied.len(),
         "total": total,
     }));
 
-    Ok(CopyResult {
-        copied: copied.len(),
-        files: copied,
-    })
+    Ok(result)
 }
 
 #[tauri::command]
@@ -388,12 +446,20 @@ pub fn create_project(
     Ok(project_dir.to_string_lossy().to_string())
 }
 
+/// Subfolders `create_session` may create — the ones `scanner.rs` reads.
+const SESSION_SUBFOLDERS: [&str; 4] = ["lights", "flats", "darks", "biases"];
+
 #[tauri::command]
 pub fn create_session(
     filter_path: String,
     session_name: String,
     root_folder: String,
+    subfolders: Vec<String>,
 ) -> Result<String, String> {
+    if let Some(bad) = subfolders.iter().find(|s| !SESSION_SUBFOLDERS.contains(&s.as_str())) {
+        return Err(format!("Unknown session subfolder: {}", bad));
+    }
+
     let resolved_filter = PathBuf::from(&filter_path)
         .canonicalize()
         .map_err(|e| format!("Failed to resolve filter path: {}", e))?;
@@ -407,13 +473,12 @@ pub fn create_session(
     }
 
     let session_dir = resolved_filter.join(&session_name);
-    let lights_dir = session_dir.join("lights");
-    let flats_dir = session_dir.join("flats");
-
-    fs::create_dir_all(&lights_dir)
-        .map_err(|e| format!("Failed to create lights directory: {}", e))?;
-    fs::create_dir_all(&flats_dir)
-        .map_err(|e| format!("Failed to create flats directory: {}", e))?;
+    fs::create_dir_all(&session_dir)
+        .map_err(|e| format!("Failed to create session directory: {}", e))?;
+    for sub in &subfolders {
+        fs::create_dir_all(session_dir.join(sub))
+            .map_err(|e| format!("Failed to create {} directory: {}", sub, e))?;
+    }
 
     Ok(session_dir.to_string_lossy().to_string())
 }
@@ -510,4 +575,115 @@ pub fn read_horizon_file(file_path: String) -> Result<String, String> {
 pub fn write_horizon_file(file_path: String, contents: String) -> Result<(), String> {
     fs::write(Path::new(&file_path), &contents)
         .map_err(|e| format!("Failed to write horizon file: {}", e))
+}
+
+#[cfg(test)]
+mod copy_tests {
+    use super::*;
+
+    fn temp_dirs(name: &str) -> (PathBuf, PathBuf) {
+        let base = std::env::temp_dir().join(format!("asm-copy-{}-{}", std::process::id(), name));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("src")).unwrap();
+        fs::create_dir_all(base.join("dst")).unwrap();
+        (base.join("src"), base.join("dst"))
+    }
+
+    fn part_files(dir: &Path) -> Vec<String> {
+        fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .filter(|n| n.ends_with(".part"))
+            .collect()
+    }
+
+    #[test]
+    fn copies_a_new_file_without_leaving_a_part_file() {
+        let (src, dst) = temp_dirs("new");
+        fs::write(src.join("Light_1.fit"), b"abcdef").unwrap();
+        let outcome = copy_file_safely(&src.join("Light_1.fit"), &dst);
+        assert_eq!(outcome, CopyOutcome::Copied(dst.join("Light_1.fit")));
+        assert_eq!(fs::read(dst.join("Light_1.fit")).unwrap(), b"abcdef");
+        assert!(part_files(&dst).is_empty());
+    }
+
+    #[test]
+    fn skips_an_existing_file_of_the_same_size() {
+        let (src, dst) = temp_dirs("same");
+        fs::write(src.join("Light_1.fit"), b"abcdef").unwrap();
+        fs::write(dst.join("Light_1.fit"), b"ABCDEF").unwrap();
+        let outcome = copy_file_safely(&src.join("Light_1.fit"), &dst);
+        assert_eq!(outcome, CopyOutcome::Skipped(dst.join("Light_1.fit")));
+        assert_eq!(fs::read(dst.join("Light_1.fit")).unwrap(), b"ABCDEF");
+    }
+
+    #[test]
+    fn never_overwrites_a_different_file_with_the_same_name() {
+        let (src, dst) = temp_dirs("conflict");
+        fs::write(src.join("Light_1.fit"), b"abcdef").unwrap();
+        fs::write(dst.join("Light_1.fit"), b"xyz").unwrap();
+        let outcome = copy_file_safely(&src.join("Light_1.fit"), &dst);
+        assert!(matches!(outcome, CopyOutcome::Failed(ref e) if e.contains("already exists")));
+        assert_eq!(fs::read(dst.join("Light_1.fit")).unwrap(), b"xyz");
+        assert!(part_files(&dst).is_empty());
+    }
+
+    #[test]
+    fn a_missing_source_fails_and_leaves_nothing_behind() {
+        let (src, dst) = temp_dirs("missing");
+        let outcome = copy_file_safely(&src.join("Light_gone.fit"), &dst);
+        assert!(matches!(outcome, CopyOutcome::Failed(_)));
+        assert_eq!(fs::read_dir(&dst).unwrap().count(), 0);
+    }
+}
+
+#[cfg(test)]
+mod create_session_tests {
+    use super::*;
+
+    fn root(name: &str) -> PathBuf {
+        let base = std::env::temp_dir().join(format!("asm-session-{}-{}", std::process::id(), name));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("P").join("Ha")).unwrap();
+        base
+    }
+
+    fn subdirs(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        names
+    }
+
+    fn create(base: &Path, subs: &[&str]) -> Result<String, String> {
+        create_session(
+            base.join("P").join("Ha").to_string_lossy().to_string(),
+            "Night 1".to_string(),
+            base.to_string_lossy().to_string(),
+            subs.iter().map(|s| s.to_string()).collect(),
+        )
+    }
+
+    #[test]
+    fn creates_only_the_requested_subfolders() {
+        let base = root("some");
+        let dir = create(&base, &["lights", "darks"]).unwrap();
+        assert_eq!(subdirs(Path::new(&dir)), ["darks", "lights"]);
+    }
+
+    #[test]
+    fn creates_an_empty_session_without_subfolders() {
+        let base = root("none");
+        let dir = create(&base, &[]).unwrap();
+        assert!(subdirs(Path::new(&dir)).is_empty());
+    }
+
+    #[test]
+    fn rejects_unknown_subfolders() {
+        let base = root("bad");
+        assert!(create(&base, &["../escape"]).is_err());
+        assert!(!base.join("P").join("Ha").join("Night 1").exists());
+    }
 }

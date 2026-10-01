@@ -271,7 +271,7 @@
   font-size: 12px; color: var(--text-secondary, #8888aa);
   cursor: pointer; user-select: none; white-space: nowrap;
 }
-.planner-flat-horizon-toggle input { accent-color: var(--planner-curve); cursor: pointer; }
+.planner-flat-horizon-toggle input { --check-size: 18px; }
 
 .planner-horizon-section {
   padding: 12px 14px; margin-bottom: 12px; border-radius: 8px;

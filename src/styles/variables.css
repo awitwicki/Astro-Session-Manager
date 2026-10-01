@@ -17,6 +17,9 @@
   --color-accent-hover: #7cb3e0;
   --color-accent-muted: #2a3f5a;
   --color-accent-text: #ffffff;
+  --check-bg: var(--color-bg-tertiary);
+  --check-mark: #8fc3f0;
+  --check-halo: rgba(91, 155, 213, 0.18);
 
   --color-success: #4caf50;
   --color-success-muted: #1b3a1d;
@@ -63,6 +66,9 @@
   --color-accent-hover: #0077ed;
   --color-accent-muted: #e1f0ff;
   --color-accent-text: #ffffff;
+  --check-bg: #ffffff;
+  --check-mark: #0066cc;
+  --check-halo: rgba(0, 102, 204, 0.15);
 
   --color-success: #34a853;
   --color-success-muted: #e6f4ea;

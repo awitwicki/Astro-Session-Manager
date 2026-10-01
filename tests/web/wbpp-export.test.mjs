@@ -251,6 +251,12 @@ test('predictPlacement and estimateSize', () => {
   assert.equal(countByKind(plan).masterDark, 0)
 })
 
+test('exportWarnings rounds float32 header temperatures', () => {
+  const n = night({ ccdTemp: -20.1000003814697, frames: [row('/l/a.fits')] })
+  const w = exportWarnings(tree1(n), S(), sel(), null)
+  assert.ok(w.includes('Night 1 / Ha: no master dark matches 300 s @ -20.1 °C'), w.join('\n'))
+})
+
 test('exportWarnings', () => {
   const n = night({ frames: [row('/l/a.fits', { moonSepDeg: null })] })
   const w = exportWarnings(tree1(n), S({ moonCutoffEnabled: true }), sel(), null)

@@ -842,11 +842,11 @@ export function FitsDetailView() {
 
           <div className="gallery-toolbar-group" style={{ gap: 8 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
-              <input type="checkbox" checked={showHeatmap} onChange={toggleHeatmap} />
+              <input type="checkbox" className="check-compact" checked={showHeatmap} onChange={toggleHeatmap} />
               FWHM Heatmap
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
-              <input type="checkbox" checked={showTilt} onChange={toggleTilt} />
+              <input type="checkbox" className="check-compact" checked={showTilt} onChange={toggleTilt} />
               Tilt Diagram
             </label>
             {starsLoading && <div className="spinner" style={{ width: 12, height: 12 }} />}

@@ -5,6 +5,9 @@ import { isDslrFile } from './dslrUtils'
 import { moonInfo, separationDeg } from './ephemeris'
 import { extractCoordinates } from './skymap'
 
+// Headers store CCD-TEMP as float32 (-20.1 arrives as -20.1000003814697).
+const tempText = (c: number) => `${Math.round(c * 10) / 10 || 0} °C`
+
 export type ExportKind = 'light' | 'flat' | 'sharedFlat' | 'masterFlat' | 'masterDark' | 'masterDarkFlat' | 'masterBias' | 'dark' | 'bias'
 export type CalKind = Exclude<ExportKind, 'light'>
 
@@ -464,7 +467,7 @@ export function exportWarnings(
       if (settings.include.masterDark && !night.masterDark && !night.isDslr) {
         warnings.push(
           night.exposure !== null && night.ccdTemp !== null
-            ? `${label}: no master dark matches ${night.exposure} s @ ${night.ccdTemp} °C`
+            ? `${label}: no master dark matches ${night.exposure} s @ ${tempText(night.ccdTemp)}`
             : `${label}: no master dark match (exposure or temperature unknown)`,
         )
       }
@@ -474,7 +477,7 @@ export function exportWarnings(
       if ((opts.warnMissingDarkFlat ?? true) && rawFlatsOut && !night.masterDarkFlat && !night.isDslr) {
         const what = [
           night.flatExposure !== null ? `${night.flatExposure} s` : null,
-          night.ccdTemp !== null ? `${night.ccdTemp} °C` : null,
+          night.ccdTemp !== null ? tempText(night.ccdTemp) : null,
         ].filter(Boolean).join(' @ ')
         warnings.push(`${label}: raw flats but no master darkflat matches ${what || '(exposure and temperature unknown)'}`)
       }

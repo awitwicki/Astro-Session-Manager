@@ -5,6 +5,7 @@ static CANCEL_ANALYZE: AtomicBool = AtomicBool::new(false);
 static CANCEL_IMPORT: AtomicBool = AtomicBool::new(false);
 static CANCEL_CONVERT: AtomicBool = AtomicBool::new(false);
 static CANCEL_EXPORT: AtomicBool = AtomicBool::new(false);
+static CANCEL_SOURCE_SCAN: AtomicBool = AtomicBool::new(false);
 
 pub fn is_cancelled(operation: &str) -> bool {
     match operation {
@@ -13,6 +14,7 @@ pub fn is_cancelled(operation: &str) -> bool {
         "import" => CANCEL_IMPORT.load(Ordering::Relaxed),
         "convert" => CANCEL_CONVERT.load(Ordering::Relaxed),
         "export" => CANCEL_EXPORT.load(Ordering::Relaxed),
+        "source_scan" => CANCEL_SOURCE_SCAN.load(Ordering::Relaxed),
         _ => false,
     }
 }
@@ -24,6 +26,7 @@ pub fn request_cancel(operation: &str) {
         "import" => CANCEL_IMPORT.store(true, Ordering::Relaxed),
         "convert" => CANCEL_CONVERT.store(true, Ordering::Relaxed),
         "export" => CANCEL_EXPORT.store(true, Ordering::Relaxed),
+        "source_scan" => CANCEL_SOURCE_SCAN.store(true, Ordering::Relaxed),
         _ => {}
     }
 }
@@ -35,6 +38,7 @@ pub fn reset_cancel(operation: &str) {
         "import" => CANCEL_IMPORT.store(false, Ordering::Relaxed),
         "convert" => CANCEL_CONVERT.store(false, Ordering::Relaxed),
         "export" => CANCEL_EXPORT.store(false, Ordering::Relaxed),
+        "source_scan" => CANCEL_SOURCE_SCAN.store(false, Ordering::Relaxed),
         _ => {}
     }
 }

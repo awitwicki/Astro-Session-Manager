@@ -3,9 +3,11 @@ import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { StatusBar } from './StatusBar'
 import { useImportQueue } from '../../hooks/useImportQueue'
+import { useOperationProgress } from '../../hooks/useOperationProgress'
 
 export function AppShell() {
   useImportQueue()
+  useOperationProgress()
 
   return (
     <div className="app-shell">

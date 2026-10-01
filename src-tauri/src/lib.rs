@@ -7,6 +7,7 @@ mod dslr_parser;
 mod fits_parser;
 mod fits_preview;
 mod fits_writer;
+mod import_source;
 mod masters;
 mod preview_queue;
 mod scanner;
@@ -100,6 +101,8 @@ pub fn run() {
             // WBPP export
             wbpp_export::wbpp_export_preflight,
             wbpp_export::wbpp_export,
+            // Import source
+            import_source::scan_import_source,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

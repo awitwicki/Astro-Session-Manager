@@ -21,8 +21,10 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${units[i]}`
 }
 
+// Headers store CCD-TEMP as float32, so -20.1 arrives as -20.1000003814697.
 export function formatTemperature(celsius: number): string {
-  return `${celsius > 0 ? '+' : ''}${celsius}\u00B0C`
+  const t = Math.round(celsius * 10) / 10 || 0 // `|| 0` folds -0 into 0
+  return `${t > 0 ? '+' : ''}${t}\u00B0C`
 }
 
 export function formatDate(isoDate: string): string {

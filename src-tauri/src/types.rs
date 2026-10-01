@@ -191,9 +191,17 @@ pub struct FitsPreviewResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CopyFailure {
+    pub file: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CopyResult {
-    pub copied: usize,
-    pub files: Vec<String>,
+    pub copied: Vec<String>,
+    pub skipped: Vec<String>,
+    pub failed: Vec<CopyFailure>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -395,4 +403,31 @@ mod app_settings_tests {
             Some(serde_json::json!({"moonMinSepDeg": 45}))
         );
     }
+}
+
+// ─── Import source ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSourceFile {
+    pub path: String,
+    pub filename: String,
+    pub size_bytes: u64,
+    /// `"light"` or `"flat"`.
+    pub kind: String,
+    pub header: FitsHeader,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreadableFile {
+    pub path: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSourceScan {
+    pub files: Vec<ImportSourceFile>,
+    pub unreadable: Vec<UnreadableFile>,
 }

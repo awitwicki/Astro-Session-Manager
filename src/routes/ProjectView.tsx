@@ -13,6 +13,9 @@ import { isMasterFlat } from '../lib/calibration'
 import type { Session } from '../types'
 import { WbppExportDialog } from '../components/export/WbppExportDialog'
 
+/** Subfolders a new night may get — the ones the scanner reads. */
+const SESSION_SUBFOLDERS = ['lights', 'flats', 'darks', 'biases']
+
 export function ProjectView() {
   const { projectName } = useParams<{ projectName: string }>()
   const navigate = useNavigate()
@@ -54,6 +57,8 @@ export function ProjectView() {
   const [analyzeModal, setAnalyzeModal] = useState<{ allPaths: string[]; unanalyzed: string[]; analyzed: string[] } | null>(null)
   const [otherFilesOpen, setOtherFilesOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [newNight, setNewNight] = useState<{ filterPath: string; name: string; subfolders: string[] } | null>(null)
+  const [creatingNight, setCreatingNight] = useState(false)
 
   const currentFilter = activeFilter || (project?.filters.length ? project.filters[0].name : null)
   const filterData = project?.filters.find((f) => f.name === currentFilter)
@@ -137,6 +142,26 @@ export function ProjectView() {
       alert('Failed to save notes: ' + String(err))
     } finally {
       setNotesSaving(false)
+    }
+  }
+
+  const handleCreateNight = async (): Promise<void> => {
+    if (!newNight || !rootFolder) return
+    setCreatingNight(true)
+    try {
+      await invoke('create_session', {
+        filterPath: newNight.filterPath,
+        sessionName: newNight.name,
+        rootFolder,
+        subfolders: newNight.subfolders
+      })
+      invoke('set_setting', { key: 'newNightSubfolders', value: newNight.subfolders }).catch(() => {})
+      setNewNight(null)
+      await scanProject(project.path)
+    } catch (err) {
+      alert('Create night failed: ' + String(err))
+    } finally {
+      setCreatingNight(false)
     }
   }
 
@@ -364,13 +389,11 @@ export function ProjectView() {
                   const m = s.date.match(/^night\s*(\d+)$/i)
                   return m ? Math.max(max, parseInt(m[1])) : max
                 }, 0)
-                const nextName = `Night ${maxNight + 1}`
-                await invoke('create_session', {
-                  filterPath: filterData.path,
-                  sessionName: nextName,
-                  rootFolder
-                })
-                await scanProject(project.path)
+                const saved = await invoke<unknown>('get_setting', { key: 'newNightSubfolders' }).catch(() => null)
+                const subfolders = Array.isArray(saved)
+                  ? SESSION_SUBFOLDERS.filter((s) => saved.includes(s))
+                  : ['lights']
+                setNewNight({ filterPath: filterData.path, name: `Night ${maxNight + 1}`, subfolders })
               }}
               title="Create new empty night"
             >
@@ -469,6 +492,41 @@ export function ProjectView() {
       )}
 
       {exportOpen && <WbppExportDialog project={project} onClose={() => setExportOpen(false)} />}
+
+      {/* New Night Modal */}
+      {newNight && (
+        <div className="modal-overlay" onClick={() => !creatingNight && setNewNight(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">New {newNight.name}</h3>
+            <div style={{ margin: '16px 0' }}>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 8 }}>
+                Create subfolders
+              </label>
+              {SESSION_SUBFOLDERS.map((sub) => (
+                <label key={sub} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={newNight.subfolders.includes(sub)}
+                    onChange={(e) => setNewNight({
+                      ...newNight,
+                      subfolders: SESSION_SUBFOLDERS.filter((s) => (s === sub ? e.target.checked : newNight.subfolders.includes(s))),
+                    })}
+                  />
+                  {sub}
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setNewNight(null)} disabled={creatingNight}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleCreateNight} disabled={creatingNight}>
+                {creatingNight ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rename Project Modal */}
       {renameProject && (
