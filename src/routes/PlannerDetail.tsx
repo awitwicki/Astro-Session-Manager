@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, Telescope } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MapPin, Telescope } from 'lucide-react'
 import { usePlannerData } from '../hooks/usePlanner'
 import { AltitudeChart } from '../components/planner/AltitudeChart'
 import { useEffectiveHorizonProfile } from '../hooks/useHorizon'
@@ -8,6 +8,7 @@ import { moonInfo, separationDeg } from '../lib/ephemeris'
 import { addDays, addMinutes, formatDateTimeInZone, nightWindowStart } from '../lib/localTime'
 import { formatDec, formatRA } from '../lib/formatters'
 import { useElementWidth } from '../hooks/useElementWidth'
+import { TopBarActions } from '../components/layout/TopBarSlot'
 import '../styles/planner.css'
 
 function Stepper({ label, onMinus, onPlus }: {
@@ -49,16 +50,14 @@ export function PlannerDetail() {
 
   return (
     <div className="planner-page">
-      <div className="planner-detail-header">
-        <Link to="/planner" className="planner-back"><ArrowLeft size={16} /> Planner</Link>
-        <h2>{target.name}</h2>
-        <span className="planner-detail-designation">
+      <TopBarActions>
+        <span className="topbar-note">
           {target.designation}{target.messier !== null ? ` · M${target.messier}` : ''}
         </span>
-        <Link to={`/skymap?target=${encodeURIComponent(target.id)}`} className="planner-skymap-link">
-          <Telescope size={14} /> Open in Sky Map
+        <Link to={`/skymap?target=${encodeURIComponent(target.id)}`} className="planner-skymap-link" title="Open in Sky Map">
+          <Telescope size={14} /> <span className="btn-label">Open in Sky Map</span>
         </Link>
-      </div>
+      </TopBarActions>
 
       {!locationSet && (
         <div className="planner-banner">

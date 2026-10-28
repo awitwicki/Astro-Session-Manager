@@ -7,6 +7,7 @@ import { useAppStore } from '../store/appStore'
 import { AsiairImportDialog } from '../components/import/AsiairImportDialog'
 import { formatIntegrationTime, formatFileSize, formatTimeAgo } from '../lib/formatters'
 import { projectPath } from '../lib/constants'
+import { TopBarActions } from '../components/layout/TopBarSlot'
 import { countNights } from '../lib/projectNights'
 import { nextDashboardSort, sortProjects, type DashboardSort, type ProjectSortColumn } from '../lib/dashboardSort'
 
@@ -200,46 +201,42 @@ export function Dashboard() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 className="page-title">Dashboard</h1>
+      <TopBarActions>
+        <div className="topbar-group">
+          <select
+            className="settings-input"
+            style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }}
+            value={sort.column}
+            onChange={(e) => handleSort(e.target.value as ProjectSortColumn)}
+            title="Sort projects"
+          >
+            {(Object.keys(SORT_LABELS) as ProjectSortColumn[]).map((col) => (
+              <option key={col} value={col}>{SORT_LABELS[col]}</option>
+            ))}
+          </select>
+          <button
+            className="btn btn-sm"
+            onClick={() => handleSort(sort.column)}
+            title={sort.direction === 'asc' ? 'Ascending' : 'Descending'}
+          >
+            {sort.direction === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+          </button>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <select
-              className="settings-input"
-              style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }}
-              value={sort.column}
-              onChange={(e) => handleSort(e.target.value as ProjectSortColumn)}
-              title="Sort projects"
-            >
-              {(Object.keys(SORT_LABELS) as ProjectSortColumn[]).map((col) => (
-                <option key={col} value={col}>{SORT_LABELS[col]}</option>
-              ))}
-            </select>
-            <button
-              className="btn btn-sm"
-              onClick={() => handleSort(sort.column)}
-              title={sort.direction === 'asc' ? 'Ascending' : 'Descending'}
-            >
-              {sort.direction === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button
-              className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : ''}`}
-              onClick={() => setViewMode('grid')}
-              title="Grid view"
-            >
-              <LayoutGrid size={14} />
-            </button>
-            <button
-              className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : ''}`}
-              onClick={() => setViewMode('table')}
-              title="Table view"
-            >
-              <List size={14} />
-            </button>
+        <div className="topbar-group">
+          <button
+            className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : ''}`}
+            onClick={() => setViewMode('grid')}
+            title="Grid view"
+          >
+            <LayoutGrid size={14} />
+          </button>
+          <button
+            className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : ''}`}
+            onClick={() => setViewMode('table')}
+            title="Table view"
+          >
+            <List size={14} />
+          </button>
           <button
             className="btn btn-sm"
             onClick={() => setShowExcluded(true)}
@@ -247,6 +244,8 @@ export function Dashboard() {
           >
             <EyeOff size={14} />
           </button>
+        </div>
+        <div className="topbar-group">
           <button
             className="btn btn-sm"
             onClick={() => setShowAsiairImport(true)}
@@ -254,25 +253,25 @@ export function Dashboard() {
             title={importBusy ? 'Wait for the current import to finish' : 'Import new subs from an ASIAIR folder'}
           >
             <HardDriveDownload size={14} />
-            Import from ASIAIR
+            <span className="btn-label">Import from ASIAIR</span>
           </button>
-          <button className="btn btn-sm btn-primary" onClick={() => setShowNewProject(true)}>
+          <button className="btn btn-sm btn-primary" onClick={() => setShowNewProject(true)} title="New project">
             <Plus size={14} />
-            New Project
+            <span className="btn-label">New Project</span>
           </button>
         </div>
-        </div>
-      </div>
+      </TopBarActions>
 
-      <div className="stat-row" style={{ marginBottom: 24 }}>
+      <div className="stat-row-wrap" style={{ marginBottom: 24 }}>
+      <div className="stat-row">
         <div className="stat-card">
           <div className="stat-value">{projects.length}</div>
           <div className="stat-label">Projects</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{formatIntegrationTime(totalIntegration)}</div>
+          <div className="stat-value">{formatIntegrationTime(totalIntegration, { withSeconds: false })}</div>
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)'}}>
-              {formatIntegrationTime(thisYearIntegration)} this year
+              {formatIntegrationTime(thisYearIntegration, { withSeconds: false })} this year
             </div>
           <div className="stat-label">Total Integration</div>
         </div>
@@ -288,6 +287,7 @@ export function Dashboard() {
           <div className="stat-value">{formatFileSize(totalSize)}</div>
           <div className="stat-label">Total Size</div>
         </div>
+      </div>
       </div>
 
       {projects.length === 0 ? (

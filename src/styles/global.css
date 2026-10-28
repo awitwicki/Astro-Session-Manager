@@ -110,6 +110,11 @@ input, select, textarea {
 }
 
 .app-topbar {
+  /* Above .app-content so dropdowns from portalled page controls
+     (e.g. the Planner's object search) overlap the page. */
+  position: relative;
+  z-index: 40;
+  container-type: inline-size;
   height: var(--topbar-height);
   min-height: var(--topbar-height);
   background: var(--topbar-bg);
@@ -471,10 +476,29 @@ input, select, textarea {
 }
 
 /* Stats */
+/* Equal-width columns spanning the full row. The column count snaps
+   5 → 3 → 2 → 1 with the available width (not the viewport — the sidebar
+   eats into it), so the five cards never wrap 4 + 1. */
+.stat-row-wrap {
+  container-type: inline-size;
+}
+
 .stat-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
-  flex-wrap: wrap;
+}
+
+@container (max-width: 1080px) {
+  .stat-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@container (max-width: 640px) {
+  .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container (max-width: 400px) {
+  .stat-row { grid-template-columns: minmax(0, 1fr); }
 }
 
 .stat-card {
@@ -482,7 +506,7 @@ input, select, textarea {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 12px 16px;
-  min-width: 140px;
+  min-width: 0;
 }
 
 .stat-value {
@@ -544,26 +568,8 @@ input, select, textarea {
   margin-bottom: 5px;
 }
 
-.page-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  margin-bottom: 4px;
-}
-
-/* Project page header: when the window narrows, the name and stats keep
-   their single line and only the action buttons wrap onto more rows. */
+/* Project page header: the stats line under the TopBar */
 .project-header { gap: 16px; }
-.project-title-row { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
-.project-title {
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 0;
-  max-width: 50%;
-}
-.project-actions { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .project-stats {
   display: flex;
   gap: 16px;
@@ -580,13 +586,80 @@ input, select, textarea {
   color: var(--color-text-muted);
 }
 
-/* Breadcrumb */
+/* Breadcrumb: the last crumb doubles as the page title. It shrinks with an
+   ellipsis before the page's TopBar actions do. */
 .breadcrumb {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 13px;
   color: var(--color-text-muted);
+  min-width: 96px;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.breadcrumb-item:not(:last-child) {
+  flex-shrink: 0;
+}
+
+.breadcrumb-current {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Page header controls, portalled in by TopBarActions */
+.topbar-actions {
+  flex: 1 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.topbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topbar-group + .topbar-group {
+  padding-left: 8px;
+  border-left: 1px solid var(--color-border);
+}
+
+/* A narrow TopBar keeps the icons and drops the button text (the
+   buttons carry a title tooltip instead). */
+@container (max-width: 720px) {
+  .topbar-actions .btn-label { display: none; }
+}
+
+.topbar-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.topbar-note {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .breadcrumb a {
@@ -997,25 +1070,6 @@ input, select, textarea {
 }
 
 /* Gallery toolbar */
-.gallery-toolbar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.gallery-toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.gallery-toolbar-group + .gallery-toolbar-group {
-  padding-left: 8px;
-  border-left: 1px solid var(--color-border);
-}
-
 .gallery-counter {
   font-size: 12px;
   color: var(--color-text-secondary);

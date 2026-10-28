@@ -1,5 +1,6 @@
-export function formatIntegrationTime(totalSeconds: number): string {
-  if (totalSeconds <= 0) return '0s'
+/** `withSeconds: false` drops (truncates) the seconds, e.g. `111h 47m`. */
+export function formatIntegrationTime(totalSeconds: number, { withSeconds = true } = {}): string {
+  if (totalSeconds <= 0) return withSeconds ? '0s' : '0m'
 
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
@@ -7,6 +8,10 @@ export function formatIntegrationTime(totalSeconds: number): string {
 
   const parts: string[] = []
   if (hours > 0) parts.push(`${hours}h`)
+  if (!withSeconds) {
+    if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`)
+    return parts.join(' ')
+  }
   if (minutes > 0) parts.push(`${minutes}m`)
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`)
 

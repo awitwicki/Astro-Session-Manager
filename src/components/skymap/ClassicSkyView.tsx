@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { ZoomIn, ZoomOut, Layers } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import {
@@ -14,6 +15,7 @@ import { ensureCelestialLoaded } from '../../lib/celestialLoader'
 import { isFinitePoint } from '../../lib/altAzView'
 import { grabbedCentre } from '../../lib/skyPan'
 import { takeOverSkyInput, type SkyDrag } from '../../lib/skyPointer'
+import { TopBarActions } from '../layout/TopBarSlot'
 import '../../styles/skymap.css'
 
 const HIPS_SURVEYS: HiPSConfig[] = [NSNS_RGB, NSNS_OHS, NSNS_HA]
@@ -45,7 +47,7 @@ const skyDrag: SkyDrag = {
   },
 }
 
-export function ClassicSkyView() {
+export function ClassicSkyView({ modeSwitch }: { modeSwitch: ReactNode }) {
   const projects = useAppStore((s) => s.projects)
   const containerRef = useRef<HTMLDivElement>(null)
   const celestialInit = useRef(false)
@@ -341,61 +343,55 @@ export function ClassicSkyView() {
         <div className="skymap-loading">Loading sky map...</div>
       )}
 
-      {/* Header overlay */}
-      <div className="skymap-header">
-        <div className="skymap-title">
-          Sky Map
-          {targets.length > 0 && (
-            <span className="skymap-title-count">
-              {targets.length} target{targets.length !== 1 ? 's' : ''}
-              {targets.length < projects.length && ` of ${projects.length} projects`}
-            </span>
-          )}
-        </div>
-
-        <div className="skymap-controls">
+      <TopBarActions>
+        {targets.length > 0 && (
+          <span className="topbar-note" style={{ marginRight: 'auto' }}>
+            {targets.length} target{targets.length !== 1 ? 's' : ''}
+            {targets.length < projects.length && ` of ${projects.length} projects`}
+          </span>
+        )}
+        {modeSwitch}
+        <div className="topbar-group">
           <button
-            className="skymap-btn"
+            className="btn btn-sm"
             onClick={() => { try { Celestial.zoomBy(1.4) } catch { /* ignore */ } }}
             title="Zoom in"
           >
-            <ZoomIn size={15} />
+            <ZoomIn size={14} />
           </button>
           <button
-            className="skymap-btn"
+            className="btn btn-sm"
             onClick={() => { try { Celestial.zoomBy(0.7) } catch { /* ignore */ } }}
             title="Zoom out"
           >
-            <ZoomOut size={15} />
+            <ZoomOut size={14} />
           </button>
-        
-          <div className="skymap-controls-separator" />
-
-          <div className="skymap-survey-dropdown">
-            <button
-              className={`skymap-btn${hipsOverlay ? ' skymap-btn-active' : ''}`}
-              onClick={() => setHipsOverlay(hipsOverlay ? null : NSNS_RGB)}
-              title="Toggle survey overlay"
-            >
-              <Layers size={15} />
-            </button>
-            {hipsOverlay && (
-              <select
-                className="skymap-survey-select"
-                value={hipsOverlay.id}
-                onChange={(e) => {
-                  const survey = HIPS_SURVEYS.find((s) => s.id === e.target.value)
-                  if (survey) setHipsOverlay(survey)
-                }}
-              >
-                {HIPS_SURVEYS.map((s) => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </select>
-            )}
-          </div>
         </div>
-      </div>
+        <div className="topbar-group">
+          <button
+            className={`btn btn-sm ${hipsOverlay ? 'btn-primary' : ''}`}
+            onClick={() => setHipsOverlay(hipsOverlay ? null : NSNS_RGB)}
+            title="Toggle survey overlay"
+          >
+            <Layers size={14} />
+          </button>
+          {hipsOverlay && (
+            <select
+              className="settings-input"
+              style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }}
+              value={hipsOverlay.id}
+              onChange={(e) => {
+                const survey = HIPS_SURVEYS.find((s) => s.id === e.target.value)
+                if (survey) setHipsOverlay(survey)
+              }}
+            >
+              {HIPS_SURVEYS.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      </TopBarActions>
 
       {/* Pointer coordinates */}
       {pointerCoords && (

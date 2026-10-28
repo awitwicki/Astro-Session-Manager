@@ -5,6 +5,7 @@ import { useAppStore } from '../store/appStore'
 import { persistPlannerTargets, usePlannerData } from '../hooks/usePlanner'
 import { ObjectSearch } from '../components/planner/ObjectSearch'
 import { CoordinateForm } from '../components/planner/CoordinateForm'
+import { TopBarActions } from '../components/layout/TopBarSlot'
 import { AltitudeChart } from '../components/planner/AltitudeChart'
 import { HorizonEditor } from '../components/planner/HorizonEditor'
 import { useEffectiveHorizonProfile } from '../hooks/useHorizon'
@@ -82,21 +83,21 @@ export function Planner() {
 
   return (
     <div className="planner-page">
-      <div className="planner-header">
-        <h2>Planner</h2>
+      <TopBarActions>
         <ObjectSearch onSelect={handleAdd} />
         <button
           className={`planner-toggle${coordsOpen ? ' planner-toggle--active' : ''}`}
           title="Add a target from RA/Dec"
           onClick={() => setCoordsOpen((o) => !o)}
         >
-          <Crosshair size={14} /> Coordinates
+          <Crosshair size={14} /> <span className="btn-label">Coordinates</span>
         </button>
         <button
           className={`planner-toggle${horizonOpen ? ' planner-toggle--active' : ''}`}
           onClick={() => setHorizonOpen((o) => !o)}
+          title="Custom horizon"
         >
-          <Mountain size={14} /> Horizon
+          <Mountain size={14} /> <span className="btn-label">Horizon</span>
         </button>
         <label className="planner-flat-horizon-toggle" title="Preview as if no custom horizon were set, without changing your saved skyline">
           <input
@@ -106,7 +107,7 @@ export function Planner() {
           />
           Flat horizon
         </label>
-      </div>
+      </TopBarActions>
 
       {coordsOpen && <CoordinateForm onAdd={handleAddCoords} />}
 

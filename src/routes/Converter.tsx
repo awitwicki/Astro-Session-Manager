@@ -188,12 +188,6 @@ export function Converter() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>
-          <FileOutput size={22} /> DSLR to FITS Converter (experimental)
-        </h1>
-      </div>
-
       {/* Output path */}
       <div className="converter-section">
         <label className="converter-label">Output Directory</label>

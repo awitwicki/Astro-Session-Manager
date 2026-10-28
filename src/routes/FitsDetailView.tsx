@@ -6,6 +6,7 @@ import { useAppStore } from '../store/appStore'
 import type { StarsDetailResult } from '../types'
 import { fitsGalleryPath, projectPath, type GalleryScope, type GalleryViewType } from '../lib/constants'
 import { computeMedian } from '../lib/formatters'
+import { TopBarActions } from '../components/layout/TopBarSlot'
 
 interface FitsHeader {
   bayerpat?: string
@@ -796,16 +797,16 @@ export function FitsDetailView() {
 
       {/* Main content: Image + header below */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, padding: '0 0 0 0' }}>
-        {/* Gallery toolbar */}
-        <div className="gallery-toolbar">
-          <div className="gallery-toolbar-group">
-            <button className="btn btn-sm" onClick={() => projectParam ? navigate(projectPath(projectParam)) : navigate(-1)}>
-              <ArrowLeft size={14} /> Back
+        {/* Gallery toolbar, shown in the app TopBar */}
+        <TopBarActions>
+          <div className="topbar-group">
+            <button className="btn btn-sm" onClick={() => projectParam ? navigate(projectPath(projectParam)) : navigate(-1)} title="Back">
+              <ArrowLeft size={14} /> <span className="btn-label">Back</span>
             </button>
           </div>
 
           {hasGallery && (
-            <div className="gallery-toolbar-group">
+            <div className="topbar-group">
               <button
                 className="btn btn-sm"
                 onClick={goPrev}
@@ -828,7 +829,7 @@ export function FitsDetailView() {
             </div>
           )}
 
-          <div className="gallery-toolbar-group">
+          <div className="topbar-group">
             <button
               className="btn btn-sm"
               onClick={() => invoke('show_in_folder', { path: filePath })}
@@ -838,9 +839,7 @@ export function FitsDetailView() {
             </button>
           </div>
 
-          <div style={{ flex: 1 }} />
-
-          <div className="gallery-toolbar-group" style={{ gap: 8 }}>
+          <div className="topbar-group" style={{ gap: 8 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
               <input type="checkbox" className="check-compact" checked={showHeatmap} onChange={toggleHeatmap} />
               FWHM Heatmap
@@ -852,7 +851,7 @@ export function FitsDetailView() {
             {starsLoading && <div className="spinner" style={{ width: 12, height: 12 }} />}
           </div>
 
-          <div className="gallery-toolbar-group">
+          <div className="topbar-group">
             {isColor && (
               <span className="badge badge-info" style={{ fontSize: 10 }}>
                 {hasBayer ? `Bayer ${String(bayerpat).toUpperCase()}` : 'RGB'}
@@ -868,7 +867,7 @@ export function FitsDetailView() {
             )}
           </div>
 
-          <div className="gallery-toolbar-group">
+          <div className="topbar-group">
             <button
               className="btn btn-sm"
               onClick={() => {
@@ -913,7 +912,7 @@ export function FitsDetailView() {
               <RotateCcw size={14} />
             </button>
           </div>
-        </div>
+        </TopBarActions>
 
         {/* Status row: filename + prefetch progress. Fixed height so the
             image below never shifts when the prefetch indicator comes and goes. */}

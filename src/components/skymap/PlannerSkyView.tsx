@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { invoke } from '@tauri-apps/api/core'
 import { MapPin, ZoomIn, ZoomOut } from 'lucide-react'
@@ -27,6 +27,7 @@ import { nightWindowStart, formatTimeInZone } from '../../lib/localTime'
 import { PlannerTargetPanel, type TargetRow } from './PlannerTargetPanel'
 import type { PlannerTarget } from '../../types/planner'
 import { PlannerTimeToolbar } from './PlannerTimeToolbar'
+import { TopBarActions } from '../layout/TopBarSlot'
 
 const ALT_RINGS = [30, 60]
 const RING_STEP_DEG = 30
@@ -363,7 +364,7 @@ function drawOverlay(): void {
   }
 }
 
-export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: string | null }) {
+export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitch: ReactNode; focusTargetId?: string | null }) {
   const { lat, lon, locationSet, timeZone, targets } = usePlannerData()
   const horizon = useEffectiveHorizonProfile()
   const flatHorizonPreview = useAppStore((s) => s.flatHorizonPreview)
@@ -663,53 +664,57 @@ export function PlannerSkyView({ focusTargetId = null }: { focusTargetId?: strin
           </span>
         </div>
       )}
-      <div className="skymap-header">
-        <div className="skymap-title">Planner mode</div>
-        <div className="skymap-controls">
-          <label className="skymap-grid-toggle">
+      <TopBarActions>
+        {modeSwitch}
+        <div className="topbar-group" style={{ gap: 12 }}>
+          <label className="topbar-check">
             <input
               type="checkbox"
+              className="check-compact"
               checked={altAzGridVisible}
               onChange={(e) => pickAltAzGrid(e.target.checked)}
             />
             Alt/Az grid
           </label>
-          <label className="skymap-grid-toggle">
+          <label className="topbar-check">
             <input
               type="checkbox"
+              className="check-compact"
               checked={raDecGridVisible}
               onChange={(e) => pickRaDecGrid(e.target.checked)}
             />
             RA/Dec grid
           </label>
           <label
-            className="skymap-grid-toggle"
+            className="topbar-check"
             title="Preview as if no custom horizon were set, without changing your saved skyline"
           >
             <input
               type="checkbox"
+              className="check-compact"
               checked={flatHorizonPreview}
               onChange={(e) => setFlatHorizonPreview(e.target.checked)}
             />
             Flat horizon
           </label>
-          <div className="skymap-controls-separator" />
+        </div>
+        <div className="topbar-group">
           <button
-            className="skymap-btn"
+            className="btn btn-sm"
             onClick={() => { try { Celestial.zoomBy(1.4) } catch { /* ignore */ } }}
             title="Zoom in"
           >
-            <ZoomIn size={15} />
+            <ZoomIn size={14} />
           </button>
           <button
-            className="skymap-btn"
+            className="btn btn-sm"
             onClick={() => { try { Celestial.zoomBy(0.7) } catch { /* ignore */ } }}
             title="Zoom out"
           >
-            <ZoomOut size={15} />
+            <ZoomOut size={14} />
           </button>
         </div>
-      </div>
+      </TopBarActions>
       <PlannerTimeToolbar sim={sim} timeZone={timeZone} />
       <PlannerTargetPanel rows={rows} selectedId={selectedId} onPick={focusTarget} />
     </div>

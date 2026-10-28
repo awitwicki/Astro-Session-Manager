@@ -42,10 +42,6 @@ export function Settings() {
 
   return (
     <div style={{ maxWidth: 600 }}>
-      <div className="page-header">
-        <h1 className="page-title">Settings</h1>
-      </div>
-
       {/* Root Folder */}
       <div className="settings-group">
         <label className="settings-label">Root Folder</label>

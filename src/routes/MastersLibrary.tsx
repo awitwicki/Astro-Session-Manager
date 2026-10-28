@@ -5,6 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
 import { formatFileSize, formatTemperature, formatExposure } from '../lib/formatters'
 import type { MastersLibrary as MastersLibraryType, MasterFileEntry } from '../types'
+import { TopBarActions } from '../components/layout/TopBarSlot'
 
 type MasterType = 'darks' | 'biases' | 'darkFlats'
 
@@ -447,30 +448,25 @@ export function MastersLibrary() {
 
   return (
     <div>
-      <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 className="page-title">Masters Library</h1>
-          </div>
-          <div style={{ paddingLeft: "8px", display: 'flex', gap: 4 }}>
-            <button
-              className="btn btn-sm"
-              onClick={() => rescanMasters()}
-              disabled={scanning}
-              title="Rescan masters library"
-            >
-              <RefreshCw size={13} className={scanning ? 'spinning' : ''} />
-            </button>
-            <button
-              className="btn btn-sm"
-              onClick={() => invoke('show_in_folder', { path: mastersLibrary.rootPath })}
-              title="Show in Finder"
-            >
-              <FolderOpen size={13} />
-            </button>
-          </div>
+      <TopBarActions>
+        <div className="topbar-group">
+          <button
+            className="btn btn-sm"
+            onClick={() => rescanMasters()}
+            disabled={scanning}
+            title="Rescan masters library"
+          >
+            <RefreshCw size={13} className={scanning ? 'spinning' : ''} />
+          </button>
+          <button
+            className="btn btn-sm"
+            onClick={() => invoke('show_in_folder', { path: mastersLibrary.rootPath })}
+            title="Show in Finder"
+          >
+            <FolderOpen size={13} />
+          </button>
         </div>
-      </div>
+      </TopBarActions>
 
       {/* Naming Convention Info */}
       <div style={{ marginBottom: 24 }}>

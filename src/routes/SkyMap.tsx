@@ -37,25 +37,32 @@ export function SkyMap() {
     invoke('set_setting', { key: 'skymapMode', value: m }).catch(() => {})
   }
 
+  // Handed to the active view, which renders it first among its TopBar
+  // controls so the switch keeps its place when the view swaps.
+  const modeSwitch = (
+    <div className="topbar-group">
+      <button
+        className={`btn btn-sm ${mode === 'classic' ? 'btn-primary' : ''}`}
+        onClick={() => pick('classic')}
+      >
+        Sky map
+      </button>
+      <button
+        className={`btn btn-sm ${mode === 'planner' ? 'btn-primary' : ''}`}
+        onClick={() => pick('planner')}
+      >
+        Planner
+      </button>
+    </div>
+  )
+
   return (
     <div className="skymap-host">
       {modeLoaded && (
-        mode === 'classic' ? <ClassicSkyView /> : <PlannerSkyView focusTargetId={focusTargetId} />
+        mode === 'classic'
+          ? <ClassicSkyView modeSwitch={modeSwitch} />
+          : <PlannerSkyView modeSwitch={modeSwitch} focusTargetId={focusTargetId} />
       )}
-      <div className="skymap-mode-switch">
-        <button
-          className={`skymap-mode-btn${mode === 'classic' ? ' skymap-mode-btn--active' : ''}`}
-          onClick={() => pick('classic')}
-        >
-          Sky map
-        </button>
-        <button
-          className={`skymap-mode-btn${mode === 'planner' ? ' skymap-mode-btn--active' : ''}`}
-          onClick={() => pick('planner')}
-        >
-          Planner
-        </button>
-      </div>
     </div>
   )
 }

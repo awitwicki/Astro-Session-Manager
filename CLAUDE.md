@@ -34,7 +34,7 @@ src/                          # Frontend (React + TypeScript)
   routes/                     # Dashboard, ProjectView, FitsDetailView,
                               # MastersLibrary, Settings, SkyMap, Weather,
                               # Converter, Planner, PlannerDetail
-  components/layout/          # AppShell, TopBar, Sidebar, StatusBar, OperationsPopover
+  components/layout/          # AppShell, TopBar (+ TopBarSlot), Sidebar, StatusBar, OperationsPopover
   components/astroweather/    # WeatherForecast, SeasonalDaylightChart,
                               # LightPollutionMap, HorizonEditor, SatelliteCheck
   components/skymap/          # ClassicSkyView, PlannerSkyView,
@@ -101,6 +101,12 @@ yarn test:web     # frontend unit tests (node:test via tsx)
 - Frontend calls Rust via Tauri IPC commands (defined in `commands.rs`, registered in `lib.rs`).
 - Long operations emit progress events via Tauri window events; the preview queue emits state snapshots (`preview:queue_state`) while holding its mutex so events are ordered.
 - FITS parsing handles keyword aliases for N.I.N.A., ASIAIR, SGPro, SharpCap.
+- Page headers: pages have no in-page title row. The TopBar's last
+  breadcrumb is the page title (`buildBreadcrumbs` in `TopBar.tsx` must
+  cover every route), and a page's header controls go in
+  `<TopBarActions>` (`components/layout/TopBarSlot.tsx`), which portals
+  them into the TopBar. Group them in `.topbar-group`; wrap button text in
+  `.btn-label` (hidden on a narrow TopBar, so give the button a `title`).
 - Status bar: `src/lib/operations.ts` (pure, unit-tested) turns the import
   queue, scan and analysis progress into one `Operation[]` list; the bar shows
   only the first (running import > scan > analysis > first queued) with one
