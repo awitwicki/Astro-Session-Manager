@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
-import { altAzCurve, azimuthTicks, sunAltitudes } from '../../lib/ephemeris'
+import { altAzCurveOf, azimuthTicks, sunAltitudes, type PositionAt } from '../../lib/ephemeris'
 import { azToCompass } from '../../lib/formatters'
 import { horizonAltAt, type HorizonProfile } from '../../lib/horizon'
 import { twilightBands } from '../../lib/twilightBands'
 
 interface AltitudeChartProps {
-  raDeg: number
-  decDeg: number
+  position: PositionAt    // keep referentially stable (memoise per target) — the curve is memoised on it
   lat: number
   lon: number
   dayStart: Date          // start of the plotted 24h window — pass a value
@@ -27,7 +26,7 @@ const DAY_MS = 86_400_000
 const TICK_HOURS = [0, 6, 12, 18, 24]
 
 export function AltitudeChart({
-  raDeg, decDeg, lat, lon, dayStart, markerTime = null, horizon = null,
+  position, lat, lon, dayStart, markerTime = null, horizon = null,
   width = 320, height = 110, onPickTime, showAzimuth = false,
 }: AltitudeChartProps) {
   const dayMs = dayStart.getTime()
@@ -40,8 +39,8 @@ export function AltitudeChart({
   // memo scope guarded by hoverFrac, which would redo all the ephemeris math
   // on every hover mousemove.
   const curve = useMemo(
-    () => altAzCurve(raDeg, decDeg, dayStart, lat, lon),
-    [raDeg, decDeg, dayStart, lat, lon],
+    () => altAzCurveOf(position, dayStart, lat, lon),
+    [position, dayStart, lat, lon],
   )
   const bands = useMemo(
     () => twilightBands(sunAltitudes(dayStart, lat, lon)),

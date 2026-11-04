@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { FitsHeader, Project, MastersLibrary, SubAnalysisResult } from '../types'
 import type { PlannerTarget } from '../types/planner'
+import type { MinorBody } from '../lib/mpc'
 import type { HorizonProfile } from '../lib/horizon'
 import { isDslrFile } from '../lib/dslrUtils'
 import { DEFAULT_DASHBOARD_SORT, type DashboardSort, type ProjectOpenedMap } from '../lib/dashboardSort'
@@ -318,6 +319,12 @@ interface AppState {
   weatherShowMap: boolean
   plannerTargets: PlannerTarget[]
   plannerHydrated: boolean
+  minorBodies: {
+    comets: MinorBody[]
+    asteroids: MinorBody[]
+    updatedAt: { comets: number | null; asteroids: number | null }
+    hydrated: boolean
+  }
   horizonProfile: HorizonProfile | null
   // Session-only (not persisted): previews Planner/SkyMap as if no custom
   // horizon were set, without touching the saved profile.
@@ -354,6 +361,7 @@ interface AppState {
   setWeatherLocation: (lat: number | null, lon: number | null) => void
   setWeatherShowMap: (v: boolean) => void
   setPlannerTargets: (targets: PlannerTarget[]) => void
+  setMinorBodies: (kind: 'comets' | 'asteroids', bodies: MinorBody[], updatedAt: number | null) => void
   addPlannerTarget: (target: PlannerTarget) => void
   removePlannerTarget: (id: string) => void
   updatePlannerTarget: (id: string, patch: Partial<Omit<PlannerTarget, 'id'>>) => void
@@ -399,6 +407,7 @@ export const useAppStore = create<AppState>((set) => ({
   weatherShowMap: false,
   plannerTargets: [],
   plannerHydrated: false,
+  minorBodies: { comets: [], asteroids: [], updatedAt: { comets: null, asteroids: null }, hydrated: false },
   horizonProfile: null,
   flatHorizonPreview: false,
 
@@ -568,6 +577,14 @@ export const useAppStore = create<AppState>((set) => ({
   setWeatherShowMap: (v) => set({ weatherShowMap: v }),
 
   setPlannerTargets: (targets) => set({ plannerTargets: targets, plannerHydrated: true }),
+  setMinorBodies: (kind, bodies, updatedAt) => set((state) => ({
+    minorBodies: {
+      ...state.minorBodies,
+      [kind]: bodies,
+      updatedAt: { ...state.minorBodies.updatedAt, [kind]: updatedAt },
+      hydrated: true,
+    },
+  })),
   addPlannerTarget: (target) => set((state) =>
     state.plannerTargets.some((t) => t.id === target.id)
       ? {}

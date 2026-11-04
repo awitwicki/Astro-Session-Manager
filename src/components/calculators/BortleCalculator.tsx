@@ -123,15 +123,19 @@ export function BortleCalculator() {
         is far more resilient. Table factors are relative to Bortle&nbsp;2.
       </p>
 
+      <p className="calc-table-note">
+        Exposure-time multiplier vs Bortle 2 (×1 = same hours; ×2 = twice as
+        long to reach the same quality).
+      </p>
       <div className="calc-table-wrapper">
         <table className="calc-table">
           <thead>
             <tr>
               <th>Bortle</th>
-              <th className="calc-num">SQM</th>
-              <th className="calc-num">Broadband</th>
-              <th className="calc-num">Ha 3 nm</th>
-              <th className="calc-num">OIII 3 nm</th>
+              <th className="calc-num">SQM (mag/″²)</th>
+              <th className="calc-num">Broadband ×</th>
+              <th className="calc-num">Ha 3 nm ×</th>
+              <th className="calc-num">OIII 3 nm ×</th>
             </tr>
           </thead>
           <tbody>

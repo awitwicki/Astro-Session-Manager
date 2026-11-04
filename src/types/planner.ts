@@ -1,3 +1,11 @@
+import type { OrbitalElements } from '../lib/orbits'
+
+export type PlanetBody = 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn' | 'Uranus' | 'Neptune' | 'Moon'
+
+export type TargetMover =
+  | { kind: 'planet'; body: PlanetBody }
+  | { kind: 'comet' | 'asteroid'; elements: OrbitalElements }
+
 export interface PlannerTarget {
   id: string                          // catalog designation; unique in the list.
                                       // URL-encoded when used in /planner/:targetId
@@ -11,6 +19,7 @@ export interface PlannerTarget {
   sizeArcmin: [number, number] | null
   constellation: string
   addedAt: string                     // ISO timestamp
+  mover?: TargetMover                 // set for targets that move; ra/dec is then only a snapshot
 }
 
 /** Validates settings-loaded data; malformed entries reject the whole array. */

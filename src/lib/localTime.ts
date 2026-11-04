@@ -44,3 +44,31 @@ export function formatDateTimeInZone(date: Date, timeZone: string): string {
     hour: '2-digit', minute: '2-digit',
   }).format(date)
 }
+
+const LOCAL_INPUT_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
+
+/** Parse a `YYYY-MM-DDTHH:mm` wall-clock string as a time in `timeZone`;
+ *  null when malformed or out of range. */
+export function parseLocalDateTime(value: string, timeZone: string): Date | null {
+  const m = LOCAL_INPUT_RE.exec(value)
+  if (!m) return null
+  const [y, mo, d, h, mi] = m.slice(1).map(Number)
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null
+  const utcGuess = Date.UTC(y, mo - 1, d, h, mi)
+  const probe = new Date(utcGuess)
+  // Reject overflowed days such as Feb 31.
+  if (probe.getUTCMonth() !== mo - 1 || probe.getUTCDate() !== d) return null
+  const once = new Date(utcGuess - tzOffsetHours(timeZone, probe) * 3_600_000)
+  return new Date(utcGuess - tzOffsetHours(timeZone, once) * 3_600_000)
+}
+
+/** `YYYY-MM-DDTHH:mm` wall clock of `date` in `timeZone`, for datetime-local inputs. */
+export function formatForDateTimeInput(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  }).formatToParts(date)
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00'
+  const hour = get('hour') === '24' ? '00' : get('hour')
+  return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}`
+}

@@ -10,15 +10,13 @@ import {
   getTargetFillColor,
   type SkyMapTarget,
 } from '../../lib/skymap'
-import { NSNS_RGB, NSNS_OHS, NSNS_HA, renderHiPSTiles, setHiPSRedrawCallback, type HiPSConfig } from '../../lib/hips'
+import { NSNS_RGB, HIPS_SURVEYS, renderHiPSTiles, setHiPSRedrawCallback, type HiPSConfig } from '../../lib/hips'
 import { ensureCelestialLoaded } from '../../lib/celestialLoader'
 import { isFinitePoint } from '../../lib/altAzView'
 import { grabbedCentre } from '../../lib/skyPan'
 import { takeOverSkyInput, type SkyDrag } from '../../lib/skyPointer'
 import { TopBarActions } from '../layout/TopBarSlot'
 import '../../styles/skymap.css'
-
-const HIPS_SURVEYS: HiPSConfig[] = [NSNS_RGB, NSNS_OHS, NSNS_HA]
 
 // Module-level state so d3-celestial callbacks (which persist across remounts)
 // always read the current value.

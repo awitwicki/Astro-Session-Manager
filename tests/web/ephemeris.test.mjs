@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   altAzAt, altAzCurve, altitudeCurve, azimuthTicks, sunAltitudes, riseTransitSet, moonInfo, separationDeg, horizonPathJ2000,
-  altitudeCircleJ2000, azimuthLineJ2000, parallacticAngleDeg, zenithEquatorial, horizonToEquatorial, equatorialToHorizon, sunInfo,
+  tonightStart, altitudeCircleJ2000, azimuthLineJ2000, parallacticAngleDeg, zenithEquatorial, horizonToEquatorial, equatorialToHorizon, sunInfo,
 } from '../../src/lib/ephemeris.ts'
 
 const LAT = 50, LON = 20
@@ -185,4 +185,32 @@ test('sunInfo is sane: below -18 at winter midnight, dec within obliquity', () =
   assert.ok(s.alt < -18, `alt=${s.alt}`)
   assert.ok(Math.abs(s.decDeg) < 23.6, `dec=${s.decDeg}`)
   assert.ok(s.raDeg >= 0 && s.raDeg < 360)
+})
+
+test("tonightStart: morning jumps forward to this evening's astronomical dusk", () => {
+  const t = tonightStart(new Date('2026-11-04T08:00:00Z'), 'Europe/Warsaw', 49.26, 22.69)
+  assert.ok(t.getTime() > Date.parse('2026-11-04T08:00:00Z'))
+  assert.ok(t.getTime() < Date.parse('2026-11-04T20:00:00Z'))
+  assert.ok(Math.abs(sunInfo(t, 49.26, 22.69).alt + 18) < 0.5)
+})
+test("tonightStart: inside the night stays on that night's dusk", () => {
+  const t = tonightStart(new Date('2026-11-05T01:00:00Z'), 'Europe/Warsaw', 49.26, 22.69)
+  assert.ok(t.getTime() < Date.parse('2026-11-05T01:00:00Z'))
+  assert.ok(t.getTime() > Date.parse('2026-11-04T12:00:00Z'))
+})
+test("tonightStart: polar summer falls back to the sun's lowest point", () => {
+  const t = tonightStart(new Date('2026-06-21T10:00:00Z'), 'Europe/Oslo', 69.65, 18.96)
+  assert.ok(sunInfo(t, 69.65, 18.96).alt > -18)
+})
+
+test('tonightStart is idempotent (a dusk maps to itself)', () => {
+  const cases = []
+  for (let d = 0; d < 61; d++) {
+    cases.push([new Date(Date.parse('2026-10-01T08:00:00Z') + d * 86_400_000), 'Europe/Warsaw', 49.26, 22.69])
+  }
+  cases.push([new Date('2026-06-21T10:00:00Z'), 'Europe/Oslo', 69.65, 18.96])
+  for (const [x, tz, lat, lon] of cases) {
+    const once = tonightStart(x, tz, lat, lon)
+    assert.equal(tonightStart(once, tz, lat, lon).getTime(), once.getTime(), x.toISOString())
+  }
 })

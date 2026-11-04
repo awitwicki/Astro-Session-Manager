@@ -6,18 +6,23 @@
 // over and re-centres with grabbedCentre (skyPan.ts) through a single
 // rotate() per move.
 
+import { isClick } from './skyHit'
+
 export interface SkyDrag {
   /** Mouse-down at a canvas-pixel position: remember what is under it. */
   grab: (at: [number, number]) => void
   /** Each move while the button is held: bring the grabbed point here. */
   drag: (at: [number, number]) => void
+  /** Button released having travelled < 4 px from mouse-down (at no point
+   *  further): a click, never the end of a drag. */
+  click?: (at: [number, number]) => void
 }
 
 type D3Select = (t: EventTarget) => { on: (e: string, h: null) => void }
 
 /** Detaches d3-celestial's window resize handler and its drag/wheel zoom from
  *  the view's canvas, then installs ours: left-drag drives `input`, wheel
- *  zooms about the centre. d3-celestial's
+ *  zooms about the centre, a press without movement is a click. d3-celestial's
  *  dblclick handler on the container stays — that is a pure zoomBy. Abort the
  *  returned controller to remove the listeners; null if there is no canvas. */
 export function takeOverSkyInput(
@@ -35,6 +40,10 @@ export function takeOverSkyInput(
   const ac = new AbortController()
   const { signal } = ac
   let dragging = false
+  // Where the press went down, and whether it has since left the click slop
+  // (a drag that wanders back to its start is still a drag).
+  let downAt: [number, number] = [0, 0]
+  let moved = false
   const at = (e: PointerEvent): [number, number] => {
     const r = canvas.getBoundingClientRect()
     return [e.clientX - r.left, e.clientY - r.top]
@@ -44,16 +53,26 @@ export function takeOverSkyInput(
     if (e.button !== 0) return
     e.preventDefault()
     dragging = true
-    input.grab(at(e))
+    downAt = at(e)
+    moved = false
+    input.grab(downAt)
     try { canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
   }, { signal })
   canvas.addEventListener('pointermove', (e) => {
     if (!dragging) return
     if (!(e.buttons & 1)) { dragging = false; return }
-    input.drag(at(e))
+    const p = at(e)
+    if (!isClick(downAt, p)) moved = true
+    input.drag(p)
   }, { signal })
   const end = () => { dragging = false }
-  canvas.addEventListener('pointerup', end, { signal })
+  canvas.addEventListener('pointerup', (e) => {
+    if (e.button !== 0) return
+    const wasPress = dragging
+    dragging = false
+    const p = at(e)
+    if (wasPress && !moved && isClick(downAt, p)) input.click?.(p)
+  }, { signal })
   canvas.addEventListener('pointercancel', end, { signal })
   // Same factor per wheel notch as d3.behavior.zoom used (2^(-deltaY/500)),
   // with line-mode deltas scaled the way it scaled them.

@@ -9,6 +9,7 @@ mod fits_preview;
 mod fits_writer;
 mod import_source;
 mod masters;
+mod minor_bodies;
 mod preview_queue;
 mod scanner;
 mod settings;
@@ -49,6 +50,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            minor_bodies::save_minor_bodies,
+            minor_bodies::load_minor_bodies,
             // Cancellation
             commands::cancel_operation,
             // Scanner

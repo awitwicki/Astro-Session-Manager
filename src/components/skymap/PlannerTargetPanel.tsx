@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { PlannerTarget } from '../../types/planner'
 
-export interface TargetRow { target: PlannerTarget; alt: number; az: number }
+export interface TargetRow { target: PlannerTarget; ra: number; dec: number; alt: number; az: number }
 
 export function PlannerTargetPanel({ rows, selectedId, onPick }: {
   rows: TargetRow[]

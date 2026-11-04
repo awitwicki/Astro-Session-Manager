@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, MapPin, Telescope } from 'lucide-react'
 import { usePlannerData } from '../hooks/usePlanner'
 import { AltitudeChart } from '../components/planner/AltitudeChart'
 import { useEffectiveHorizonProfile } from '../hooks/useHorizon'
 import { moonInfo, separationDeg } from '../lib/ephemeris'
+import { targetMagnitude, targetPosition } from '../lib/movingTargets'
 import { addDays, addMinutes, formatDateTimeInZone, nightWindowStart } from '../lib/localTime'
 import { formatDec, formatRA } from '../lib/formatters'
 import { useElementWidth } from '../hooks/useElementWidth'
@@ -39,14 +40,21 @@ export function PlannerDetail() {
   const id = targetId !== undefined ? decodeURIComponent(targetId) : ''
   const target = targets.find((t) => t.id === id) ?? null
 
+  const position = useMemo(
+    () => (target ? (d: Date) => targetPosition(target, d) : null),
+    [target],
+  )
+
   if (!hydrated) {
     return <div className="planner-page"><div className="planner-empty">Loading…</div></div>
   }
-  if (!target) return <Navigate to="/planner" replace />
+  if (!target || !position) return <Navigate to="/planner" replace />
 
   const chartWindowStart = nightWindowStart(picked, timeZone)
   const moon = moonInfo(picked, lat, lon)
-  const moonSep = separationDeg(target.ra, target.dec, moon.raDeg, moon.decDeg)
+  const pickedPos = position(picked)
+  const magnitude = targetMagnitude(target, picked)
+  const moonSep = separationDeg(pickedPos.ra, pickedPos.dec, moon.raDeg, moon.decDeg)
 
   return (
     <div className="planner-page">
@@ -94,10 +102,10 @@ export function PlannerDetail() {
           <h3>Object</h3>
           <dl className="planner-dl">
             <dt>Type</dt><dd>{target.type}</dd>
-            <dt>Magnitude</dt><dd>{target.mag !== null ? target.mag.toFixed(1) : '—'}</dd>
+            <dt>Magnitude</dt><dd>{magnitude !== null ? magnitude.toFixed(1) : '—'}</dd>
             <dt>Size</dt>
             <dd>{target.sizeArcmin ? `${target.sizeArcmin[0]}′ × ${target.sizeArcmin[1]}′` : '—'}</dd>
-            <dt>RA / Dec</dt><dd>{formatRA(target.ra)} / {formatDec(target.dec)}</dd>
+            <dt>RA / Dec</dt><dd>{formatRA(pickedPos.ra)} / {formatDec(pickedPos.dec)}</dd>
           </dl>
         </div>
 
@@ -115,8 +123,7 @@ export function PlannerDetail() {
         <div className="planner-card planner-card--chart" ref={chartRef}>
           <h3>Altitude — hover to inspect, click to set time</h3>
           <AltitudeChart
-            raDeg={target.ra}
-            decDeg={target.dec}
+            position={position}
             lat={lat}
             lon={lon}
             dayStart={chartWindowStart}

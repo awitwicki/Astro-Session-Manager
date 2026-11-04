@@ -34,6 +34,9 @@ export const NSNS_HA: HiPSConfig = {
   tileFormat: 'png',
 }
 
+/** Surveys offered by the sky views' survey overlay. */
+export const HIPS_SURVEYS: HiPSConfig[] = [NSNS_RGB, NSNS_OHS, NSNS_HA]
+
 const tileCache = new Map<string, HTMLImageElement>()
 const failedTiles = new Set<string>()
 const loadingTiles = new Map<string, HTMLImageElement>() // key → Image (for abort)

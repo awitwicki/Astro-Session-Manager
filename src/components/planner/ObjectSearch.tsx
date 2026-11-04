@@ -3,9 +3,15 @@ import { Search } from 'lucide-react'
 import { loadCatalog, loadStarCatalog } from '../../lib/catalog'
 import { searchObjects, type SearchHit } from '../../lib/objectSearch'
 import { starDesignation, starDisplayName, type StarObject } from '../../lib/starSearch'
+import { planetPosition } from '../../lib/movingTargets'
+import { targetFromMinorBody } from '../../lib/plannerTargets'
+import type { MinorBody } from '../../lib/mpc'
+import { useMinorBodies } from '../../hooks/useMinorBodies'
+import '../../styles/planner.css'
 
 interface ObjectSearchProps {
   onSelect: (hit: SearchHit) => void
+  placeholder?: string
 }
 
 /** One lazily loaded catalog with its own error state, so a failure in one
@@ -25,12 +31,24 @@ function starMeta(star: StarObject): string {
   return `Star · mag ${star.mag.toFixed(1)} · ${star.con}${ids}`
 }
 
-export function ObjectSearch({ onSelect }: ObjectSearchProps) {
+const magSuffix = (mag: number | null) => (mag !== null && Number.isFinite(mag) ? ` · mag ${mag.toFixed(1)}` : '')
+
+/** Kind and magnitude estimated now (the list is "bright this year"). */
+function minorMeta(body: MinorBody): string {
+  const kind = body.kind === 'comet' ? 'Comet' : 'Asteroid'
+  return `${kind}${magSuffix(targetFromMinorBody(body).mag)}`
+}
+
+export function ObjectSearch({
+  onSelect, placeholder = 'Add object — M31, NGC 7000, Vega, Mars, Vesta…',
+}: ObjectSearchProps) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const dso = useCatalog(loadCatalog)
   const stars = useCatalog(loadStarCatalog)
   const rootRef = useRef<HTMLDivElement>(null)
+  const { comets, asteroids } = useMinorBodies()
+  const minorBodies = [...comets, ...asteroids]
 
   const loadAll = () => {
     if (!dso.index && !dso.error) dso.start()
@@ -47,7 +65,7 @@ export function ObjectSearch({ onSelect }: ObjectSearchProps) {
   }, [])
 
   const anyLoaded = dso.index !== null || stars.index !== null
-  const results = query.trim() ? searchObjects(dso.index, stars.index, query) : []
+  const results = query.trim() ? searchObjects(dso.index, stars.index, query, 20, { minorBodies }) : []
 
   const pick = (hit: SearchHit) => {
     onSelect(hit)
@@ -61,7 +79,7 @@ export function ObjectSearch({ onSelect }: ObjectSearchProps) {
         <Search size={14} />
         <input
           type="text"
-          placeholder="Add object — M31, NGC 7000, HD 172167, Vega…"
+          placeholder={placeholder}
           value={query}
           onFocus={() => {
             loadAll()
@@ -95,27 +113,50 @@ export function ObjectSearch({ onSelect }: ObjectSearchProps) {
             <div className="object-search-status">No matches</div>
           )}
           {results.map((hit) => {
-            if (hit.kind === 'dso') {
-              const obj = hit.obj
-              return (
-                <button key={`dso:${obj.id}`} className="object-search-result" onClick={() => pick(hit)}>
-                  <span className="osr-designation">{obj.id}</span>
-                  {obj.names.length > 0 && <span className="osr-name">{obj.names[0]}</span>}
-                  <span className="osr-meta">
-                    {obj.type}{obj.mag !== null ? ` · mag ${obj.mag.toFixed(1)}` : ''} · {obj.con}
-                  </span>
-                </button>
-              )
+            switch (hit.kind) {
+              case 'dso': {
+                const obj = hit.obj
+                return (
+                  <button key={`dso:${obj.id}`} className="object-search-result" onClick={() => pick(hit)}>
+                    <span className="osr-designation">{obj.id}</span>
+                    {obj.names.length > 0 && <span className="osr-name">{obj.names[0]}</span>}
+                    <span className="osr-meta">
+                      {obj.type}{obj.mag !== null ? ` · mag ${obj.mag.toFixed(1)}` : ''} · {obj.con}
+                    </span>
+                  </button>
+                )
+              }
+              case 'star': {
+                const designation = starDesignation(hit.star)
+                const name = starDisplayName(hit.star)
+                return (
+                  <button key={`star:${designation}`} className="object-search-result" onClick={() => pick(hit)}>
+                    <span className="osr-designation">{designation}</span>
+                    {name !== designation && <span className="osr-name">{name}</span>}
+                    <span className="osr-meta">{starMeta(hit.star)}</span>
+                  </button>
+                )
+              }
+              case 'planet':
+                return (
+                  <button key={`planet:${hit.body}`} className="object-search-result" onClick={() => pick(hit)}>
+                    <span className="osr-designation">{hit.body}</span>
+                    <span className="osr-meta">
+                      {hit.body === 'Moon' ? 'Moon' : 'Planet'}{magSuffix(planetPosition(hit.body, new Date()).mag)}
+                    </span>
+                  </button>
+                )
+              case 'minor': {
+                const body = hit.body
+                return (
+                  <button key={`${body.kind}:${body.designation}`} className="object-search-result" onClick={() => pick(hit)}>
+                    <span className="osr-designation">{body.designation}</span>
+                    {body.name !== body.designation && <span className="osr-name">{body.name}</span>}
+                    <span className="osr-meta">{minorMeta(body)}</span>
+                  </button>
+                )
+              }
             }
-            const designation = starDesignation(hit.star)
-            const name = starDisplayName(hit.star)
-            return (
-              <button key={`star:${designation}`} className="object-search-result" onClick={() => pick(hit)}>
-                <span className="osr-designation">{designation}</span>
-                {name !== designation && <span className="osr-name">{name}</span>}
-                <span className="osr-meta">{starMeta(hit.star)}</span>
-              </button>
-            )
           })}
         </div>
       )}

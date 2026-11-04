@@ -3,9 +3,10 @@
 import {
   Body, DefineStar, Equator, EquatorFromVector, Horizon, HorizonFromVector, Illumination, MakeTime,
   MoonPhase, Observer, RotateVector, Rotation_EQJ_HOR, Rotation_HOR_EQJ, SearchHourAngle,
-  SearchRiseSet, Spherical, VectorFromHorizon, VectorFromSphere,
+  SearchAltitude, SearchRiseSet, Spherical, VectorFromHorizon, VectorFromSphere,
   type AstroTime, type RotationMatrix,
 } from 'astronomy-engine'
+import { nightWindowStart } from './localTime'
 
 export interface AltAz { alt: number; az: number }
 
@@ -30,16 +31,25 @@ export interface AltAzPoint { time: Date; alt: number; az: number }
 /** Alt and az sampled across a 24h window. The az is what a custom horizon
  *  profile is indexed by, so anything horizon-aware needs this rather than
  *  altitudeCurve. */
-export function altAzCurve(
-  raDeg: number, decDeg: number, dayStart: Date, lat: number, lon: number, stepMinutes = 10,
+export type PositionAt = (date: Date) => { ra: number; dec: number }
+
+export function altAzCurveOf(
+  pos: PositionAt, dayStart: Date, lat: number, lon: number, stepMinutes = 10,
 ): AltAzPoint[] {
   const points: AltAzPoint[] = []
   for (let min = 0; min <= 24 * 60; min += stepMinutes) {
     const time = new Date(dayStart.getTime() + min * 60_000)
-    const { alt, az } = altAzAt(raDeg, decDeg, time, lat, lon)
+    const { ra, dec } = pos(time)
+    const { alt, az } = altAzAt(ra, dec, time, lat, lon)
     points.push({ time, alt, az })
   }
   return points
+}
+
+export function altAzCurve(
+  raDeg: number, decDeg: number, dayStart: Date, lat: number, lon: number, stepMinutes = 10,
+): AltAzPoint[] {
+  return altAzCurveOf(() => ({ ra: raDeg, dec: decDeg }), dayStart, lat, lon, stepMinutes)
 }
 
 export function altitudeCurve(
@@ -252,4 +262,44 @@ export function parallacticAngleDeg(raDeg: number, decDeg: number, date: Date, l
     Math.sin(dRa) * Math.cos(zDec),
     Math.cos(dec) * Math.sin(zDec) - Math.sin(dec) * Math.cos(zDec) * Math.cos(dRa),
   ) / DEG
+}
+
+/** Astronomical dusk (sun crossing -18° downward) of the night starting in the
+ *  24 h after `start`; at polar-summer latitudes, the sun's lowest point. */
+function duskOf(start: Date, lat: number, lon: number): Date {
+  const hit = SearchAltitude(Body.Sun, new Observer(lat, lon, 0), -1, start, 1, -18)
+  if (hit) {
+    // SearchAltitude's altitude convention differs from sunInfo's by a few
+    // minutes; bisect on sunInfo so the result is consistent with the rest of
+    // the Planner.
+    const sunAlt = (ms: number) => sunInfo(new Date(ms), lat, lon).alt
+    const centre = hit.date.getTime()
+    let lo = centre - 15 * 60_000
+    let hi = centre + 15 * 60_000
+    // Widen until the bracket really straddles the crossing.
+    for (let i = 0; i < 4 && (sunAlt(lo) <= -18 || sunAlt(hi) > -18); i++) {
+      lo -= 30 * 60_000
+      hi += 30 * 60_000
+    }
+    if (sunAlt(lo) <= -18 || sunAlt(hi) > -18) return hit.date
+    // Integer-ms bisection that ends on the dark side (alt <= -18), so the
+    // returned instant itself counts as night.
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2)
+      if (sunAlt(mid) > -18) lo = mid
+      else hi = mid
+    }
+    return new Date(hi)
+  }
+  return sunAltitudes(start, lat, lon).reduce((lo, p) => (p.alt < lo.alt ? p : lo)).time
+}
+
+/** Where "Tonight" should jump: the astronomical dusk of the night that
+ *  `time` is in, or of the coming one when `time` is after dawn. */
+export function tonightStart(time: Date, timeZone: string, lat: number, lon: number): Date {
+  const start = nightWindowStart(time, timeZone)
+  const dusk = duskOf(start, lat, lon)
+  if (time.getTime() <= dusk.getTime() + 1000) return dusk
+  if (sunInfo(time, lat, lon).alt < -18) return dusk
+  return duskOf(new Date(start.getTime() + 86_400_000), lat, lon)
 }

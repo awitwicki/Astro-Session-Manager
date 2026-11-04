@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Crosshair, MapPin, Mountain, Pencil, X } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
@@ -9,12 +9,13 @@ import { TopBarActions } from '../components/layout/TopBarSlot'
 import { AltitudeChart } from '../components/planner/AltitudeChart'
 import { HorizonEditor } from '../components/planner/HorizonEditor'
 import { useEffectiveHorizonProfile } from '../hooks/useHorizon'
-import { altAzAt, altAzCurve, sunAltitudes } from '../lib/ephemeris'
+import { altAzAt, altAzCurveOf, sunAltitudes, type PositionAt } from '../lib/ephemeris'
+import { targetMagnitude, targetPosition } from '../lib/movingTargets'
 import { clearsHorizonAtNight } from '../lib/horizon'
 import { nightWindowStart } from '../lib/localTime'
 import { azToCompass } from '../lib/formatters'
 import type { SearchHit } from '../lib/objectSearch'
-import { targetFromCoords, targetFromDso, targetFromStar } from '../lib/plannerTargets'
+import { targetFromCoords, targetFromHit } from '../lib/plannerTargets'
 import type { PlannerTarget } from '../types/planner'
 import '../styles/planner.css'
 
@@ -40,6 +41,15 @@ export function Planner() {
     return () => clearInterval(id)
   }, [])
 
+  // One stable resolver per target so each AltitudeChart's curve memo survives
+  // the minute-tick re-render.
+  const positions = useMemo(
+    () => new Map<string, PositionAt>(
+      targets.map((t) => [t.id, (d: Date) => targetPosition(t, d)]),
+    ),
+    [targets],
+  )
+
   const dayStart = nightWindowStart(now, timeZone)
   // One sun curve for every row: it depends only on the window and location.
   const sunSamples = sunAltitudes(dayStart, lat, lon)
@@ -50,12 +60,13 @@ export function Planner() {
       setTimeout(() => setFlashId(null), 1200)
       return
     }
+    if (!hydrated) return
     addPlannerTarget(target)
     persistPlannerTargets([...targets, target])
   }
 
   const handleAdd = (hit: SearchHit) => {
-    addTarget(hit.kind === 'dso' ? targetFromDso(hit.obj) : targetFromStar(hit.star))
+    addTarget(targetFromHit(hit))
   }
 
   const handleAddCoords = (name: string, raDeg: number, decDeg: number) => {
@@ -135,9 +146,12 @@ export function Planner() {
 
       <div className="planner-list">
         {targets.map((t) => {
-          const { alt, az } = altAzAt(t.ra, t.dec, now, lat, lon)
+          const position = positions.get(t.id)!
+          const here = position(now)
+          const mag = targetMagnitude(t, now)
+          const { alt, az } = altAzAt(here.ra, here.dec, now, lat, lon)
           const blocked = horizon !== null
-            && !clearsHorizonAtNight(altAzCurve(t.ra, t.dec, dayStart, lat, lon), sunSamples, horizon)
+            && !clearsHorizonAtNight(altAzCurveOf(position, dayStart, lat, lon), sunSamples, horizon)
           const editing = editingId === t.id
           return (
             <div
@@ -180,7 +194,7 @@ export function Planner() {
                 </div>
                 <div className="planner-row-meta">
                   {t.type}
-                  {t.mag !== null ? ` · mag ${t.mag.toFixed(1)}` : ''}
+                  {mag !== null ? ` · mag ${mag.toFixed(1)}` : ''}
                   {t.constellation ? ` · ${t.constellation}` : ''}
                 </div>
                 <div className={`planner-row-altaz${alt > 0 ? '' : ' planner-row-altaz--below'}`}>
@@ -191,8 +205,7 @@ export function Planner() {
                 )}
               </div>
               <AltitudeChart
-                raDeg={t.ra}
-                decDeg={t.dec}
+                position={position}
                 lat={lat}
                 lon={lon}
                 dayStart={dayStart}

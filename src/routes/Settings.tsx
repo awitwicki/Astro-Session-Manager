@@ -4,11 +4,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { useTheme } from '../context/ThemeContext'
 import { useAppStore } from '../store/appStore'
 import { useProjects } from '../hooks/useProjects'
+import { useMinorBodies } from '../hooks/useMinorBodies'
 
 export function Settings() {
   const { theme, toggleTheme } = useTheme()
   const rootFolder = useAppStore((s) => s.rootFolder)
   const { selectFolder } = useProjects()
+  const minor = useMinorBodies()
 
   const [darkTempTolerance, setDarkTempTolerance] = useState(2)
   const [warnMissingDarkFlat, setWarnMissingDarkFlat] = useState(true)
@@ -153,6 +155,48 @@ export function Settings() {
             {autoScan ? 'Enabled' : 'Disabled'}
           </span>
         </div>
+      </div>
+
+      {/* Comets & asteroids */}
+      <div className="settings-group">
+        <label className="settings-label">Comets &amp; asteroids</label>
+        <p className="settings-description">
+          Orbital elements from the Minor Planet Center (observable comets and the Minor Planet Center&apos;s yearly bright-asteroid list). Downloads only when you press the button.
+        </p>
+        {(['comets', 'asteroids'] as const).map((kind) => {
+          const count = minor[kind].length
+          const updated = minor.updatedAt[kind]
+          const neverDownloaded = updated === null
+          const label = kind === 'comets' ? 'Comets' : 'Asteroids'
+          const errorText = minor.error[kind]
+          return (
+            <div key={kind} style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, minWidth: 80 }}>{label}</span>
+                <span style={{ fontSize: 13, minWidth: 110 }}>
+                  {!minor.hydrated ? '…' : neverDownloaded ? 'Not downloaded' : `${count} orbits`}
+                </span>
+                {updated !== null && (
+                  <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                    Updated {new Date(updated).toLocaleDateString()}
+                  </span>
+                )}
+                <button
+                  className="btn btn-sm"
+                  disabled={!minor.hydrated || minor.downloading[kind]}
+                  title={`${neverDownloaded ? 'Download' : 'Update'} ${kind}`}
+                  aria-label={`${neverDownloaded ? 'Download' : 'Update'} ${kind}`}
+                  onClick={() => { void minor.download(kind) }}
+                >
+                  {minor.downloading[kind] ? 'Downloading…' : neverDownloaded ? 'Download' : 'Update'}
+                </button>
+              </div>
+              {errorText && (
+                <div style={{ fontSize: 12, color: 'var(--color-error)', marginTop: 4 }}>{label}: {errorText}</div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* Preview Cache Limit */}

@@ -291,6 +291,10 @@ pub struct AppSettings {
     pub preview_cache_limit_mb: u32,
     #[serde(default = "default_preview_concurrency")]
     pub preview_concurrency: u32,
+    /// Keys without a typed field (frontend-only settings) so they round-trip
+    /// through `set_setting` instead of being dropped.
+    #[serde(flatten, default)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 impl Default for AppSettings {
@@ -312,6 +316,7 @@ impl Default for AppSettings {
             new_project_filter_presets: Vec::new(),
             preview_cache_limit_mb: default_preview_cache_limit_mb(),
             preview_concurrency: default_preview_concurrency(),
+            extra: std::collections::HashMap::new(),
         }
     }
 }
@@ -402,6 +407,51 @@ mod app_settings_tests {
             settings.wbpp_export_settings,
             Some(serde_json::json!({"moonMinSepDeg": 45}))
         );
+    }
+
+    fn round_trip(key: &str, value: serde_json::Value) -> serde_json::Value {
+        let mut obj = serde_json::to_value(AppSettings::default()).unwrap();
+        obj.as_object_mut().unwrap().insert(key.to_string(), value);
+        let settings: AppSettings = serde_json::from_value(obj).unwrap();
+        serde_json::to_value(settings).unwrap()
+    }
+
+    #[test]
+    fn keys_without_a_field_survive_round_trip() {
+        let cases = [
+            ("skymapMode", serde_json::json!("planner")),
+            ("plannerAltAzGrid", serde_json::json!(true)),
+            ("plannerHips", serde_json::Value::Null),
+            ("plannerHips", serde_json::json!("nsns-rgb")),
+            ("plannerPlanets", serde_json::json!(false)),
+            ("plannerMinorBodies", serde_json::json!(true)),
+            ("dashboardSort", serde_json::json!({"key": "name", "dir": "asc"})),
+        ];
+        for (key, value) in cases {
+            let out = round_trip(key, value.clone());
+            assert_eq!(out.get(key), Some(&value), "key {key} lost");
+        }
+    }
+
+    #[test]
+    fn typed_field_round_trips_alongside_extra_key() {
+        let mut obj = serde_json::to_value(AppSettings::default()).unwrap();
+        let m = obj.as_object_mut().unwrap();
+        m.insert("darkTempTolerance".to_string(), serde_json::json!(3.5));
+        m.insert("skymapMode".to_string(), serde_json::json!("planner"));
+        let settings: AppSettings = serde_json::from_value(obj).unwrap();
+        assert_eq!(settings.dark_temp_tolerance, 3.5);
+        let out = serde_json::to_value(&settings).unwrap();
+        assert_eq!(out["darkTempTolerance"], serde_json::json!(3.5));
+        assert_eq!(out["skymapMode"], serde_json::json!("planner"));
+        assert_eq!(out["previewConcurrency"], serde_json::json!(settings.preview_concurrency));
+    }
+
+    #[test]
+    fn settings_without_extra_keys_load() {
+        let json = serde_json::to_string(&AppSettings::default()).unwrap();
+        let settings: AppSettings = serde_json::from_str(&json).unwrap();
+        assert!(settings.theme == "dark");
     }
 }
 

@@ -27,6 +27,8 @@ export interface SimTime {
   togglePause: () => void
   stepBy: (ms: number) => void
   resetToNow: () => void
+  /** Jump to `d` and pause. */
+  setTime: (d: Date) => void
 }
 
 /** Simulated clock: rate 0 = paused, 1 = realtime, negative = reverse.
@@ -83,6 +85,7 @@ export function useSimTime(): SimTime {
     ladder: (dir) => setRate(nextRate(rateRef.current, dir)),
     togglePause: () => setRate(rateRef.current === 0 ? lastRunningRef.current : 0),
     stepBy: (ms) => { simRef.current += ms; publish() },
+    setTime: (d) => { simRef.current = d.getTime(); lastWallRef.current = Date.now(); setRate(0); publish() },
     resetToNow: () => { simRef.current = Date.now(); lastWallRef.current = Date.now(); setRate(1); publish() },
   }
 }

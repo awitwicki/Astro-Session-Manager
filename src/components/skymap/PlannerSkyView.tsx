@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { invoke } from '@tauri-apps/api/core'
-import { MapPin, ZoomIn, ZoomOut } from 'lucide-react'
+import { Compass, Grid3x3, Layers, MapPin, Mountain, Orbit, Sparkles, ZoomIn, ZoomOut } from 'lucide-react'
 import { ensureCelestialLoaded } from '../../lib/celestialLoader'
 import {
   altAzAt, altitudeCircleJ2000, azimuthLineJ2000, equatorialToHorizon, horizonPathJ2000,
@@ -13,7 +13,7 @@ import { skyTintLevels } from '../../lib/skyTint'
 import { horizonAltAt, type HorizonProfile } from '../../lib/horizon'
 import { useEffectiveHorizonProfile } from '../../hooks/useHorizon'
 import { useAppStore } from '../../store/appStore'
-import { usePlannerData } from '../../hooks/usePlanner'
+import { persistPlannerTargets, usePlannerData } from '../../hooks/usePlanner'
 import { useSimTime } from '../../hooks/useSimTime'
 import {
   GROUND_FILL, HORIZON_STROKE, cutAtInfinity, fillGround, fitShape, isFinitePoint,
@@ -22,10 +22,26 @@ import {
 } from '../../lib/altAzView'
 import { grabbedCentre } from '../../lib/skyPan'
 import { takeOverSkyInput, type SkyDrag } from '../../lib/skyPointer'
-import { trajectoryPathJ2000, type TrajectoryPoint } from '../../lib/trajectory'
+import {
+  PLANET_BODIES, brightMinorBodies, planetPosition, targetMagnitude, targetPosition,
+} from '../../lib/movingTargets'
+import { HIPS_SURVEYS, NSNS_RGB, renderHiPSTiles, setHiPSRedrawCallback, type HiPSConfig } from '../../lib/hips'
+import type { SearchHit } from '../../lib/objectSearch'
+import {
+  targetFromDso, targetFromHit, targetFromMinorBody, targetFromPlanet, targetFromStar,
+} from '../../lib/plannerTargets'
+import { loadCatalog, loadStarCatalog } from '../../lib/catalog'
+import type { CatalogObject } from '../../lib/catalogSearch'
+import type { StarObject } from '../../lib/starSearch'
+import { nearestHit, type HitCandidate } from '../../lib/skyHit'
+import { useMinorBodies } from '../../hooks/useMinorBodies'
+import { ObjectSearch } from '../planner/ObjectSearch'
+import { trajectoryPathOf, type TrajectoryPoint } from '../../lib/trajectory'
 import { nightWindowStart, formatTimeInZone } from '../../lib/localTime'
 import { PlannerTargetPanel, type TargetRow } from './PlannerTargetPanel'
-import type { PlannerTarget } from '../../types/planner'
+import { SkyObjectCard, type SkyObject } from './SkyObjectCard'
+import type { PlanetBody, PlannerTarget } from '../../types/planner'
+import { PlannerLayerRail } from './PlannerLayerRail'
 import { PlannerTimeToolbar } from './PlannerTimeToolbar'
 import { TopBarActions } from '../layout/TopBarSlot'
 
@@ -59,7 +75,18 @@ interface FrameData {
   altAzGridVisible: boolean
 }
 
-interface SkyMarker { ra: number; dec: number; name: string; selected: boolean }
+interface SkyMarker { ra: number; dec: number; name: string; selected: boolean; comet?: boolean }
+
+/** Asteroids drawn only up to this estimated magnitude: the MPC list is
+ *  "bright this year", not "bright tonight". */
+const ASTEROID_MAG_LIMIT = 12
+/** The comet file lists every observable comet, most far too faint to image;
+ *  this keeps the handful an amateur telescope can reach. */
+const COMET_MAG_LIMIT = 15
+/** Minor-body positions are recomputed per 10-minute bucket of the sim time,
+ *  not per frame (over a thousand propagations at 25 fps while fast-forwarding). */
+const MINOR_BODY_BUCKET_MS = 600_000
+const PLANETS = PLANET_BODIES.filter((b) => b !== 'Moon') // the Moon has its own disc
 
 // Module-level: the persistent d3-celestial redraw callback must always read
 // current values across React renders and remounts (same pattern as
@@ -67,6 +94,11 @@ interface SkyMarker { ra: number; dec: number; name: string; selected: boolean }
 let frame: FrameData | null = null
 let markers: SkyMarker[] = []
 let trajectory: TrajectoryPoint[] | null = null
+// Survey overlay, planets and minor bodies. Empty marker lists when their
+// toggle is off.
+let hipsOverlay: HiPSConfig | null = null
+let planetMarkers: SkyMarker[] = []
+let minorBodyMarkers: SkyMarker[] = []
 // The look direction IS the view state — az/alt, not RA/Dec, so the ground
 // stays down as time flows. Only this module ever moves it: the mouse drag
 // (skyDrag), focusTarget aims at a target, and every change
@@ -116,6 +148,40 @@ const skyDrag: SkyDrag = {
     viewAlt = alt
     pointCamera()
   },
+}
+
+// Catalog objects a click can pick, magnitude-filtered once when the
+// catalogs arrive. Loading starts on the first press on the sky. Roughly
+// what d3-celestial draws: its stars stop at 6, its DSOs at 8 on this zoom.
+const CLICK_STAR_MAG_LIMIT = 6.5
+const CLICK_DSO_MAG_LIMIT = 10
+const CLICK_RADIUS_PX = 10
+let clickDsos: CatalogObject[] | null = null
+let clickStars: StarObject[] | null = null
+
+function loadClickCatalogs(): void {
+  if (!clickDsos) {
+    loadCatalog().then((c) => {
+      clickDsos ??= c.objects.filter((o) => o.mag !== null && o.mag <= CLICK_DSO_MAG_LIMIT)
+    }).catch(() => { /* retried on the next click */ })
+  }
+  if (!clickStars) {
+    loadStarCatalog().then((idx) => {
+      if (clickStars) return
+      const out: StarObject[] = []
+      for (const { star } of idx.entries) { // brightest first
+        if (star.mag > CLICK_STAR_MAG_LIMIT) break
+        out.push(star)
+      }
+      clickStars = out
+    }).catch(() => { /* retried on the next click */ })
+  }
+}
+
+const SUN_MAG = -26.7
+
+function skyObjectOf(t: PlannerTarget, existing: boolean, date: Date): SkyObject {
+  return { name: t.name, type: t.type, mag: targetMagnitude(t, date), target: t, existingId: existing ? t.id : null }
 }
 
 function drawSkyTint(
@@ -230,6 +296,11 @@ function drawOverlay(): void {
   const viewSize = Math.max(viewW, viewH)
   const maxDist = viewSize * 6
 
+  // Survey tiles first: the sky tint dims them by day and the ground fill
+  // covers the part below the horizon.
+  const overlay = hipsOverlay
+  if (overlay) renderHiPSTiles(ctx, proj, overlay, ctx.canvas.width, ctx.canvas.height, 0.7)
+
   // Sky brightness + Sun/Moon (under the grid; the ground fill later covers
   // whatever sits below the horizon)
   drawSkyTint(ctx, f, proj, viewW, viewH)
@@ -308,6 +379,46 @@ function drawOverlay(): void {
     }
   }
 
+  // Planets and minor bodies: above the ground only, under the target markers.
+  const onScreen = (m: SkyMarker): [number, number] | null => {
+    const pt = proj([raToCelestial(m.ra), m.dec]) as [number, number] | null
+    if (!isFinitePoint(pt) || Math.hypot(pt[0] - cx, pt[1] - cy) > maxDist) return null
+    const { alt, az } = equatorialToHorizon(m.ra, m.dec, f.time, f.lat, f.lon)
+    return isAboveGroundFill(f.profile, alt, az) ? pt : null
+  }
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif'
+  for (const m of minorBodyMarkers) {
+    const pt = onScreen(m)
+    if (!pt) continue
+    const color = m.comet ? '#7fe8d6' : '#e6d9ff'
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(pt[0], pt[1], m.comet ? 4 : 3, 0, Math.PI * 2)
+    ctx.fill()
+    if (m.comet && isFinitePoint(sunPt)) {
+      const away = Math.atan2(pt[1] - sunPt[1], pt[0] - sunPt[0])
+      ctx.strokeStyle = color
+      ctx.lineWidth = 1.6
+      ctx.beginPath()
+      ctx.moveTo(pt[0], pt[1])
+      ctx.lineTo(pt[0] + Math.cos(away) * 16, pt[1] + Math.sin(away) * 16)
+      ctx.stroke()
+    }
+    ctx.fillText(m.name, pt[0] + 7, pt[1])
+  }
+  ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif'
+  for (const m of planetMarkers) {
+    const pt = onScreen(m)
+    if (!pt) continue
+    ctx.fillStyle = '#f3e2a0'
+    ctx.beginPath()
+    ctx.arc(pt[0], pt[1], 4, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillText(m.name, pt[0] + 7, pt[1])
+  }
+
   // Selected target's night trajectory: dashed arc with hour ticks; the
   // below-skyline part is skipped so the arc visibly dives behind terrain.
   const traj = trajectory
@@ -358,6 +469,12 @@ function drawOverlay(): void {
     ctx.lineWidth = m.selected ? 1.8 : 1.2
     ctx.beginPath()
     ctx.arc(pt[0], pt[1], 6, 0, Math.PI * 2)
+    if (m.comet && isFinitePoint(sunPt)) {
+      // Comet: a tail pointing away from the Sun
+      const away = Math.atan2(pt[1] - sunPt[1], pt[0] - sunPt[0])
+      ctx.moveTo(pt[0] + Math.cos(away) * 6, pt[1] + Math.sin(away) * 6)
+      ctx.lineTo(pt[0] + Math.cos(away) * 20, pt[1] + Math.sin(away) * 20)
+    }
     ctx.stroke()
     ctx.fillStyle = m.selected ? '#ff8844' : 'rgba(170, 190, 220, 0.85)'
     ctx.fillText(m.name, pt[0] + 9, pt[1])
@@ -365,7 +482,7 @@ function drawOverlay(): void {
 }
 
 export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitch: ReactNode; focusTargetId?: string | null }) {
-  const { lat, lon, locationSet, timeZone, targets } = usePlannerData()
+  const { lat, lon, locationSet, timeZone, targets, hydrated } = usePlannerData()
   const horizon = useEffectiveHorizonProfile()
   const flatHorizonPreview = useAppStore((s) => s.flatHorizonPreview)
   const setFlatHorizonPreview = useAppStore((s) => s.setFlatHorizonPreview)
@@ -374,6 +491,14 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [altAzGridVisible, setAltAzGridVisible] = useState(true)
   const [raDecGridVisible, setRaDecGridVisible] = useState(false)
+  const [hips, setHips] = useState<HiPSConfig | null>(null)
+  const [showPlanets, setShowPlanets] = useState(true)
+  const [showMinorBodies, setShowMinorBodies] = useState(false)
+  // The clicked (or searched) object's card; `at` is relative to .skymap-page.
+  const [card, setCard] = useState<{ object: SkyObject; at: [number, number] } | null>(null)
+  const addPlannerTarget = useAppStore((s) => s.addPlannerTarget)
+  const minorBodies = useMinorBodies()
+  const { asteroids, comets } = minorBodies
   // The re-center interval is created inside the async ensureCelestialLoaded()
   // continuation below, which runs after this effect's synchronous body
   // (including its cleanup registration) has already executed — so cleanup
@@ -413,7 +538,10 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
   }, [frameData])
 
   const rows: TargetRow[] = useMemo(
-    () => targets.map((t) => ({ target: t, ...altAzAt(t.ra, t.dec, time, lat, lon) })),
+    () => targets.map((t) => {
+      const { ra, dec } = targetPosition(t, time)
+      return { target: t, ra, dec, ...altAzAt(ra, dec, time, lat, lon) }
+    }),
     [targets, time, lat, lon],
   )
 
@@ -424,22 +552,54 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
 
   const trajectoryPts = useMemo(
     () => selected
-      ? trajectoryPathJ2000(
-          selected.ra, selected.dec, nightWindowStart(time, timeZone), time, lat, lon)
+      ? trajectoryPathOf(
+          (d) => targetPosition(selected, d), nightWindowStart(time, timeZone), time, lat, lon)
       : null,
     [selected, time, timeZone, lat, lon],
   )
 
+  const planets: SkyMarker[] = useMemo(
+    () => showPlanets
+      ? PLANETS.map((body) => ({ ...planetPosition(body, time), name: body, selected: false }))
+      : [],
+    [showPlanets, time],
+  )
+
+  const minorBucket = Math.floor(time.getTime() / MINOR_BODY_BUCKET_MS)
+  const brightMinors = useMemo(() => {
+    if (!showMinorBodies) return []
+    const at = new Date(minorBucket * MINOR_BODY_BUCKET_MS)
+    return [
+      ...brightMinorBodies(asteroids, at, ASTEROID_MAG_LIMIT),
+      ...brightMinorBodies(comets, at, COMET_MAG_LIMIT),
+    ]
+  }, [showMinorBodies, asteroids, comets, minorBucket])
+
   // Publish markers/trajectory to the redraw callback alongside the frame
   useEffect(() => {
-    markers = rows.map(({ target }) => ({
-      ra: target.ra, dec: target.dec, name: target.name, selected: target.id === selectedId,
+    markers = rows.map(({ target, ra, dec }) => ({
+      ra, dec, name: target.name, selected: target.id === selectedId,
+      comet: target.mover?.kind === 'comet',
     }))
+    planetMarkers = planets
+    // One already in the Planner is drawn as its target marker instead.
+    minorBodyMarkers = brightMinors
+      .filter(({ body }) => !rows.some(({ target }) => target.id === body.designation))
+      .map(({ body, ra, dec }) => ({
+        ra, dec, name: body.designation, selected: false, comet: body.kind === 'comet',
+      }))
     trajectory = trajectoryPts
     if (initRef.current) {
       try { Celestial.redraw() } catch { /* ignore */ }
     }
-  }, [rows, selectedId, trajectoryPts])
+  }, [rows, selectedId, trajectoryPts, planets, brightMinors])
+
+  useEffect(() => {
+    hipsOverlay = hips
+    if (initRef.current) {
+      try { Celestial.redraw() } catch { /* ignore */ }
+    }
+  }, [hips])
 
   // Hydrate saved grid-visibility settings once at mount.
   useEffect(() => {
@@ -447,6 +607,9 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
       .then((s) => {
         if (typeof s.plannerAltAzGrid === 'boolean') setAltAzGridVisible(s.plannerAltAzGrid)
         if (typeof s.plannerRaDecGrid === 'boolean') setRaDecGridVisible(s.plannerRaDecGrid)
+        if (typeof s.plannerHips === 'string') setHips(HIPS_SURVEYS.find((h) => h.id === s.plannerHips) ?? null)
+        if (typeof s.plannerPlanets === 'boolean') setShowPlanets(s.plannerPlanets)
+        if (typeof s.plannerMinorBodies === 'boolean') setShowMinorBodies(s.plannerMinorBodies)
       })
       .catch(() => { /* defaults stay as-is */ })
   }, [])
@@ -458,6 +621,19 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
   const pickRaDecGrid = (visible: boolean) => {
     setRaDecGridVisible(visible)
     invoke('set_setting', { key: 'plannerRaDecGrid', value: visible }).catch(() => {})
+  }
+
+  const pickHips = (survey: HiPSConfig | null) => {
+    setHips(survey)
+    invoke('set_setting', { key: 'plannerHips', value: survey ? survey.id : null }).catch(() => {})
+  }
+  const pickPlanets = (visible: boolean) => {
+    setShowPlanets(visible)
+    invoke('set_setting', { key: 'plannerPlanets', value: visible }).catch(() => {})
+  }
+  const pickMinorBodies = (visible: boolean) => {
+    setShowMinorBodies(visible)
+    invoke('set_setting', { key: 'plannerMinorBodies', value: visible }).catch(() => {})
   }
 
   // Mirrors raDecGridVisible into a ref so the mount effect below — whose
@@ -482,12 +658,131 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
     } catch { /* ignore */ }
   }, [raDecGridVisible])
 
-  const focusTarget = (t: PlannerTarget) => {
-    setSelectedId(t.id)
-    const { alt, az } = altAzAt(t.ra, t.dec, time, lat, lon)
+  /** Turns the view toward a target at the sim time. */
+  const aimAt = (t: PlannerTarget) => {
+    const pos = targetPosition(t, time)
+    const { alt, az } = altAzAt(pos.ra, pos.dec, time, lat, lon)
     viewAz = az
     viewAlt = Math.max(alt, 15) // below the horizon: aim at its azimuth instead
     pointCamera()
+  }
+
+  const focusTarget = (t: PlannerTarget) => {
+    setSelectedId(t.id)
+    aimAt(t)
+  }
+
+  /** Canvas pixels → pixels relative to .skymap-page (the card's parent). */
+  const toPage = (at: [number, number]): [number, number] => {
+    const canvas = containerRef.current?.querySelector('canvas')
+    const page = containerRef.current?.parentElement
+    if (!canvas || !page) return at
+    const c = canvas.getBoundingClientRect(), p = page.getBoundingClientRect()
+    return [at[0] + c.left - p.left, at[1] + c.top - p.top]
+  }
+
+  /** Opens the card for `t`, showing the Planner's own copy (and selecting
+   *  it) when the object already is a Planner target. */
+  const openCardFor = (t: PlannerTarget, at: [number, number]) => {
+    const existing = targets.find((x) => x.id === t.id)
+    if (existing) setSelectedId(existing.id)
+    setCard({ object: skyObjectOf(existing ?? t, !!existing, time), at })
+  }
+
+  /** A search pick: aims the view at the object, without adding it, and
+   *  opens its card at the view centre. */
+  const showSearchHit = (hit: SearchHit) => {
+    const t = targetFromHit(hit, time)
+    aimAt(t)
+    const proj = Celestial.map?.projection?.()
+    const centre = proj ? proj.translate() : [0, 0]
+    openCardFor(t, toPage([centre[0], centre[1]]))
+  }
+
+  /** A click on the sky: the drawn object nearest the click within
+   *  CLICK_RADIUS_PX gets the card; empty sky closes it. Candidates are
+   *  listed Planner targets first, then Sun/Moon/planets, minor bodies, DSOs and
+   *  stars, so on an exact tie of distance and magnitude the earlier wins;
+   *  a catalog DSO or star that already is a Planner target is skipped in
+   *  favour of the target itself (dedupe by id). The Moon and planets are
+   *  not deduped: the Planner marker is geocentric J2000 while the disc is
+   *  drawn topocentric of-date (~1 degree apart for the Moon), so both compete
+   *  by distance and a click on the disc still finds it. */
+  const pickAt = (at: [number, number]) => {
+    const f = frame
+    const proj = Celestial.map?.projection?.()
+    if (!f || !proj) return
+    loadClickCatalogs()
+    const planned = new Set(targets.map((t) => t.id))
+    const cands: HitCandidate<SkyObject>[] = []
+    // Only objects projected within the click radius are built (and tested
+    // against the ground), so the catalog scans stay cheap.
+    const consider = (ra: number, dec: number, build: () => SkyObject | null, groundCheck = true) => {
+      const pt = proj([raToCelestial(ra), dec]) as [number, number] | null
+      if (!isFinitePoint(pt) || Math.hypot(pt[0] - at[0], pt[1] - at[1]) > CLICK_RADIUS_PX) return
+      if (groundCheck) {
+        const { alt, az } = equatorialToHorizon(ra, dec, f.time, f.lat, f.lon)
+        if (!isAboveGroundFill(f.profile, alt, az)) return
+      }
+      const obj = build()
+      if (obj) cands.push({ x: pt[0], y: pt[1], mag: obj.mag, item: obj })
+    }
+    const unplanned = (t: PlannerTarget) => planned.has(t.id) ? null : skyObjectOf(t, false, time)
+    // A solar-system disc: its card shows the Planner's own copy when added.
+    const disc = (t: PlannerTarget) => {
+      const existing = targets.find((x) => x.id === t.id)
+      return skyObjectOf(existing ?? t, !!existing, time)
+    }
+
+    // Planner target markers are drawn at any altitude.
+    for (const { target, ra, dec } of rows) consider(ra, dec, () => skyObjectOf(target, true, time), false)
+    consider(f.sun.raDeg, f.sun.decDeg, () => (
+      { name: 'Sun', type: 'Star', mag: SUN_MAG, target: null, existingId: null }))
+    consider(f.moon.raDeg, f.moon.decDeg, () => disc(targetFromPlanet('Moon', time)))
+    for (const m of planets) {
+      consider(m.ra, m.dec, () => disc(targetFromPlanet(m.name as PlanetBody, time)))
+    }
+    for (const { body, ra, dec } of brightMinors) {
+      consider(ra, dec, () => unplanned(targetFromMinorBody(body, time)))
+    }
+    for (const o of clickDsos ?? []) consider(o.ra, o.dec, () => unplanned(targetFromDso(o, time)))
+    for (const s of clickStars ?? []) consider(s.ra, s.dec, () => unplanned(targetFromStar(s, time)))
+
+    const hit = nearestHit(at, cands, CLICK_RADIUS_PX)
+    if (!hit) { setCard(null); return }
+    if (hit.existingId) setSelectedId(hit.existingId)
+    setCard({ object: hit, at: toPage(at) })
+  }
+
+  // The canvas listeners are installed once at init; they reach the current
+  // render's pickAt through this ref.
+  const pickRef = useRef<(at: [number, number]) => void>(() => {})
+  useEffect(() => { pickRef.current = pickAt })
+
+  // Esc closes the card.
+  const cardOpen = card !== null
+  useEffect(() => {
+    if (!cardOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCard(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [cardOpen])
+
+  /** "Add to Planner" on the card: same as the Planner page's add, stamped
+   *  with the real time rather than the sim time the card was built at. */
+  const addFromCard = (t: PlannerTarget) => {
+    if (!hydrated || targets.some((x) => x.id === t.id)) return
+    const added = { ...t, addedAt: new Date().toISOString() }
+    addPlannerTarget(added)
+    persistPlannerTargets([...targets, added])
+  }
+
+  // The card's altitude follows the sim clock.
+  const cardTarget = card?.object.target ?? null
+  let cardAlt = frameData.sun.alt // the Sun: no target
+  if (cardTarget) {
+    const p = targetPosition(cardTarget, time)
+    cardAlt = altAzAt(p.ra, p.dec, time, lat, lon).alt
   }
 
   // Deep-link focus: targets hydrate asynchronously, so this effect re-runs
@@ -570,7 +865,7 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
         lines: {
           // Off by default: the equatorial graticule reads as a star atlas,
           // not a from-the-ground view. User-toggleable via the RA/Dec grid
-          // checkbox; seeded from the ref so a settings-hydration update
+          // toggle; seeded from the ref so a settings-hydration update
           // that lands before this async init resolves isn't lost to a
           // stale closure.
           graticule: { show: raDecGridVisibleRef.current },
@@ -582,8 +877,20 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
       })
 
       // Mouse input is ours from here (skyPointer.ts): skyDrag keeps the
-      // horizon level through a single rotate() per move.
-      inputRef.current = takeOverSkyInput(containerRef.current, skyDrag)
+      // horizon level through a single rotate() per move. Any press closes
+      // the object card; a click (no drag) may open a new one.
+      inputRef.current = takeOverSkyInput(containerRef.current, {
+        // Loading at the press lets a first click find catalog objects once
+        // the catalogs are cached (the search box loads them too).
+        grab: (at) => { setCard(null); loadClickCatalogs(); skyDrag.grab(at) },
+        drag: skyDrag.drag,
+        click: (at) => pickRef.current(at),
+      })
+
+      // Survey tiles arriving asynchronously repaint the map.
+      setHiPSRedrawCallback(() => {
+        try { Celestial.redraw() } catch { /* ignore */ }
+      })
 
       // Layers registered by other views persist on the singleton — drop them.
       Celestial.clear()
@@ -614,6 +921,7 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
         clearInterval(recenterIntervalRef.current)
         recenterIntervalRef.current = null
       }
+      setHiPSRedrawCallback(null)
     }
   }, [])
 
@@ -655,48 +963,52 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
   return (
     <div className="skymap-page">
       <div ref={containerRef} id="planner-sky-view" className="skymap-container" />
-      {!locationSet && (
-        <div className="planner-sky-banner">
-          <MapPin size={14} />
-          <span>
-            No observing location set — using 50°N 20°E.{' '}
-            <Link to="/astroweather">Set your location</Link>
-          </span>
-        </div>
-      )}
+      <div className="planner-sky-banners">
+        {!locationSet && (
+          <div className="planner-sky-banner">
+            <MapPin size={14} />
+            <span>
+              No observing location set — using 50°N 20°E.{' '}
+              <Link to="/astroweather">Set your location</Link>
+            </span>
+          </div>
+        )}
+        {showMinorBodies && minorBodies.hydrated && (asteroids.length === 0 || comets.length === 0) && (
+          <div className="planner-sky-banner">
+            <span>
+              Comet or asteroid data missing — <Link to="/settings">download it in Settings</Link>
+            </span>
+          </div>
+        )}
+      </div>
       <TopBarActions>
+        <div className="planner-sky-search">
+          <ObjectSearch onSelect={showSearchHit} placeholder="Find — M31, Vega, Mars, Vesta…" />
+        </div>
         {modeSwitch}
-        <div className="topbar-group" style={{ gap: 12 }}>
-          <label className="topbar-check">
-            <input
-              type="checkbox"
-              className="check-compact"
-              checked={altAzGridVisible}
-              onChange={(e) => pickAltAzGrid(e.target.checked)}
-            />
-            Alt/Az grid
-          </label>
-          <label className="topbar-check">
-            <input
-              type="checkbox"
-              className="check-compact"
-              checked={raDecGridVisible}
-              onChange={(e) => pickRaDecGrid(e.target.checked)}
-            />
-            RA/Dec grid
-          </label>
-          <label
-            className="topbar-check"
-            title="Preview as if no custom horizon were set, without changing your saved skyline"
+        <div className="topbar-group">
+          <button
+            className={`btn btn-sm ${hips ? 'btn-primary' : ''}`}
+            onClick={() => pickHips(hips ? null : NSNS_RGB)}
+            title="Toggle survey overlay"
           >
-            <input
-              type="checkbox"
-              className="check-compact"
-              checked={flatHorizonPreview}
-              onChange={(e) => setFlatHorizonPreview(e.target.checked)}
-            />
-            Flat horizon
-          </label>
+            <Layers size={14} />
+          </button>
+          {hips && (
+            <select
+              className="settings-input"
+              style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }}
+              value={hips.id}
+              onChange={(e) => {
+                const survey = HIPS_SURVEYS.find((h) => h.id === e.target.value)
+                if (survey) pickHips(survey)
+              }}
+            >
+              {HIPS_SURVEYS.map((h) => (
+                <option key={h.id} value={h.id}>{h.label}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="topbar-group">
           <button
@@ -715,8 +1027,41 @@ export function PlannerSkyView({ modeSwitch, focusTargetId = null }: { modeSwitc
           </button>
         </div>
       </TopBarActions>
-      <PlannerTimeToolbar sim={sim} timeZone={timeZone} />
+      <PlannerLayerRail toggles={[
+        {
+          id: 'altaz', icon: Compass, label: 'Alt/Az grid',
+          active: altAzGridVisible, onToggle: () => pickAltAzGrid(!altAzGridVisible),
+        },
+        {
+          id: 'radec', icon: Grid3x3, label: 'RA/Dec grid',
+          active: raDecGridVisible, onToggle: () => pickRaDecGrid(!raDecGridVisible),
+        },
+        {
+          id: 'flat', icon: Mountain, label: 'Flat horizon (preview without your saved skyline)',
+          active: flatHorizonPreview, onToggle: () => setFlatHorizonPreview(!flatHorizonPreview),
+        },
+        {
+          id: 'planets', icon: Orbit, label: 'Planets',
+          active: showPlanets, onToggle: () => pickPlanets(!showPlanets),
+        },
+        {
+          id: 'minor', icon: Sparkles,
+          label: `Comets (to mag ${COMET_MAG_LIMIT}) & asteroids (to mag ${ASTEROID_MAG_LIMIT})`,
+          active: showMinorBodies, onToggle: () => pickMinorBodies(!showMinorBodies),
+        },
+      ]} />
+      <PlannerTimeToolbar sim={sim} timeZone={timeZone} lat={lat} lon={lon} />
       <PlannerTargetPanel rows={rows} selectedId={selectedId} onPick={focusTarget} />
+      {card && (
+        <SkyObjectCard
+          object={card.object}
+          alt={cardAlt}
+          at={card.at}
+          inPlanner={!!cardTarget && targets.some((t) => t.id === cardTarget.id)}
+          onAdd={() => { if (cardTarget) addFromCard(cardTarget) }}
+          onClose={() => setCard(null)}
+        />
+      )}
     </div>
   )
 }

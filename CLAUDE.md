@@ -38,7 +38,8 @@ src/                          # Frontend (React + TypeScript)
   components/astroweather/    # WeatherForecast, SeasonalDaylightChart,
                               # LightPollutionMap, HorizonEditor, SatelliteCheck
   components/skymap/          # ClassicSkyView, PlannerSkyView,
-                              # PlannerTimeToolbar, PlannerTargetPanel
+                              # PlannerTimeToolbar, PlannerTargetPanel,
+                              # SkyObjectCard (click-to-select card)
   components/export/          # WbppExportDialog, ExportTree, ExportSettingsPanel
   components/import/          # AsiairImportDialog
   components/ui/              # Checkbox (tri-state wrapper over the global style)
@@ -47,8 +48,9 @@ src/                          # Frontend (React + TypeScript)
                               # previewQueue slice mirrored from backend)
   context/ThemeContext.tsx    # Theme provider
   types/                      # TypeScript interfaces
-  hooks/                      # Custom hooks (useProjects, useImportQueue, etc.)
-  lib/                        # Utilities (constants, formatters, previewQueue listener, hips)
+  hooks/                      # Custom hooks (useProjects, useImportQueue, useMinorBodies, etc.)
+  lib/                        # Utilities (constants, formatters, previewQueue listener, hips,
+                              # orbits, mpc, movingTargets, skyHit)
   styles/                     # Global CSS + variables
 
 src-tauri/src/                # Backend (Rust)
@@ -66,6 +68,7 @@ src-tauri/src/                # Backend (Rust)
   wbpp_export.rs              # WBPP export: preflight links + fresh-folder placement
   import_source.rs            # Import-source scan (ASIAIR share / USB): lights + flats with headers
   settings.rs                 # Persistent key-value settings
+  minor_bodies.rs             # Storage of downloaded MPC comet/asteroid files
   cache.rs                    # Filesystem-based header cache
   cancellation.rs             # Global atomic cancel flags (scan/analyze/import/convert)
   types.rs                    # Shared Rust types (crossed the IPC boundary)
@@ -162,6 +165,26 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   a hit or from typed RA/Dec (`coords.ts`). Target ids are designations
   (`NGC 7000`, `HD 172167`, else `HIP n`) or `custom-<ms>` for coordinates;
   names are user-editable in the Planner list (`updatePlannerTarget`).
+  `ObjectSearch` also finds planets, the Moon, and (once downloaded) comets
+  and asteroids by designation or name.
+- Moving targets: a `PlannerTarget` with `mover` (`{kind:'planet', body}` or
+  `{kind:'comet'|'asteroid', elements}`) moves against the stars; its stored `ra`/`dec`
+  are only a snapshot. **Every consumer must call `targetPosition(t, date)`
+  (`src/lib/movingTargets.ts`)** — never read a target's `ra`/`dec` directly
+  (charts, trajectories, list flags, sky map, detail view all do). Planets and
+  the Moon use geocentric `astronomy-engine` vectors (aberration on, no
+  topocentric parallax — up to ~1° for the Moon). Likewise the displayed
+  magnitude comes from `targetMagnitude(t, date)` (same file), not `t.mag`,
+  which is only the value at add time.
+- MPC minor bodies: comets (`Soft00Cmt.txt`) and asteroids (bright-asteroid
+  file) are fetched by the **webview, on user request only** (Settings
+  "Comets and asteroids" card, `useMinorBodies`); Rust (`minor_bodies.rs`)
+  just stores the raw text under `<app_data_dir>/minor-bodies/`. `mpc.ts`
+  parses the fixed-width lines; `orbits.ts` propagates osculating elements
+  with plain two-body Kepler motion (no perturbations, no light-time), so
+  positions drift as elements age (arcminutes within ~1-2 years of epoch,
+  worse near Jupiter/Earth). Downloading refreshes the stored elements of
+  existing minor-body targets.
 - Sky Map modes: the SkyMap route hosts two exclusive views — the classic
   equatorial map and a Stellarium-like Planner mode (`skymapMode` setting)
   with a ground-fixed alt-az view (`src/lib/altAzView.ts`), a simulated
@@ -173,6 +196,18 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   `grabbedCentre` (`src/lib/skyPan.ts`) so the grabbed point stays under the
   cursor with the view level — the Planner feeds it negated azimuths, since
   azimuth grows to the right on screen where RA grows to the left.
+  Planner-mode additions: a HiPS survey overlay (`plannerHips` setting),
+  planets + Moon (`plannerPlanets`) and asteroids <= mag 12 + comets <= mag 15
+  (`plannerMinorBodies`) as toggles in `PlannerLayerRail`, an icon column
+  floating in the render window (with the grids and Flat horizon); an `ObjectSearch` box that adds/selects
+  targets; click-to-select — `skyPointer` reports a click (not a drag) and
+  `skyHit.ts` (pure, unit-tested) picks the nearest object for
+  `SkyObjectCard`; an editable simulated time (`PlannerTimeToolbar`) plus a
+  Tonight button (`tonightStart`). The sky starts directly under the TopBar
+  border (no gap).
+- Settings `extra`: `AppSettings` has a `#[serde(flatten)] extra` map, so
+  frontend-only setting keys (e.g. `plannerHips`) persist through
+  `set_setting` without needing a Rust field.
 - Weather forecast: Open-Meteo with `models=chmi_aladin_seamless,ecmwf_ifs025,icon_eu`.
   The four cloud rows show an accuracy-weighted blend (ALADIN 0.32 / ECMWF 0.44 /
   ICON-EU 0.24, per-hour renormalization over non-null models — weights from the
