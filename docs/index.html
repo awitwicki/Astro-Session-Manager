@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Astro Session Manager — organize your astrophotography sessions</title>
-<meta name="description" content="A desktop app that reads your existing astrophotography files in place, calculates integration time per project, and matches calibration frames — without moving or importing anything into a database.">
+<title>Astro Session Manager — plan, organize, and prepare your astrophotography</title>
+<meta name="description" content="A free desktop app for astrophotographers: plan targets, check the sky, import subs from ASIAIR, match calibration frames, grade sub-frames, and export ready-to-stack folders for PixInsight WBPP. Your files stay plain files.">
 <link rel="icon" type="image/png" href="assets/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -410,6 +410,28 @@
     border-radius: var(--radius-sm);
   }
 
+  /* ── Inline code, point lists, screenshot notes ─────────────────── */
+  .code-inline {
+    font-family: var(--font-mono); font-size: 0.88em;
+    padding: 1px 6px;
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-1);
+  }
+  .points {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 28px;
+    max-width: 1040px; margin: 0 auto 40px;
+  }
+  .points h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
+  .points p { font-size: 14px; color: var(--text-2); line-height: 1.55; }
+  .shot-note {
+    text-align: center; color: var(--text-3); font-size: 13px; margin-top: 20px;
+  }
+  .shot-note a { color: var(--accent-bright); }
+  .stack-gap { margin-top: 72px; }
+
   /* ── Responsive ─────────────────────────────────────────────────── */
   @media (max-width: 760px) {
     nav ul { display: none; }
@@ -429,8 +451,10 @@
     </a>
     <ul>
       <li><a href="#features">Features</a></li>
+      <li><a href="#workflow">Import &amp; export</a></li>
+      <li><a href="#planner">Planner</a></li>
+      <li><a href="#weather">Weather</a></li>
       <li><a href="#files">Your files</a></li>
-      <li><a href="#compat">Compatibility</a></li>
       <li><a href="astroweather/">AstroWeather</a></li>
       <li><a href="https://github.com/awitwicki/Astro-Session-Manager" target="_blank" rel="noopener">GitHub</a></li>
     </ul>
@@ -440,11 +464,12 @@
 <!-- ═══ HERO ═══════════════════════════════════════════════════ -->
 <header class="hero">
   <div class="container">
-    <h1>See your astrophotography<br>projects at a glance.</h1>
+    <h1>From tonight's forecast<br>to a stack-ready folder.</h1>
     <p class="lede">
-      A desktop app that reads your existing FITS, XISF, and DSLR raw files in place —
-      calculates integration time, finds matching calibration frames, and analyzes
-      sub-frames without ever moving or copying your data.
+      A free desktop app for the whole imaging routine: choose a target, check the sky,
+      bring new subs in from your ASIAIR, match calibration, grade every frame, and hand
+      PixInsight a clean WBPP folder. Your FITS, XISF, and DSLR raw files stay plain files
+      in folders you control.
     </p>
     <div class="hero-actions">
       <a class="btn btn-primary btn-lg" href="https://github.com/awitwicki/Astro-Session-Manager/releases" target="_blank" rel="noopener">
@@ -461,19 +486,27 @@
       <div class="carousel-track" data-carousel-track>
 
         <div class="carousel-slide">
-          <img src="assets/dashboard.png" alt="Dashboard — projects list with integration time and calibration status">
+          <img src="assets/dashboard.png" alt="Dashboard — project cards with integration time, lights, nights, and size">
         </div>
 
         <div class="carousel-slide">
-          <img src="assets/projectDetail.png" alt="Project view — filters, sessions, and per-filter frame breakdown">
+          <img src="assets/skymapPlanner.png" alt="Sky Map in Planner mode — a target's night trajectory over a deep-sky survey, above the horizon line" loading="lazy">
         </div>
 
         <div class="carousel-slide">
-          <img src="assets/fitsDetail.png" alt="FITS detail — frame inspection with star metrics and header data">
+          <img src="assets/projectDetail.png" alt="Project view — nights with FWHM chart, matched darks, and flats shared from another session" loading="lazy">
         </div>
 
         <div class="carousel-slide">
-          <img src="assets/masters.png" alt="Masters library — darks, biases, and flats with calibration matching">
+          <img src="assets/wbppExport.png" alt="Export to WBPP — frame tree with Moon separation, FWHM, and eccentricity per sub" loading="lazy">
+        </div>
+
+        <div class="carousel-slide">
+          <img src="assets/fitsDetail.png" alt="FITS detail — frame inspection with tilt diagram, star metrics, and header data" loading="lazy">
+        </div>
+
+        <div class="carousel-slide">
+          <img src="assets/masters.png" alt="Masters library — darks, dark flats, and biases with exposure, temperature, and resolution" loading="lazy">
         </div>
 
       </div>
@@ -482,6 +515,7 @@
       <button class="carousel-arrow next" data-carousel-next aria-label="Next slide">›</button>
       <div class="carousel-dots" data-carousel-dots></div>
     </div>
+    <p class="shot-note">Project names and numbers in these screenshots are sample data.</p>
   </div>
 </header>
 
@@ -497,33 +531,99 @@
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
         <h3>Reads your files in place</h3>
-        <p>Point it at your capture folder and it indexes what's there — your files stay where you put them. The scan is cached in a small <span class="code-inline">.json</span> next to your library; delete it any time and the next scan rebuilds it.</p>
+        <p>Point it at your capture folder and it indexes what's there. The scan is cached in one small <span class="code-inline">.json</span> file in that folder; delete it any time and the next scan rebuilds it.</p>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
         <h3>Integration time, automatically</h3>
-        <p>Each project, filter, and session gets its total exposure calculated from FITS headers. No spreadsheets. No arithmetic. Just the number, updated as you add frames.</p>
+        <p>Every project, filter, and night gets its total exposure from the file headers. No spreadsheets and no arithmetic, just the number, updated as you add frames.</p>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg></div>
         <h3>Matches calibration frames</h3>
-        <p>Tells you which projects have darks, bias, and flats ready — matching by exposure (±0.5 s), sensor temperature, and resolution. You see at a glance what's missing.</p>
+        <p>See which nights have darks, biases, and flats ready, matched by exposure (±0.5 s), sensor temperature, and resolution. Master dark flats are matched to your flats, even when the flats ran warmer than the lights.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+        <h3>Shared flats</h3>
+        <p>Imaged two targets in one night and shot flats once? A session with no flats borrows a set from the same night and the same optical train, and it shows as “Flats (shared)” instead of a false alarm.</p>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
         <h3>Sub-frame star analysis</h3>
-        <p>Per-frame FWHM, eccentricity, star count, and HFR. Built-in heatmap and tilt visualization help you spot collimation drift or a bad night before you stack.</p>
+        <p>Per-frame FWHM, eccentricity, and star count, charted night by night. Heatmap and tilt overlays help you spot a tilted sensor or a bad night before you stack.</p>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
         <h3>Fast preview browser</h3>
-        <p>JPEG previews generated on demand with a bounded in-memory cache. A priority queue means clicking a new filter jumps straight to those frames — previous work keeps cooking in the background.</p>
+        <p>Step through frames with little waiting: the app prepares the frames on either side of the one you're viewing, and the frame on screen always goes first. Previews stay in a bounded memory cache.</p>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
-        <h3>Guided import, no drag-drop</h3>
-        <p>Pick the frames you want (e.g. straight from ASIAIR) and the app copies them into the right <span class="code-inline">Project/Filter/Session</span> subfolder for you — no hunting through Finder or Explorer, no manual moves, no misfiled nights.</p>
+        <h3>DSLR raw to FITS</h3>
+        <p>Browse Canon CR2/CR3 and Sony ARW files alongside your FITS, or use the built-in converter to turn raws into FITS for the rest of your workflow.</p>
       </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></div>
+        <h3>Notes and housekeeping</h3>
+        <p>Keep notes per project, filter, or night. Create new nights with the subfolders you choose, sort by recently opened, and hide finished projects from the dashboard.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg></div>
+        <h3>Long jobs stay out of the way</h3>
+        <p>Imports, scans, and analysis run in the background and report to one status bar. Click it to see what's queued, stop a running job, skip the next one, or cancel everything.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ IMPORT & EXPORT ════════════════════════════════════════ -->
+<section id="workflow" class="highlight">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-kicker">Import</div>
+      <h2>Your ASIAIR's night, filed in one click.</h2>
+      <p>Point it at a mounted share, USB stick, or SD card. It finds the subs you don't have yet and works out where they belong.</p>
+    </div>
+    <div class="points">
+      <div>
+        <h3>Only what's new</h3>
+        <p>Subs already in your library are skipped by filename and size. The rest are grouped by night, filter, exposure, temperature, pointing, and rig.</p>
+      </div>
+      <div>
+        <h3>Proposes the destination</h3>
+        <p>Each group is matched to a project from its pointing and headers, then named as the next night. You can change any of it before copying. Groups with no matching project aren't imported; the dialog just counts them.</p>
+      </div>
+      <div>
+        <h3>Careful copying</h3>
+        <p>Each file is copied under a temporary name, checked for size, then renamed. Nothing is overwritten, and the night's flats go to one session for the others to share.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="assets/asiairImport.png" alt="Import from ASIAIR — new subs grouped by night with proposed project, folder, and session" loading="lazy">
+    </div>
+
+    <div class="section-head stack-gap">
+      <div class="section-kicker">Export</div>
+      <h2>Hand PixInsight a folder it understands.</h2>
+      <p>Export to WBPP builds a fresh folder with keyword-named paths such as <span class="code-inline">Lights/NIGHT_&lt;date&gt;/FILTER_&lt;f&gt;/</span>, ready for grouping.</p>
+    </div>
+    <div class="points">
+      <div>
+        <h3>Choose frames with evidence</h3>
+        <p>Every sub shows its capture time, Moon separation and illumination, FWHM, and eccentricity. Tick frames by hand or filter by Moon distance, FWHM, and eccentricity.</p>
+      </div>
+      <div>
+        <h3>Calibration included</h3>
+        <p>Flats, shared flats, matched master darks and dark flats, and optional biases are placed night by night. Missing calibration is flagged before you export.</p>
+      </div>
+      <div>
+        <h3>No extra terabytes</h3>
+        <p>Files are placed by symlink where possible, then hard link, then copy. Your originals are never moved, renamed, overwritten, or deleted.</p>
+      </div>
+    </div>
+    <div class="screenshot-frame">
+      <img src="assets/wbppExport.png" alt="Export to WBPP — Filter, Night, and frame tree with include, Moon, and quality settings" loading="lazy">
     </div>
   </div>
 </section>
@@ -546,7 +646,7 @@
           the app does the rest; ignore it and nothing is hidden from you — the files are still just files.
         </p>
         <p>
-          Nothing is encrypted, re-encoded, or moved behind your back.
+          Nothing is encrypted, re-encoded, or moved behind your back. Files only change when you ask.
           Delete the app and your 2 TB of lights stay exactly where you left them, ready for PixInsight, Siril, APP, or anything else.
         </p>
       </div>
@@ -567,9 +667,10 @@
 <span style="color: var(--text-3);">│   │       └──</span> <span class="folder">Flats/</span>
 <span style="color: var(--text-3);">│   └──</span> <span class="folder">OIII/</span>
 <span style="color: var(--text-3);">├──</span> <span class="folder">M31/</span>
-<span style="color: var(--text-3);">└──</span> <span class="folder">Masters/</span>
-<span style="color: var(--text-3);">    ├──</span> <span class="folder">Darks/</span>
-<span style="color: var(--text-3);">    └──</span> <span class="folder">Bias/</span>
+<span style="color: var(--text-3);">└──</span> <span class="folder">masters/</span>
+<span style="color: var(--text-3);">    ├──</span> <span class="file">masterDark_300s_-10C.xisf</span>
+<span style="color: var(--text-3);">    ├──</span> <span class="file">masterDarkFlat_1.2s_-5C.xisf</span>
+<span style="color: var(--text-3);">    └──</span> <span class="file">masterBias_-10C.xisf</span>
 
 <span class="annotation">↑ your actual layout. the app just reads it.</span>
       </div>
@@ -583,11 +684,49 @@
     <div class="section-head">
       <div class="section-kicker">Inspection</div>
       <h2>Open a frame, see what matters.</h2>
-      <p>Headers, star metrics, and a preview — without launching anything else.</p>
+      <p>Headers, star metrics, FWHM heatmap, tilt diagram, and a preview, without launching anything else.</p>
     </div>
 
     <div class="screenshot-frame">
-      <img src="assets/fitsDetail.png" alt="FITS detail — frame with header, star metrics (FWHM, eccentricity, HFR), and calibration match info">
+      <img src="assets/fitsDetail.png" alt="FITS detail — frame with tilt diagram, star metrics (FWHM, eccentricity, star count), and header keywords" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PLANNER ═══════════════════════════════════════════════ -->
+<section id="planner">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-kicker">Planning</div>
+      <h2>Know what's up tonight, from your own backyard.</h2>
+      <p>Build a target list and see each object's altitude through the night, against twilight, the Moon, and the trees and rooftops at your site.</p>
+    </div>
+    <div class="points">
+      <div>
+        <h3>Find anything</h3>
+        <p>Search the bundled OpenNGC deep-sky catalog and about 118,000 stars, type RA/Dec, or add planets, the Moon, comets, and asteroids.</p>
+      </div>
+      <div>
+        <h3>Your real horizon</h3>
+        <p>Draw your skyline or import a N.I.N.A. <span class="code-inline">.hrz</span> file. Charts, target flags, and the sky view all respect it.</p>
+      </div>
+      <div>
+        <h3>Moving targets handled</h3>
+        <p>Planets are computed for the date you're viewing. Comet and asteroid elements come from the Minor Planet Center, downloaded only when you ask.</p>
+      </div>
+    </div>
+    <div class="carousel" data-carousel>
+      <div class="carousel-track" data-carousel-track>
+        <div class="carousel-slide">
+          <img src="assets/planner.png" alt="Planner — target list with altitude charts for the coming night" loading="lazy">
+        </div>
+        <div class="carousel-slide">
+          <img src="assets/plannerDetail.png" alt="Planner detail — object data, Moon phase and separation, and a full altitude chart" loading="lazy">
+        </div>
+      </div>
+      <button class="carousel-arrow prev" data-carousel-prev aria-label="Previous slide">‹</button>
+      <button class="carousel-arrow next" data-carousel-next aria-label="Next slide">›</button>
+      <div class="carousel-dots" data-carousel-dots></div>
     </div>
   </div>
 </section>
@@ -596,13 +735,22 @@
 <section id="skymap" class="tight">
   <div class="container">
     <div class="section-head">
-      <div class="section-kicker">Planning</div>
-      <h2>Every frame you've captured, on the sky.</h2>
-      <p>All your project FOVs plotted on a deep-sky survey background. Useful for choosing the next target, remembering what you already framed, or spotting gaps in a mosaic.</p>
+      <div class="section-kicker">Sky Map</div>
+      <h2>Two views of the same sky.</h2>
+      <p>Planner mode shows the sky from your site: ground and horizon, a clock you can run forward, Sun and Moon, sky brightness, and each target's path through the night. The classic map plots every project you've captured over a deep-sky survey, which helps you choose the next target or spot gaps in a mosaic.</p>
     </div>
-
-    <div class="screenshot-frame">
-      <img src="assets/skymap.png" alt="Sky Map — captured project frames plotted on a HiPS deep-sky survey background">
+    <div class="carousel" data-carousel>
+      <div class="carousel-track" data-carousel-track>
+        <div class="carousel-slide">
+          <img src="assets/skymapPlanner.png" alt="Sky Map Planner mode — target trajectory, horizon line, layer toggles, and simulated time controls over a survey" loading="lazy">
+        </div>
+        <div class="carousel-slide">
+          <img src="assets/skymap.png" alt="Classic Sky Map — captured project frames plotted on a HiPS deep-sky survey background" loading="lazy">
+        </div>
+      </div>
+      <button class="carousel-arrow prev" data-carousel-prev aria-label="Previous slide">‹</button>
+      <button class="carousel-arrow next" data-carousel-next aria-label="Next slide">›</button>
+      <div class="carousel-dots" data-carousel-dots></div>
     </div>
   </div>
 </section>
@@ -611,18 +759,35 @@
 <section id="weather" class="highlight tight">
   <div class="container">
     <div class="section-head">
-      <div class="section-kicker">Planning</div>
+      <div class="section-kicker">Sky conditions</div>
       <h2>Will it be clear tonight?</h2>
-      <p>Seven-day hourly forecast focused on what matters for imaging: low/mid/high cloud layers, humidity, dew point, wind, visibility, and precipitation probability — with moon illumination and sun/moon position bars. Click a day to expand the full hourly breakdown.</p>
+      <p>A seven-day hourly forecast built for imaging: cloud layers, humidity, dew point, wind, visibility, and precipitation, with Moon illumination and twilight bars for each day.</p>
+    </div>
+    <div class="points">
+      <div>
+        <h3>Three models, one number</h3>
+        <p>Cloud cover is an accuracy-weighted blend of ALADIN, ECMWF, and ICON-EU. Click a cell to see where the models disagree.</p>
+      </div>
+      <div>
+        <h3>Check it against the satellite</h3>
+        <p>Compare the forecast for this hour with the latest EUMETSAT infrared image over your site.</p>
+      </div>
+      <div>
+        <h3>Know your site</h3>
+        <p>An interactive light pollution map with Bortle colors, plus a year-long chart of daylight, twilight, and true darkness.</p>
+      </div>
     </div>
 
     <div class="carousel" data-carousel>
       <div class="carousel-track" data-carousel-track>
         <div class="carousel-slide">
-          <img src="assets/weather.png" alt="Weather forecast — seven-day overview with sun, moon, and cloud summary bars">
+          <img src="assets/weather.png" alt="Weather forecast — hourly cloud overview with one day expanded into every variable" loading="lazy">
         </div>
         <div class="carousel-slide">
-          <img src="assets/weatherDetail.png" alt="Weather detail — hourly clouds, temperature, humidity, wind, and precipitation">
+          <img src="assets/weatherLightPollution.png" alt="Light pollution map with Bortle color legend and atlas year selector" loading="lazy">
+        </div>
+        <div class="carousel-slide">
+          <img src="assets/weatherDaylight.png" alt="Day and night duration chart showing daylight, twilight, and astronomical dark across the year" loading="lazy">
         </div>
       </div>
       <button class="carousel-arrow prev" data-carousel-prev aria-label="Previous slide">‹</button>
@@ -630,9 +795,33 @@
       <div class="carousel-dots" data-carousel-dots></div>
     </div>
 
-    <p style="text-align: center; color: var(--text-3); font-size: 13px; margin-top: 20px;">
-      Forecast data via <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color: var(--accent-bright);">Open-Meteo</a>.
+    <p class="shot-note">
+      Away from your computer? The same forecast runs in any browser as <a href="astroweather/">AstroWeather</a>.
     </p>
+  </div>
+</section>
+
+<!-- ═══ CALCULATORS ═════════════════════════════════════════════ -->
+<section id="calculators" class="tight">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-kicker">Calculators</div>
+      <h2>Quick answers before you buy or drive.</h2>
+      <p>The Bortle/SQM calculator converts integration time between two skies for broadband, Hα, and O III. The filter calculator shows how much transmission a narrowband filter loses in your telescope's fast light cone.</p>
+    </div>
+    <div class="carousel" data-carousel>
+      <div class="carousel-track" data-carousel-track>
+        <div class="carousel-slide">
+          <img src="assets/calcBortle.png" alt="Bortle calculator — exposure multipliers by sky class and equivalent integration time" loading="lazy">
+        </div>
+        <div class="carousel-slide">
+          <img src="assets/calcFilter.png" alt="Filter bandpass shift calculator — overall transmission and passband chart" loading="lazy">
+        </div>
+      </div>
+      <button class="carousel-arrow prev" data-carousel-prev aria-label="Previous slide">‹</button>
+      <button class="carousel-arrow next" data-carousel-next aria-label="Next slide">›</button>
+      <div class="carousel-dots" data-carousel-dots></div>
+    </div>
   </div>
 </section>
 
@@ -652,6 +841,13 @@
           <li>ASIAIR</li>
           <li>SGPro</li>
           <li>SharpCap</li>
+        </ul>
+      </div>
+      <div class="compat-card">
+        <div class="label">Works with</div>
+        <ul>
+          <li>PixInsight WBPP</li>
+          <li>N.I.N.A. horizons</li>
         </ul>
       </div>
       <div class="compat-card">
@@ -688,7 +884,7 @@
 <section class="closing">
   <div class="container">
     <h2>Give it a night.</h2>
-    <p>It's free, it's open source, and it won't touch your files.<br>If it helps, great. If not, it's a single uninstall away.</p>
+    <p>It's free, it's open source, and your files stay yours.<br>If it helps, great. If not, it's a single uninstall away.</p>
     <div class="closing-actions">
       <a class="btn btn-primary btn-lg" href="https://github.com/awitwicki/Astro-Session-Manager/releases" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -710,6 +906,15 @@
       <a href="https://github.com/awitwicki/Astro-Session-Manager/issues" target="_blank" rel="noopener">Issues</a>
       <a href="https://github.com/awitwicki/Astro-Session-Manager/blob/main/README.md" target="_blank" rel="noopener">README</a>
       <a href="astroweather/">AstroWeather</a>
+    </div>
+    <div style="flex-basis: 100%;">
+      Data: <a href="https://github.com/mattiaverga/OpenNGC" target="_blank" rel="noopener">OpenNGC</a> and
+      <a href="https://github.com/astronexus/HYG-Database" target="_blank" rel="noopener">HYG Database</a> (CC BY-SA 4.0),
+      <a href="https://github.com/ofrohn/d3-celestial" target="_blank" rel="noopener">d3-celestial</a>,
+      <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, EUMETSAT,
+      <a href="https://www.minorplanetcenter.net" target="_blank" rel="noopener">Minor Planet Center</a>,
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>,
+      light pollution atlas by David J. Lorenz / Falchi et al.
     </div>
   </div>
 </footer>
