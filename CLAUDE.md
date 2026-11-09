@@ -239,7 +239,11 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   when this import copies flats into it. Groups matching no project are
   only counted. `copy_to_directory` copies via `.<name>.part` + size check
   + rename and never overwrites; failures reach the StatusBar
-  (`importNotice`).
+  (`importNotice`). After each job the target project (`projectForPath`,
+  separator-aware) is rescanned via `rescanProject` (`src/lib/projectRescan.ts`):
+  one at a time in order, merged into the store and written to the scan
+  cache. The Dashboard's `init` loads that cache only once per app run, so
+  remounting it never overwrites newer scans.
 
 ## Documentation Conventions
 

@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../store/appStore'
 import type { CopyResult } from '../types/importSource'
+import { projectForPath } from '../lib/projectPaths'
+import { rescanProject } from '../lib/projectRescan'
 
 export function useImportQueue() {
   const importQueue = useAppStore((s) => s.importQueue)
@@ -71,15 +73,8 @@ export function useImportQueue() {
       })
       .finally(() => {
         isProcessingRef.current = false
-        const project = useAppStore.getState().projects.find((p) => targetDir.startsWith(p.path))
-        if (project) {
-          invoke('scan_single_project', { projectPath: project.path })
-            .then((result) => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              useAppStore.getState().mergeProjectScan(result as any)
-            })
-            .catch(() => {})
-        }
+        const project = projectForPath(useAppStore.getState().projects, targetDir)
+        if (project) rescanProject(project.path).catch(() => {})
         // Force re-render so the effect re-evaluates and picks up the next queued job
         // (needed when active job was cancelled — cancelImport removed it from queue
         // while isProcessingRef was still true, so the effect skipped)

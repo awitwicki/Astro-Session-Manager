@@ -12,7 +12,7 @@ import {
   type AnalyzeProgress, type ImportBatch, type ScanProgress,
 } from '../lib/operations'
 
-interface ScanResultRaw {
+export interface ScanResultRaw {
   rootPath: string
   projects: ProjectScanNode[]
   projectHeaders: Record<string, Record<string, unknown>>

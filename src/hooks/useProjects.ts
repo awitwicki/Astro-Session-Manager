@@ -3,6 +3,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../store/appStore'
 import { isDashboardSort, parseProjectOpenedMap } from '../lib/dashboardSort'
+import { rescanProject } from '../lib/projectRescan'
+
+/** Whether `init` has already loaded the on-disk cache into the store. */
+let cacheLoaded = false
 
 export function useProjects() {
   const projects = useAppStore((s) => s.projects)
@@ -14,7 +18,6 @@ export function useProjects() {
   const setScanning = useAppStore((s) => s.setScanning)
   const setScanError = useAppStore((s) => s.setScanError)
   const setMastersLibrary = useAppStore((s) => s.setMastersLibrary)
-  const mergeProjectScan = useAppStore((s) => s.mergeProjectScan)
 
   const saveCache = useCallback(async () => {
     const state = useAppStore.getState()
@@ -75,53 +78,14 @@ export function useProjects() {
   const scanProject = useCallback(async (projectPath: string) => {
     setScanning(true)
     try {
-      const result = await invoke('scan_single_project', { projectPath })
-      const scanResult = result as { rootPath: string; projects: unknown[]; projectHeaders: Record<string, unknown>; scanDurationMs: number }
-      mergeProjectScan(result as Parameters<typeof mergeProjectScan>[0])
-
-      // Persist to cache: merge the single-project result into existing cached scanResult
-      const currentRootFolder = useAppStore.getState().rootFolder
-      if (currentRootFolder) {
-        try {
-          const cached = await invoke<Record<string, unknown> | null>('load_cache', { rootFolder: currentRootFolder })
-          const existingScan = (cached?.scanResult ?? { rootPath: currentRootFolder, projects: [], projectHeaders: {}, scanDurationMs: 0 }) as {
-            rootPath: string; projects: Array<{ path: string }>; projectHeaders: Record<string, unknown>; scanDurationMs: number
-          }
-
-          // Replace or add the project in the cached projects array
-          const newProject = scanResult.projects[0] as { path: string } | undefined
-          if (newProject) {
-            const idx = existingScan.projects.findIndex((p) => p.path === newProject.path)
-            if (idx >= 0) {
-              existingScan.projects[idx] = newProject
-            } else {
-              existingScan.projects.push(newProject)
-            }
-          }
-
-          // Merge project headers
-          const mergedHeaders = { ...existingScan.projectHeaders, ...scanResult.projectHeaders }
-
-          await invoke('save_cache', {
-            rootFolder: currentRootFolder,
-            data: {
-              scanResult: {
-                ...existingScan,
-                projectHeaders: mergedHeaders
-              }
-            }
-          })
-        } catch {
-          // Cache save is best-effort
-        }
-      }
+      await rescanProject(projectPath)
     } catch {
       // Fall back to full scan on error
       await scan()
     } finally {
       setScanning(false)
     }
-  }, [mergeProjectScan, scan, setScanning])
+  }, [scan, setScanning])
 
   const selectFolder = useCallback(async () => {
     const folder = await open({ directory: true, title: 'Select Root Folder' })
@@ -192,7 +156,11 @@ export function useProjects() {
     if (typeof saved === 'string' && saved) {
       setRootFolder(saved)
 
-      // Load cache for instant display
+      // Load the cache for instant display — once per app run. The Dashboard
+      // calls init on every mount, and by then the store may hold newer scans
+      // (imports, project rescans) that the cache must not overwrite.
+      if (cacheLoaded) return
+      cacheLoaded = true
       try {
         const cached = await invoke<Record<string, unknown> | null>('load_cache', { rootFolder: saved })
         if (cached) {
