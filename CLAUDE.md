@@ -42,6 +42,7 @@ src/                          # Frontend (React + TypeScript)
                               # SkyObjectCard (click-to-select card)
   components/export/          # WbppExportDialog, ExportTree, ExportSettingsPanel
   components/import/          # AsiairImportDialog
+  components/calculators/     # BortleCalculator, FilterCalculator (+ FilterCharts, FilterExplainer)
   components/ui/              # Checkbox (tri-state wrapper over the global style)
   store/appStore.ts           # Zustand store (scan state, analysis, queues,
                               # import batch + scan/analysis progress,
@@ -87,6 +88,7 @@ yarn tsc -b       # frontend typecheck (root tsconfig.json is references-only;
                   # `tsc --noEmit` against it silently checks 0 files — always use -b)
 yarn lint         # frontend lint
 yarn test:web     # frontend unit tests (node:test via tsx)
+yarn sync:filtercalc  # regenerate docs/filtercalc/js from src/lib/fbsc*.ts
 ```
 
 ## Versioning
@@ -217,6 +219,17 @@ yarn test:web     # frontend unit tests (node:test via tsx)
   sits above the table. The logic is duplicated in `src/lib/weather.ts` (app) and
   `docs/astroweather/js/weather.js` (gh-pages); every weather change goes in both
   files, and `tests/web/weather.test.mjs` covers the gh-pages module.
+- Filter bandpass calculator: `src/lib/fbsc.ts` (pure, unit-tested) follows
+  Baader's "Narrowband Filters on Astronomical Telescopes": the tilt shift
+  λ·√(1 − (sin θ / n_eff)²) summed over 120 area-weighted aperture rings from
+  the obstruction to the edge, with a flat-top Gaussian band. Only the focal
+  ratio and the obstruction as a share of the diameter enter the math, so the
+  UI switches between aperture + focal length and a plain focal ratio.
+  `src/lib/fbscCharts.ts` builds the three pictures as pixel-space models. The
+  website copy (`docs/filtercalc/`) runs the same two modules, transpiled by
+  `yarn sync:filtercalc` into `docs/filtercalc/js/` (a test fails when they are
+  stale); only the page around them (`js/app.js`, `styles.css`) is written
+  twice, so UI text and layout changes go in both.
 - WBPP export: `src/lib/wbppExport.ts` (pure, unit-tested) turns a project into
   a Filter → Night → frame tree (per-frame DATE-OBS, Moon separation via
   `ephemeris.ts`, FWHM/ecc from `subAnalysis`) and a plan of `{src, relDst}` in

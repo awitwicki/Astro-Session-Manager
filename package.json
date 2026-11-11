@@ -1,14 +1,15 @@
 {
   "name": "astro-session-manager",
   "private": true,
-  "version": "1.31.1",
+  "version": "1.32.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:web": "node --import tsx --test tests/web/*.test.mjs"
+    "test:web": "node --import tsx --test tests/web/*.test.mjs",
+    "sync:filtercalc": "node scripts/sync-filtercalc.mjs"
   },
   "dependencies": {
     "@photostructure/tz-lookup": "^11.6.1",

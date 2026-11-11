@@ -264,74 +264,507 @@
 }
 
 /* ─── Filter calculator ──────────────────────────────────────────────────── */
-.calc-fields-grid {
+.fc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fc-head .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.fc-inputs,
+.fc-pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
+  gap: 16px;
 }
 
-.calc-result-card-lg {
-  min-width: 220px;
+.fc-pair {
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
 }
 
-.calc-result-card-lg .calc-result-value {
-  font-size: 28px;
+.fc-inputs,
+.fc-pair {
+  margin-bottom: 16px;
 }
 
-@media (max-width: 640px) {
-  .calc-fields-grid {
-    grid-template-columns: 1fr;
-  }
+.fc-inputs > .calc-panel,
+.fc-pair > .calc-panel {
+  margin-bottom: 0;
 }
 
-/* ─── Filter profile chart ───────────────────────────────────────────────── */
-.calc-chart {
-  margin-top: 18px;
-  max-width: 560px;
+.fc-card {
+  gap: 12px;
+  min-width: 0;
 }
 
-.calc-chart-svg {
-  width: 100%;
-  height: auto;
-  display: block;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-secondary);
-}
-
-.calc-chart-legend {
+.fc-card-head {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 8px;
-  font-size: 11px;
+  gap: 8px 12px;
+}
+
+.fc-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.fc-caption {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* Two equal columns; every control fills its cell so edges line up. */
+.fc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  align-items: end;
+}
+
+.fc-grid .calc-input,
+.fc-grid .calc-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.fc-span {
+  grid-column: 1 / -1;
+}
+
+.fc-unit {
+  margin-left: 5px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--color-text-muted);
 }
 
-.calc-chart-legend span {
+.fc-combo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 78px;
+  gap: 6px;
+}
+
+.fc-field-note {
+  display: flex;
+  align-items: center;
+  min-height: var(--calc-control-h);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+}
+
+.fc-field-note.fc-span {
+  min-height: 0;
+}
+
+.fc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fc-chip {
+  height: 26px;
+  padding: 0 10px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.fc-chip:hover {
+  background: var(--color-bg-hover);
+}
+
+.fc-chip.active {
+  background: var(--color-accent-muted);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.fc-problem {
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px dashed var(--color-border-active);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+/* ─── Filter calculator: results ─────────────────────────────────────────── */
+.fc-results {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.fc-hero {
+  --fc-tone: var(--color-success);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--fc-tone);
+  border-radius: var(--radius-md);
+}
+
+.fc-hero.fc-fair { --fc-tone: var(--color-warning); }
+.fc-hero.fc-poor { --fc-tone: var(--color-error); }
+
+.fc-hero-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.fc-hero-value {
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fc-tone);
+}
+
+.fc-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fc-tone);
+}
+
+.fc-meter {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+}
+
+.fc-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--fc-tone);
+}
+
+/* Where the same filter sits in straight light. */
+.fc-meter-mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-text-secondary);
+}
+
+.fc-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fc-stats .calc-result-card {
+  background: var(--color-bg-secondary);
+}
+
+.fc-stats .calc-result-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-value-text {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 27px;
+}
+
+.fc-sub-action {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fc-link {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fc-link:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+/* ─── Filter calculator: charts ──────────────────────────────────────────── */
+.fc-figure {
+  margin: 0;
+}
+
+.fc-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.fc-svg text {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  fill: var(--color-text-muted);
+}
+
+.fc-svg .fc-axis-title {
+  font-family: var(--font-sans);
+  fill: var(--color-text-secondary);
+}
+
+.fc-svg .fc-line-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fc-gridline {
+  stroke: var(--color-border);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.fc-axis,
+.fc-tick {
+  stroke: var(--color-border-active);
+  stroke-width: 1;
+}
+
+.fc-parallel {
+  fill: none;
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.fc-effective {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.fc-effective-area {
+  fill: var(--color-accent);
+  opacity: 0.13;
+}
+
+.fc-contribution {
+  fill: none;
+  stroke: var(--color-warning);
+  stroke-width: 1;
+  stroke-dasharray: 1 3;
+  stroke-linecap: round;
+}
+
+.fc-marker {
+  stroke: var(--color-bg-secondary);
+  stroke-width: 2;
+}
+
+.fc-marker-drop {
+  stroke: var(--color-text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.fc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.fc-legend span {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
-.calc-swatch {
+.fc-swatch {
   display: inline-block;
-  width: 14px;
-  height: 0;
-  border-top-width: 2px;
-  border-top-style: solid;
+  width: 18px;
+  border-top: 2px solid var(--color-text-secondary);
 }
 
-.calc-swatch-dash {
-  border-top-style: dashed;
-  border-top-color: var(--color-text-muted);
+.fc-swatch-parallel { border-top-style: dashed; }
+.fc-swatch-effective { border-top-color: var(--color-accent); border-top-width: 3px; }
+.fc-swatch-contribution { border-top-color: var(--color-warning); border-top-style: dotted; }
+
+.fc-figure-aperture {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
 
-.calc-swatch-accent {
-  border-top-color: var(--color-accent);
+.fc-svg-aperture {
+  width: min(100%, 220px);
 }
 
-.calc-swatch-target {
-  border-top-style: dashed;
-  border-top-color: var(--color-error);
+.fc-obstruction {
+  fill: var(--color-bg-primary);
+  stroke: var(--color-border-active);
+  stroke-width: 1;
+}
+
+.fc-aperture-rim {
+  fill: none;
+  stroke: var(--color-border-active);
+  stroke-width: 1;
+}
+
+.fc-scale {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.fc-scale-bar {
+  width: 110px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, rgb(196, 64, 64), rgb(217, 164, 65), rgb(45, 138, 78));
+}
+
+.fc-note {
+  margin-top: 6px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* ─── Filter calculator: sources and explainer ───────────────────────────── */
+.fc-source-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+.fc-source-list a {
+  color: var(--color-accent);
+}
+
+.fc-source-list span {
+  display: block;
+  color: var(--color-text-muted);
+}
+
+.modal.fc-explainer {
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.fc-explainer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fc-explainer p {
+  margin: 0 0 12px;
+}
+
+.fc-explainer b {
+  color: var(--color-text-primary);
+}
+
+.fc-explainer h4 {
+  margin: 4px 0 6px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.fc-explainer ul {
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+
+.fc-explainer li {
+  margin-bottom: 4px;
+}
+
+.fc-explainer-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 4px 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+}
+
+.fc-cone { fill: var(--color-accent); opacity: 0.22; }
+.fc-cone-aperture { stroke: var(--color-accent); stroke-width: 3; stroke-linecap: round; }
+.fc-cone-filter { stroke: var(--color-warning); stroke-width: 3; stroke-linecap: round; }
+.fc-cone-focus { fill: var(--color-text-primary); }
+.fc-cone-label { font-size: 12px; font-weight: 600; fill: var(--color-text-primary); }
+.fc-cone-note { font-size: 11px; fill: var(--color-text-muted); }
+
+.fc-explainer-rule {
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-accent-muted);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+}
+
+.fc-explainer .fc-explainer-rule {
+  margin-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  .fc-inputs,
+  .fc-pair,
+  .fc-results {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fc-head {
+    flex-direction: column;
+  }
 }
