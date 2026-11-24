@@ -1,0 +1,4744 @@
+{
+ "source": "https://astrodes.com/misc/astrosubcalc/",
+ "generated": "2026-11-24T21:37:53.038Z",
+ "cameras": [
+  {
+   "id": "atik-16hr-mono",
+   "model": "Atik 16HR Mono",
+   "vendor": "Atik",
+   "sensor": "Sony ICX285AL",
+   "mono": true,
+   "pixelSize": 6.45,
+   "qe": 65,
+   "bitDepth": 16,
+   "resolutionX": 1392,
+   "resolutionY": 1040,
+   "maxCooling": 30,
+   "darkRef": 0.0005,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-16hr-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 4.5,
+     "fullWell": 17700
+    }
+   ]
+  },
+  {
+   "id": "atik-314l-mono",
+   "model": "Atik 314L+ Mono",
+   "vendor": "Atik",
+   "sensor": "Sony ICX285AL",
+   "mono": true,
+   "pixelSize": 6.45,
+   "qe": 65,
+   "bitDepth": 16,
+   "resolutionX": 1392,
+   "resolutionY": 1040,
+   "maxCooling": 27,
+   "darkRef": 0.0005,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-314l-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 3.7,
+     "fullWell": 19500
+    }
+   ]
+  },
+  {
+   "id": "atik-320e-mono",
+   "model": "Atik 320E Mono",
+   "vendor": "Atik",
+   "sensor": "Sony ICX274AL",
+   "mono": true,
+   "pixelSize": 4.4,
+   "qe": 54,
+   "bitDepth": 16,
+   "resolutionX": 1620,
+   "resolutionY": 1220,
+   "maxCooling": 25,
+   "darkRef": 0.002,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-320e-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 3,
+     "fullWell": 9000
+    }
+   ]
+  },
+  {
+   "id": "atik-383l-color",
+   "model": "Atik 383L+ Color",
+   "vendor": "Atik",
+   "sensor": "Truesense KAF-8300",
+   "mono": false,
+   "pixelSize": 5.4,
+   "qe": 45,
+   "bitDepth": 16,
+   "resolutionX": 3362,
+   "resolutionY": 2504,
+   "maxCooling": 40,
+   "darkRef": 0.005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-383l-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 7,
+     "fullWell": 26000
+    }
+   ]
+  },
+  {
+   "id": "atik-383l-mono",
+   "model": "Atik 383L+ Mono",
+   "vendor": "Atik",
+   "sensor": "Truesense KAF-8300",
+   "mono": true,
+   "pixelSize": 5.4,
+   "qe": 56,
+   "bitDepth": 16,
+   "resolutionX": 3362,
+   "resolutionY": 2504,
+   "maxCooling": 40,
+   "darkRef": 0.005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-383l-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 7,
+     "fullWell": 26000
+    }
+   ]
+  },
+  {
+   "id": "atik-4120ex-color",
+   "model": "Atik 4120EX Color",
+   "vendor": "Atik",
+   "sensor": "Sony ICX834AQG",
+   "mono": false,
+   "pixelSize": 3.1,
+   "qe": 70,
+   "bitDepth": 16,
+   "resolutionX": 4242,
+   "resolutionY": 2830,
+   "maxCooling": 25,
+   "darkRef": 0.0005,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-4120ex-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 9800
+    }
+   ]
+  },
+  {
+   "id": "atik-414ex-color",
+   "model": "Atik 414EX Color",
+   "vendor": "Atik",
+   "sensor": "Sony ICX825AQG",
+   "mono": false,
+   "pixelSize": 6.45,
+   "qe": 68,
+   "bitDepth": 16,
+   "resolutionX": 1392,
+   "resolutionY": 1040,
+   "maxCooling": 30,
+   "darkRef": 0.0005,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-414ex-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 4,
+     "fullWell": 18000
+    }
+   ]
+  },
+  {
+   "id": "atik-414ex-mono",
+   "model": "Atik 414EX Mono",
+   "vendor": "Atik",
+   "sensor": "Sony ICX825AL",
+   "mono": true,
+   "pixelSize": 6.45,
+   "qe": 75,
+   "bitDepth": 16,
+   "resolutionX": 1392,
+   "resolutionY": 1040,
+   "maxCooling": 30,
+   "darkRef": 0.0005,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-414ex-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 4,
+     "fullWell": 18000
+    }
+   ]
+  },
+  {
+   "id": "atik-428ex-color",
+   "model": "Atik 428EX Color",
+   "vendor": "Atik",
+   "sensor": "Sony ICX674AQG",
+   "mono": false,
+   "pixelSize": 4.54,
+   "qe": 70,
+   "bitDepth": 16,
+   "resolutionX": 1932,
+   "resolutionY": 1452,
+   "maxCooling": 25,
+   "darkRef": 0.0002,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-428ex-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "atik-428ex-mono",
+   "model": "Atik 428EX Mono",
+   "vendor": "Atik",
+   "sensor": "Sony ICX674ALG",
+   "mono": true,
+   "pixelSize": 4.54,
+   "qe": 77,
+   "bitDepth": 16,
+   "resolutionX": 1932,
+   "resolutionY": 1452,
+   "maxCooling": 25,
+   "darkRef": 0.0002,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-428ex-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "atik-460ex-color",
+   "model": "Atik 460EX Color",
+   "vendor": "Atik",
+   "sensor": "Sony ICX694AQG",
+   "mono": false,
+   "pixelSize": 4.54,
+   "qe": 70,
+   "bitDepth": 16,
+   "resolutionX": 2750,
+   "resolutionY": 2200,
+   "maxCooling": 25,
+   "darkRef": 0.0002,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-460ex-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "atik-460ex-mono",
+   "model": "Atik 460EX Mono",
+   "vendor": "Atik",
+   "sensor": "Sony ICX694ALG",
+   "mono": true,
+   "pixelSize": 4.54,
+   "qe": 77,
+   "bitDepth": 16,
+   "resolutionX": 2750,
+   "resolutionY": 2200,
+   "maxCooling": 25,
+   "darkRef": 0.0002,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-460ex-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "atik-490ex-color",
+   "model": "Atik 490EX Color",
+   "vendor": "Atik",
+   "sensor": "Sony ICX814AQG",
+   "mono": false,
+   "pixelSize": 3.69,
+   "qe": 70,
+   "bitDepth": 16,
+   "resolutionX": 3380,
+   "resolutionY": 2704,
+   "maxCooling": 25,
+   "darkRef": 0.0002,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-490ex-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 11800
+    }
+   ]
+  },
+  {
+   "id": "atik-490ex-mono",
+   "model": "Atik 490EX Mono",
+   "vendor": "Atik",
+   "sensor": "Sony ICX814ALG",
+   "mono": true,
+   "pixelSize": 3.69,
+   "qe": 77,
+   "bitDepth": 16,
+   "resolutionX": 3380,
+   "resolutionY": 2704,
+   "maxCooling": 25,
+   "darkRef": 0.0002,
+   "darkRefTemp": -10,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-490ex-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 11800
+    }
+   ]
+  },
+  {
+   "id": "atik-horizon-color",
+   "model": "Atik Horizon Color",
+   "vendor": "Atik",
+   "sensor": "Panasonic MN34230",
+   "mono": false,
+   "pixelSize": 3.8,
+   "qe": 55,
+   "bitDepth": 12,
+   "resolutionX": 4656,
+   "resolutionY": 3520,
+   "maxCooling": 40,
+   "darkRef": 0.016,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-horizon-color-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 20000
+    },
+    {
+     "id": "atik-horizon-color-hgc",
+     "label": "Medium/Unity Gain 30",
+     "gain": 30,
+     "readNoise": 1.6,
+     "fullWell": 4095
+    }
+   ]
+  },
+  {
+   "id": "atik-horizon-mono",
+   "model": "Atik Horizon Mono",
+   "vendor": "Atik",
+   "sensor": "Panasonic MN34230",
+   "mono": true,
+   "pixelSize": 3.8,
+   "qe": 60,
+   "bitDepth": 12,
+   "resolutionX": 4656,
+   "resolutionY": 3520,
+   "maxCooling": 40,
+   "darkRef": 0.016,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "atik-horizon-mono-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 20000
+    },
+    {
+     "id": "atik-horizon-mono-hgc",
+     "label": "Medium/Unity Gain 30",
+     "gain": 30,
+     "readNoise": 1.6,
+     "fullWell": 4095
+    }
+   ]
+  },
+  {
+   "id": "canon-eos-2000d",
+   "model": "Canon EOS 2000D",
+   "vendor": "DSLR",
+   "sensor": "Canon 24.1MP APS-C CMOS",
+   "mono": false,
+   "pixelSize": 3.72,
+   "qe": 40,
+   "bitDepth": 14,
+   "resolutionX": 6024,
+   "resolutionY": 4020,
+   "maxCooling": null,
+   "darkRef": 0.035,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "canon-2000d-iso100",
+     "label": "ISO 100 Base",
+     "gain": 100,
+     "readNoise": 21.5,
+     "fullWell": 34700
+    },
+    {
+     "id": "canon-2000d-iso1600",
+     "label": "ISO 1600 Optimal",
+     "gain": 1600,
+     "readNoise": 2.7,
+     "fullWell": 2170
+    }
+   ]
+  },
+  {
+   "id": "canon-eos-650d",
+   "model": "Canon EOS 650D",
+   "vendor": "DSLR",
+   "sensor": "Canon 18.0MP APS-C Hybrid CMOS",
+   "mono": false,
+   "pixelSize": 4.29,
+   "qe": 38,
+   "bitDepth": 14,
+   "resolutionX": 5202,
+   "resolutionY": 3465,
+   "maxCooling": null,
+   "darkRef": 0.05,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "canon-650d-iso100",
+     "label": "ISO 100 Base",
+     "gain": 100,
+     "readNoise": 21.8,
+     "fullWell": 32500
+    },
+    {
+     "id": "canon-650d-iso1600",
+     "label": "ISO 1600 Optimal",
+     "gain": 1600,
+     "readNoise": 3.1,
+     "fullWell": 2030
+    }
+   ]
+  },
+  {
+   "id": "canon-eos-6d",
+   "model": "Canon EOS 6D",
+   "vendor": "DSLR",
+   "sensor": "Canon 20.2MP Full-Frame CMOS",
+   "mono": false,
+   "pixelSize": 6.54,
+   "qe": 50,
+   "bitDepth": 14,
+   "resolutionX": 5496,
+   "resolutionY": 3670,
+   "maxCooling": null,
+   "darkRef": 0.02,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "canon-6d-iso100",
+     "label": "ISO 100 Base",
+     "gain": 100,
+     "readNoise": 16.5,
+     "fullWell": 69500
+    },
+    {
+     "id": "canon-6d-iso1600",
+     "label": "ISO 1600 Optimal",
+     "gain": 1600,
+     "readNoise": 2.45,
+     "fullWell": 3800
+    }
+   ]
+  },
+  {
+   "id": "nikon-d5500",
+   "model": "Nikon D5500",
+   "vendor": "DSLR",
+   "sensor": "Sony IMX193 (APS-C)",
+   "mono": false,
+   "pixelSize": 3.89,
+   "qe": 54,
+   "bitDepth": 14,
+   "resolutionX": 6000,
+   "resolutionY": 4000,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "nikon-d5500-iso100",
+     "label": "ISO 100 Base",
+     "gain": 100,
+     "readNoise": 2.95,
+     "fullWell": 39800
+    },
+    {
+     "id": "nikon-d5500-iso400",
+     "label": "ISO 400 Optimal",
+     "gain": 400,
+     "readNoise": 1.65,
+     "fullWell": 9950
+    }
+   ]
+  },
+  {
+   "id": "nikon-d600",
+   "model": "Nikon D600",
+   "vendor": "DSLR",
+   "sensor": "Sony IMX128 (Full-Frame)",
+   "mono": false,
+   "pixelSize": 5.95,
+   "qe": 56,
+   "bitDepth": 14,
+   "resolutionX": 6016,
+   "resolutionY": 4016,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "nikon-d600-iso100",
+     "label": "ISO 100 Base",
+     "gain": 100,
+     "readNoise": 3.85,
+     "fullWell": 73400
+    },
+    {
+     "id": "nikon-d600-iso400",
+     "label": "ISO 400 Optimal",
+     "gain": 400,
+     "readNoise": 2.25,
+     "fullWell": 18350
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml09000-mono",
+   "model": "FLI MicroLine ML09000 Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-09000",
+   "mono": true,
+   "pixelSize": 12,
+   "qe": 70,
+   "bitDepth": 16,
+   "resolutionX": 3056,
+   "resolutionY": 3056,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -35,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml09000-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 10,
+     "fullWell": 110000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml1001e-mono",
+   "model": "FLI MicroLine ML1001E Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-1001E",
+   "mono": true,
+   "pixelSize": 24,
+   "qe": 72,
+   "bitDepth": 16,
+   "resolutionX": 1024,
+   "resolutionY": 1024,
+   "maxCooling": 55,
+   "darkRef": 0.03,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml1001e-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 13,
+     "fullWell": 325000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml11002-color",
+   "model": "FLI MicroLine ML11002 Color",
+   "vendor": "FLI",
+   "sensor": "Kodak KAI-11002",
+   "mono": false,
+   "pixelSize": 9,
+   "qe": 42,
+   "bitDepth": 16,
+   "resolutionX": 4008,
+   "resolutionY": 2672,
+   "maxCooling": 55,
+   "darkRef": 0.003,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml11002-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 11,
+     "fullWell": 60000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml11002-mono",
+   "model": "FLI MicroLine ML11002 Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAI-11002",
+   "mono": true,
+   "pixelSize": 9,
+   "qe": 50,
+   "bitDepth": 16,
+   "resolutionX": 4008,
+   "resolutionY": 2672,
+   "maxCooling": 55,
+   "darkRef": 0.003,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml11002-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 11,
+     "fullWell": 60000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml16000-color",
+   "model": "FLI MicroLine ML16000 Color",
+   "vendor": "FLI",
+   "sensor": "Kodak KAI-16000",
+   "mono": false,
+   "pixelSize": 7.4,
+   "qe": 40,
+   "bitDepth": 16,
+   "resolutionX": 4872,
+   "resolutionY": 3248,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml16000-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9,
+     "fullWell": 30000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml16000-mono",
+   "model": "FLI MicroLine ML16000 Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAI-16000",
+   "mono": true,
+   "pixelSize": 7.4,
+   "qe": 48,
+   "bitDepth": 16,
+   "resolutionX": 4872,
+   "resolutionY": 3248,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml16000-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9,
+     "fullWell": 30000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml16803-mono",
+   "model": "FLI MicroLine ML16803 Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-16803",
+   "mono": true,
+   "pixelSize": 9,
+   "qe": 60,
+   "bitDepth": 16,
+   "resolutionX": 4096,
+   "resolutionY": 4096,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -35,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml16803-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9,
+     "fullWell": 100000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml29050-color",
+   "model": "FLI MicroLine ML29050 Color",
+   "vendor": "FLI",
+   "sensor": "Truesense KAI-29050",
+   "mono": false,
+   "pixelSize": 5.5,
+   "qe": 44,
+   "bitDepth": 16,
+   "resolutionX": 6576,
+   "resolutionY": 4384,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml29050-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 10,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml29050-mono",
+   "model": "FLI MicroLine ML29050 Mono",
+   "vendor": "FLI",
+   "sensor": "Truesense KAI-29050",
+   "mono": true,
+   "pixelSize": 5.5,
+   "qe": 53,
+   "bitDepth": 16,
+   "resolutionX": 6576,
+   "resolutionY": 4384,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml29050-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 10,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml3200me-mono",
+   "model": "FLI MicroLine ML3200ME Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-3200ME",
+   "mono": true,
+   "pixelSize": 6.8,
+   "qe": 85,
+   "bitDepth": 16,
+   "resolutionX": 2184,
+   "resolutionY": 1472,
+   "maxCooling": 55,
+   "darkRef": 0.003,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml3200me-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 7,
+     "fullWell": 55000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml4022-color",
+   "model": "FLI MicroLine ML4022 Color",
+   "vendor": "FLI",
+   "sensor": "Kodak KAI-04022",
+   "mono": false,
+   "pixelSize": 7.4,
+   "qe": 45,
+   "bitDepth": 16,
+   "resolutionX": 2048,
+   "resolutionY": 2048,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml4022-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8,
+     "fullWell": 40000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml4022-mono",
+   "model": "FLI MicroLine ML4022 Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAI-04022",
+   "mono": true,
+   "pixelSize": 7.4,
+   "qe": 55,
+   "bitDepth": 16,
+   "resolutionX": 2048,
+   "resolutionY": 2048,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml4022-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8,
+     "fullWell": 40000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml4050-color",
+   "model": "FLI MicroLine ML4050 Color",
+   "vendor": "FLI",
+   "sensor": "Truesense KAI-04050",
+   "mono": false,
+   "pixelSize": 5.5,
+   "qe": 44,
+   "bitDepth": 16,
+   "resolutionX": 2336,
+   "resolutionY": 1752,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml4050-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml4050-mono",
+   "model": "FLI MicroLine ML4050 Mono",
+   "vendor": "FLI",
+   "sensor": "Truesense KAI-04050",
+   "mono": true,
+   "pixelSize": 5.5,
+   "qe": 53,
+   "bitDepth": 16,
+   "resolutionX": 2336,
+   "resolutionY": 1752,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml4050-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml4710-mono",
+   "model": "FLI MicroLine ML4710 Mono",
+   "vendor": "FLI",
+   "sensor": "e2v CCD47-10 BI",
+   "mono": true,
+   "pixelSize": 13,
+   "qe": 96,
+   "bitDepth": 16,
+   "resolutionX": 1024,
+   "resolutionY": 1024,
+   "maxCooling": 55,
+   "darkRef": 0.005,
+   "darkRefTemp": -35,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml4710-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5.5,
+     "fullWell": 100000
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml8300-color",
+   "model": "FLI MicroLine ML8300 Color",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-8300",
+   "mono": false,
+   "pixelSize": 5.4,
+   "qe": 45,
+   "bitDepth": 16,
+   "resolutionX": 3326,
+   "resolutionY": 2504,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml8300-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8,
+     "fullWell": 25500
+    }
+   ]
+  },
+  {
+   "id": "fli-microline-ml8300-mono",
+   "model": "FLI MicroLine ML8300 Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-8300",
+   "mono": true,
+   "pixelSize": 5.4,
+   "qe": 56,
+   "bitDepth": 16,
+   "resolutionX": 3326,
+   "resolutionY": 2504,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-ml8300-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8,
+     "fullWell": 25500
+    }
+   ]
+  },
+  {
+   "id": "fli-proline-pl39000-color",
+   "model": "FLI ProLine PL39000 Color",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-39000",
+   "mono": false,
+   "pixelSize": 6.8,
+   "qe": 48,
+   "bitDepth": 16,
+   "resolutionX": 7216,
+   "resolutionY": 5412,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -30,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-pl39000-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 10,
+     "fullWell": 60000
+    }
+   ]
+  },
+  {
+   "id": "fli-proline-pl39000-mono",
+   "model": "FLI ProLine PL39000 Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-39000",
+   "mono": true,
+   "pixelSize": 6.8,
+   "qe": 58,
+   "bitDepth": 16,
+   "resolutionX": 7216,
+   "resolutionY": 5412,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -30,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-pl39000-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 10,
+     "fullWell": 60000
+    }
+   ]
+  },
+  {
+   "id": "fli-proline-pl4240-mono",
+   "model": "FLI ProLine PL4240 Mono",
+   "vendor": "FLI",
+   "sensor": "e2v CCD42-40 BI",
+   "mono": true,
+   "pixelSize": 13.5,
+   "qe": 96,
+   "bitDepth": 16,
+   "resolutionX": 2048,
+   "resolutionY": 2048,
+   "maxCooling": 55,
+   "darkRef": 0.005,
+   "darkRefTemp": -35,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-pl4240-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 6,
+     "fullWell": 100000
+    }
+   ]
+  },
+  {
+   "id": "fli-proline-pl50100-color",
+   "model": "FLI ProLine PL50100 Color",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-50100",
+   "mono": false,
+   "pixelSize": 6,
+   "qe": 48,
+   "bitDepth": 16,
+   "resolutionX": 8176,
+   "resolutionY": 6132,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -30,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-pl50100-color",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 12,
+     "fullWell": 40300
+    }
+   ]
+  },
+  {
+   "id": "fli-proline-pl50100-mono",
+   "model": "FLI ProLine PL50100 Mono",
+   "vendor": "FLI",
+   "sensor": "Kodak KAF-50100",
+   "mono": true,
+   "pixelSize": 6,
+   "qe": 58,
+   "bitDepth": 16,
+   "resolutionX": 8176,
+   "resolutionY": 6132,
+   "maxCooling": 55,
+   "darkRef": 0.002,
+   "darkRefTemp": -30,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "fli-pl50100-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 12,
+     "fullWell": 40300
+    }
+   ]
+  },
+  {
+   "id": "qhy10-color",
+   "model": "QHY10 Color",
+   "vendor": "QHY",
+   "sensor": "Sony ICX493AQA",
+   "mono": false,
+   "pixelSize": 6.05,
+   "qe": 56,
+   "bitDepth": 16,
+   "resolutionX": 3964,
+   "resolutionY": 2712,
+   "maxCooling": 40,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-10",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8.5,
+     "fullWell": 45000
+    }
+   ]
+  },
+  {
+   "id": "qhy11c-color",
+   "model": "QHY11C Color",
+   "vendor": "QHY",
+   "sensor": "Kodak KAI-11002",
+   "mono": false,
+   "pixelSize": 9,
+   "qe": 42,
+   "bitDepth": 16,
+   "resolutionX": 4008,
+   "resolutionY": 2672,
+   "maxCooling": 42,
+   "darkRef": 0.003,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-11c",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 11,
+     "fullWell": 60000
+    }
+   ]
+  },
+  {
+   "id": "qhy11m-mono",
+   "model": "QHY11M Mono",
+   "vendor": "QHY",
+   "sensor": "Kodak KAI-11002",
+   "mono": true,
+   "pixelSize": 9,
+   "qe": 50,
+   "bitDepth": 16,
+   "resolutionX": 4008,
+   "resolutionY": 2672,
+   "maxCooling": 42,
+   "darkRef": 0.003,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-11m",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 11,
+     "fullWell": 60000
+    }
+   ]
+  },
+  {
+   "id": "qhy12-color",
+   "model": "QHY12 Color",
+   "vendor": "QHY",
+   "sensor": "Sony ICX493/16MP APS-C",
+   "mono": false,
+   "pixelSize": 4.78,
+   "qe": 52,
+   "bitDepth": 16,
+   "resolutionX": 4928,
+   "resolutionY": 3264,
+   "maxCooling": 40,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-12",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8.5,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy128c",
+   "model": "QHY128C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX128",
+   "mono": false,
+   "pixelSize": 5.97,
+   "qe": 60,
+   "bitDepth": 14,
+   "resolutionX": 6032,
+   "resolutionY": 4032,
+   "maxCooling": 35,
+   "darkRef": 0.003,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-128c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.7,
+     "fullWell": 74000
+    },
+    {
+     "id": "qhy-128c-hgc",
+     "label": "Gain 900 HGC",
+     "gain": 900,
+     "readNoise": 1.7,
+     "fullWell": 24000
+    }
+   ]
+  },
+  {
+   "id": "qhy16000c-color",
+   "model": "QHY16000C Color",
+   "vendor": "QHY",
+   "sensor": "Kodak KAI-16000",
+   "mono": false,
+   "pixelSize": 7.4,
+   "qe": 40,
+   "bitDepth": 16,
+   "resolutionX": 4872,
+   "resolutionY": 3248,
+   "maxCooling": 42,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-16000c",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9.5,
+     "fullWell": 30000
+    }
+   ]
+  },
+  {
+   "id": "qhy16000m-mono",
+   "model": "QHY16000M Mono",
+   "vendor": "QHY",
+   "sensor": "Kodak KAI-16000",
+   "mono": true,
+   "pixelSize": 7.4,
+   "qe": 48,
+   "bitDepth": 16,
+   "resolutionX": 4872,
+   "resolutionY": 3248,
+   "maxCooling": 42,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-16000m",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9.5,
+     "fullWell": 30000
+    }
+   ]
+  },
+  {
+   "id": "qhy16200a-mono",
+   "model": "QHY16200A Mono",
+   "vendor": "QHY",
+   "sensor": "Kodak KAF-16200",
+   "mono": true,
+   "pixelSize": 6,
+   "qe": 60,
+   "bitDepth": 16,
+   "resolutionX": 4500,
+   "resolutionY": 3600,
+   "maxCooling": 45,
+   "darkRef": 0.003,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-16200a-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9,
+     "fullWell": 40000
+    }
+   ]
+  },
+  {
+   "id": "qhy163c",
+   "model": "QHY163C",
+   "vendor": "QHY",
+   "sensor": "Panasonic MN34230",
+   "mono": false,
+   "pixelSize": 3.8,
+   "qe": 55,
+   "bitDepth": 12,
+   "resolutionX": 4656,
+   "resolutionY": 3522,
+   "maxCooling": 35,
+   "darkRef": 0.006,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-163c",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy163m",
+   "model": "QHY163M",
+   "vendor": "QHY",
+   "sensor": "Panasonic MN34230",
+   "mono": true,
+   "pixelSize": 3.8,
+   "qe": 60,
+   "bitDepth": 12,
+   "resolutionX": 4656,
+   "resolutionY": 3522,
+   "maxCooling": 35,
+   "darkRef": 0.006,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-163m",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy168c",
+   "model": "QHY168C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX071",
+   "mono": false,
+   "pixelSize": 4.8,
+   "qe": 56,
+   "bitDepth": 14,
+   "resolutionX": 4952,
+   "resolutionY": 3288,
+   "maxCooling": 35,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-168c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.2,
+     "fullWell": 45000
+    },
+    {
+     "id": "qhy-168c-hgc",
+     "label": "Gain 10 HGC",
+     "gain": 10,
+     "readNoise": 2.3,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "qhy183c",
+   "model": "QHY183C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX183",
+   "mono": false,
+   "pixelSize": 2.4,
+   "qe": 78,
+   "bitDepth": 12,
+   "resolutionX": 5544,
+   "resolutionY": 3694,
+   "maxCooling": 35,
+   "darkRef": 0.004,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-183c",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy183m",
+   "model": "QHY183M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX183",
+   "mono": true,
+   "pixelSize": 2.4,
+   "qe": 84,
+   "bitDepth": 12,
+   "resolutionX": 5544,
+   "resolutionY": 3694,
+   "maxCooling": 35,
+   "darkRef": 0.004,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-183m",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy21-mono",
+   "model": "QHY21 Mono",
+   "vendor": "QHY",
+   "sensor": "Sony ICX674ALG",
+   "mono": true,
+   "pixelSize": 4.54,
+   "qe": 77,
+   "bitDepth": 16,
+   "resolutionX": 1940,
+   "resolutionY": 1460,
+   "maxCooling": 40,
+   "darkRef": 0.0002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-21",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy22-color",
+   "model": "QHY22 Color",
+   "vendor": "QHY",
+   "sensor": "Sony ICX694AQG",
+   "mono": false,
+   "pixelSize": 4.54,
+   "qe": 62,
+   "bitDepth": 16,
+   "resolutionX": 2750,
+   "resolutionY": 2200,
+   "maxCooling": 40,
+   "darkRef": 0.0002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-22c",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy22-mono",
+   "model": "QHY22 Mono",
+   "vendor": "QHY",
+   "sensor": "Sony ICX694ALG",
+   "mono": true,
+   "pixelSize": 4.54,
+   "qe": 77,
+   "bitDepth": 16,
+   "resolutionX": 2750,
+   "resolutionY": 2200,
+   "maxCooling": 40,
+   "darkRef": 0.0002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-22m",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy23-color",
+   "model": "QHY23 Color",
+   "vendor": "QHY",
+   "sensor": "Sony ICX814AQG",
+   "mono": false,
+   "pixelSize": 3.69,
+   "qe": 62,
+   "bitDepth": 16,
+   "resolutionX": 3388,
+   "resolutionY": 2712,
+   "maxCooling": 40,
+   "darkRef": 0.0002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-23c",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 10500
+    }
+   ]
+  },
+  {
+   "id": "qhy23-mono",
+   "model": "QHY23 Mono",
+   "vendor": "QHY",
+   "sensor": "Sony ICX814ALG",
+   "mono": true,
+   "pixelSize": 3.69,
+   "qe": 77,
+   "bitDepth": 16,
+   "resolutionX": 3388,
+   "resolutionY": 2712,
+   "maxCooling": 40,
+   "darkRef": 0.0002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-23m",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 10500
+    }
+   ]
+  },
+  {
+   "id": "qhy247c",
+   "model": "QHY247C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX193",
+   "mono": false,
+   "pixelSize": 3.91,
+   "qe": 60,
+   "bitDepth": 14,
+   "resolutionX": 6024,
+   "resolutionY": 4024,
+   "maxCooling": 35,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-247c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.7,
+     "fullWell": 34000
+    },
+    {
+     "id": "qhy-247c-hgc",
+     "label": "Gain 900 HGC",
+     "gain": 900,
+     "readNoise": 1.6,
+     "fullWell": 11500
+    }
+   ]
+  },
+  {
+   "id": "qhy268c",
+   "model": "QHY268C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX571",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 16,
+   "resolutionX": 6280,
+   "resolutionY": 4210,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-268c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.6,
+     "fullWell": 51000
+    },
+    {
+     "id": "qhy-268c-hgc",
+     "label": "Gain 56 HGC",
+     "gain": 56,
+     "readNoise": 1.2,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy268m",
+   "model": "QHY268M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX571",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 16,
+   "resolutionX": 6280,
+   "resolutionY": 4210,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-268m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.6,
+     "fullWell": 51000
+    },
+    {
+     "id": "qhy-268m-hgc",
+     "label": "Gain 56 HGC",
+     "gain": 56,
+     "readNoise": 1.2,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy27-mono",
+   "model": "QHY27 Mono",
+   "vendor": "QHY",
+   "sensor": "Truesense KAI-04050",
+   "mono": true,
+   "pixelSize": 5.5,
+   "qe": 53,
+   "bitDepth": 16,
+   "resolutionX": 2336,
+   "resolutionY": 1752,
+   "maxCooling": 40,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-27m",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy28-mono",
+   "model": "QHY28 Mono",
+   "vendor": "QHY",
+   "sensor": "Truesense KAI-08050",
+   "mono": true,
+   "pixelSize": 5.5,
+   "qe": 53,
+   "bitDepth": 16,
+   "resolutionX": 3296,
+   "resolutionY": 2472,
+   "maxCooling": 40,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-28m",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9.5,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy294c",
+   "model": "QHY294C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX294",
+   "mono": false,
+   "pixelSize": 4.63,
+   "qe": 75,
+   "bitDepth": 14,
+   "resolutionX": 4164,
+   "resolutionY": 2796,
+   "maxCooling": 35,
+   "darkRef": 0.004,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-294c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.8,
+     "fullWell": 63700
+    },
+    {
+     "id": "qhy-294c-hgc",
+     "label": "Gain 1600 HGC",
+     "gain": 1600,
+     "readNoise": 1.2,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "qhy294m-pro",
+   "model": "QHY294M Pro",
+   "vendor": "QHY",
+   "sensor": "Sony IMX492",
+   "mono": true,
+   "pixelSize": 4.63,
+   "qe": 90,
+   "bitDepth": 14,
+   "resolutionX": 4164,
+   "resolutionY": 2796,
+   "maxCooling": 35,
+   "darkRef": 0.004,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-294m-pro-lcg",
+     "label": "Bin2 Gain 0",
+     "gain": 0,
+     "readNoise": 6.8,
+     "fullWell": 66380
+    },
+    {
+     "id": "qhy-294m-pro-hgc",
+     "label": "Bin2 Gain 1600 HGC",
+     "gain": 1600,
+     "readNoise": 1.2,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "qhy29c-color",
+   "model": "QHY29C Color",
+   "vendor": "QHY",
+   "sensor": "Truesense KAI-29050",
+   "mono": false,
+   "pixelSize": 5.5,
+   "qe": 44,
+   "bitDepth": 16,
+   "resolutionX": 6576,
+   "resolutionY": 4384,
+   "maxCooling": 42,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-29c",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 10.5,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy29m-mono",
+   "model": "QHY29M Mono",
+   "vendor": "QHY",
+   "sensor": "Truesense KAI-29050",
+   "mono": true,
+   "pixelSize": 5.5,
+   "qe": 53,
+   "bitDepth": 16,
+   "resolutionX": 6576,
+   "resolutionY": 4384,
+   "maxCooling": 42,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-29m",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 10.5,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy367c",
+   "model": "QHY367C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX094",
+   "mono": false,
+   "pixelSize": 4.88,
+   "qe": 60,
+   "bitDepth": 14,
+   "resolutionX": 7376,
+   "resolutionY": 4938,
+   "maxCooling": 35,
+   "darkRef": 0.003,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-367c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.7,
+     "fullWell": 64000
+    },
+    {
+     "id": "qhy-367c-hgc",
+     "label": "Gain 900 HGC",
+     "gain": 900,
+     "readNoise": 1.6,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy410c",
+   "model": "QHY410C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX410",
+   "mono": false,
+   "pixelSize": 5.94,
+   "qe": 80,
+   "bitDepth": 14,
+   "resolutionX": 6072,
+   "resolutionY": 4042,
+   "maxCooling": 35,
+   "darkRef": 0.001,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-410c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.4,
+     "fullWell": 100000
+    },
+    {
+     "id": "qhy-410c-hgc",
+     "label": "Gain 1200 HGC",
+     "gain": 1200,
+     "readNoise": 1.1,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "qhy5-mono",
+   "model": "QHY5 Mono",
+   "vendor": "QHY",
+   "sensor": "Micron MT9M001",
+   "mono": true,
+   "pixelSize": 5.2,
+   "qe": 56,
+   "bitDepth": 10,
+   "resolutionX": 1280,
+   "resolutionY": 1024,
+   "maxCooling": null,
+   "darkRef": 0.1,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5-mono",
+     "label": "MT9M001",
+     "gain": 0,
+     "readNoise": 15,
+     "fullWell": 25000
+    }
+   ]
+  },
+  {
+   "id": "qhy5-ii-mono",
+   "model": "QHY5-II Mono",
+   "vendor": "QHY",
+   "sensor": "Micron MT9M001",
+   "mono": true,
+   "pixelSize": 5.2,
+   "qe": 56,
+   "bitDepth": 12,
+   "resolutionX": 1280,
+   "resolutionY": 1024,
+   "maxCooling": null,
+   "darkRef": 0.08,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5-ii-mono",
+     "label": "MT9M001",
+     "gain": 0,
+     "readNoise": 12,
+     "fullWell": 25000
+    }
+   ]
+  },
+  {
+   "id": "qhy533c",
+   "model": "QHY533C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX533",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 14,
+   "resolutionX": 3008,
+   "resolutionY": 3008,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-533c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.3,
+     "fullWell": 50000
+    },
+    {
+     "id": "qhy-533c-hgc",
+     "label": "Gain 60 HGC",
+     "gain": 60,
+     "readNoise": 1,
+     "fullWell": 14000
+    }
+   ]
+  },
+  {
+   "id": "qhy533m",
+   "model": "QHY533M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX533",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 14,
+   "resolutionX": 3008,
+   "resolutionY": 3008,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-533m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.3,
+     "fullWell": 50000
+    },
+    {
+     "id": "qhy-533m-hgc",
+     "label": "Gain 60 HGC",
+     "gain": 60,
+     "readNoise": 1,
+     "fullWell": 14000
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii174c",
+   "model": "QHY5III174C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX174",
+   "mono": false,
+   "pixelSize": 5.86,
+   "qe": 70,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1200,
+   "maxCooling": null,
+   "darkRef": 0.05,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii174c",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 5.8,
+     "fullWell": 32000
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii174m",
+   "model": "QHY5III174M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX174",
+   "mono": true,
+   "pixelSize": 5.86,
+   "qe": 78,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1200,
+   "maxCooling": null,
+   "darkRef": 0.05,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii174m",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 5.8,
+     "fullWell": 32000
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii178c",
+   "model": "QHY5III178C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX178",
+   "mono": false,
+   "pixelSize": 2.4,
+   "qe": 76,
+   "bitDepth": 14,
+   "resolutionX": 3072,
+   "resolutionY": 2048,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii178c",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii178m",
+   "model": "QHY5III178M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX178",
+   "mono": true,
+   "pixelSize": 2.4,
+   "qe": 81,
+   "bitDepth": 14,
+   "resolutionX": 3072,
+   "resolutionY": 2048,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii178m",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii200m",
+   "model": "QHY5III200M",
+   "vendor": "QHY",
+   "sensor": "SmartSens SC2210",
+   "mono": true,
+   "pixelSize": 4,
+   "qe": 92,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.02,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii200m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 8780
+    },
+    {
+     "id": "qhy-5iii200m-hgc",
+     "label": "Gain 60 HGC",
+     "gain": 60,
+     "readNoise": 0.6,
+     "fullWell": 3100
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii290c",
+   "model": "QHY5III290C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX290",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 75,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii290c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.2,
+     "fullWell": 14600
+    },
+    {
+     "id": "qhy-5iii290c-hgc",
+     "label": "Gain 80 HGC",
+     "gain": 80,
+     "readNoise": 1,
+     "fullWell": 4100
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii290m",
+   "model": "QHY5III290M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX290",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii290m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.2,
+     "fullWell": 14600
+    },
+    {
+     "id": "qhy-5iii290m-hgc",
+     "label": "Gain 80 HGC",
+     "gain": 80,
+     "readNoise": 1,
+     "fullWell": 4100
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii462c",
+   "model": "QHY5III462C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX462",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii462c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.5,
+     "fullWell": 11200
+    },
+    {
+     "id": "qhy-5iii462c-hgc",
+     "label": "Gain 60 HGC",
+     "gain": 60,
+     "readNoise": 0.5,
+     "fullWell": 4400
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii462m",
+   "model": "QHY5III462M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX462",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 89,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii462m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.5,
+     "fullWell": 11200
+    },
+    {
+     "id": "qhy-5iii462m-hgc",
+     "label": "Gain 60 HGC",
+     "gain": 60,
+     "readNoise": 0.5,
+     "fullWell": 4400
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii585c",
+   "model": "QHY5III585C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX585",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 91,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii585c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "qhy-5iii585c-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 0.75,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii585m",
+   "model": "QHY5III585M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX585",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 93,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii585m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "qhy-5iii585m-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 0.75,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii678c",
+   "model": "QHY5III678C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX678",
+   "mono": false,
+   "pixelSize": 2,
+   "qe": 83,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii678c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.7,
+     "fullWell": 11270
+    },
+    {
+     "id": "qhy-5iii678c-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 0.6,
+     "fullWell": 1400
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii678m",
+   "model": "QHY5III678M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX678",
+   "mono": true,
+   "pixelSize": 2,
+   "qe": 85,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii678m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.7,
+     "fullWell": 11270
+    },
+    {
+     "id": "qhy-5iii678m-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 0.6,
+     "fullWell": 1400
+    }
+   ]
+  },
+  {
+   "id": "qhy5iii715c",
+   "model": "QHY5III715C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX715",
+   "mono": false,
+   "pixelSize": 1.45,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5iii715c",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.2,
+     "fullWell": 6030
+    }
+   ]
+  },
+  {
+   "id": "qhy5l-ii-c",
+   "model": "QHY5L-II-C",
+   "vendor": "QHY",
+   "sensor": "ONSemi MT9M034",
+   "mono": false,
+   "pixelSize": 3.75,
+   "qe": 70,
+   "bitDepth": 12,
+   "resolutionX": 1280,
+   "resolutionY": 960,
+   "maxCooling": null,
+   "darkRef": 0.03,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5l-ii-c",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 4,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "qhy5l-ii-m",
+   "model": "QHY5L-II-M",
+   "vendor": "QHY",
+   "sensor": "ONSemi MT9M034",
+   "mono": true,
+   "pixelSize": 3.75,
+   "qe": 74,
+   "bitDepth": 12,
+   "resolutionX": 1280,
+   "resolutionY": 960,
+   "maxCooling": null,
+   "darkRef": 0.03,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-5l-ii-m",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 4,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "qhy600c",
+   "model": "QHY600C",
+   "vendor": "QHY",
+   "sensor": "Sony IMX455",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 16,
+   "resolutionX": 9576,
+   "resolutionY": 6388,
+   "maxCooling": 35,
+   "darkRef": 0.0022,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-600c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 51400
+    },
+    {
+     "id": "qhy-600c-hgc",
+     "label": "Gain 56 HGC",
+     "gain": 56,
+     "readNoise": 1.2,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy600m",
+   "model": "QHY600M",
+   "vendor": "QHY",
+   "sensor": "Sony IMX455",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 16,
+   "resolutionX": 9576,
+   "resolutionY": 6388,
+   "maxCooling": 35,
+   "darkRef": 0.0022,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-600m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 51400
+    },
+    {
+     "id": "qhy-600m-hgc",
+     "label": "Gain 56 HGC",
+     "gain": 56,
+     "readNoise": 1.2,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy695a-mono",
+   "model": "QHY695A Mono",
+   "vendor": "QHY",
+   "sensor": "Sony ICX694ALG",
+   "mono": true,
+   "pixelSize": 4.54,
+   "qe": 77,
+   "bitDepth": 16,
+   "resolutionX": 2750,
+   "resolutionY": 2200,
+   "maxCooling": 40,
+   "darkRef": 0.0002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-695a-mono",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 5,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "qhy8-color",
+   "model": "QHY8 Color",
+   "vendor": "QHY",
+   "sensor": "Sony ICX453AQ",
+   "mono": false,
+   "pixelSize": 7.8,
+   "qe": 55,
+   "bitDepth": 16,
+   "resolutionX": 3032,
+   "resolutionY": 2016,
+   "maxCooling": 40,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-8",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 9,
+     "fullWell": 25000
+    }
+   ]
+  },
+  {
+   "id": "qhy8-pro-color",
+   "model": "QHY8 Pro Color",
+   "vendor": "QHY",
+   "sensor": "Sony ICX413AQ",
+   "mono": false,
+   "pixelSize": 7.8,
+   "qe": 60,
+   "bitDepth": 16,
+   "resolutionX": 3032,
+   "resolutionY": 2016,
+   "maxCooling": 40,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-8-pro",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 7,
+     "fullWell": 25000
+    }
+   ]
+  },
+  {
+   "id": "qhy8l-color",
+   "model": "QHY8L Color",
+   "vendor": "QHY",
+   "sensor": "Sony ICX413AQ",
+   "mono": false,
+   "pixelSize": 7.8,
+   "qe": 60,
+   "bitDepth": 16,
+   "resolutionX": 3032,
+   "resolutionY": 2016,
+   "maxCooling": 40,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-8l",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 7,
+     "fullWell": 25000
+    }
+   ]
+  },
+  {
+   "id": "qhy9c-color",
+   "model": "QHY9C Color",
+   "vendor": "QHY",
+   "sensor": "Kodak KAF-8300",
+   "mono": false,
+   "pixelSize": 5.4,
+   "qe": 45,
+   "bitDepth": 16,
+   "resolutionX": 3358,
+   "resolutionY": 2536,
+   "maxCooling": 45,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-9c",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8,
+     "fullWell": 25500
+    }
+   ]
+  },
+  {
+   "id": "qhy9m-mono",
+   "model": "QHY9M Mono",
+   "vendor": "QHY",
+   "sensor": "Kodak KAF-8300",
+   "mono": true,
+   "pixelSize": 5.4,
+   "qe": 56,
+   "bitDepth": 16,
+   "resolutionX": 3358,
+   "resolutionY": 2536,
+   "maxCooling": 45,
+   "darkRef": 0.002,
+   "darkRefTemp": -20,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "qhy-9m",
+     "label": "Default",
+     "gain": 0,
+     "readNoise": 8,
+     "fullWell": 25500
+    }
+   ]
+  },
+  {
+   "id": "svbony-sc571cc",
+   "model": "Svbony SC571CC",
+   "vendor": "Svbony",
+   "sensor": "Sony IMX571",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 16,
+   "resolutionX": 6244,
+   "resolutionY": 4168,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "svbony-sc571cc-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.6,
+     "fullWell": 51000
+    },
+    {
+     "id": "svbony-sc571cc-hgc",
+     "label": "HGC",
+     "gain": 100,
+     "readNoise": 1.14,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "svbony-sv305",
+   "model": "Svbony SV305",
+   "vendor": "Svbony",
+   "sensor": "Sony IMX290",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "svbony-sv305-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.7,
+     "fullWell": 14600
+    },
+    {
+     "id": "svbony-sv305-hgc",
+     "label": "HGC",
+     "gain": 200,
+     "readNoise": 0.7,
+     "fullWell": 2500
+    }
+   ]
+  },
+  {
+   "id": "svbony-sv305c",
+   "model": "Svbony SV305C",
+   "vendor": "Svbony",
+   "sensor": "Sony IMX662",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 91,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.012,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "svbony-sv305c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "svbony-sv305c-hgc",
+     "label": "Gain 190 HGC",
+     "gain": 190,
+     "readNoise": 0.7,
+     "fullWell": 4500
+    }
+   ]
+  },
+  {
+   "id": "svbony-sv405cc",
+   "model": "Svbony SV405CC",
+   "vendor": "Svbony",
+   "sensor": "Sony IMX294",
+   "mono": false,
+   "pixelSize": 4.63,
+   "qe": 75,
+   "bitDepth": 14,
+   "resolutionX": 4144,
+   "resolutionY": 2822,
+   "maxCooling": 30,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "svbony-sv405cc-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 6.8,
+     "fullWell": 63000
+    },
+    {
+     "id": "svbony-sv405cc-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 1.2,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "svbony-sv505c",
+   "model": "Svbony SV505C",
+   "vendor": "Svbony",
+   "sensor": "Sony IMX464",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 2712,
+   "resolutionY": 1538,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "svbony-sv505c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.9,
+     "fullWell": 12000
+    },
+    {
+     "id": "svbony-sv505c-hgc",
+     "label": "HGC",
+     "gain": 210,
+     "readNoise": 0.7,
+     "fullWell": 2200
+    }
+   ]
+  },
+  {
+   "id": "svbony-sv605cc",
+   "model": "Svbony SV605CC",
+   "vendor": "Svbony",
+   "sensor": "Sony IMX533",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 14,
+   "resolutionX": 3008,
+   "resolutionY": 3008,
+   "maxCooling": 30,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "svbony-sv605cc-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.3,
+     "fullWell": 50000
+    },
+    {
+     "id": "svbony-sv605cc-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 1,
+     "fullWell": 14000
+    }
+   ]
+  },
+  {
+   "id": "svbony-sv605mc",
+   "model": "Svbony SV605MC",
+   "vendor": "Svbony",
+   "sensor": "Sony IMX533",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 14,
+   "resolutionX": 3008,
+   "resolutionY": 3008,
+   "maxCooling": 30,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "svbony-sv605mc-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.3,
+     "fullWell": 50000
+    },
+    {
+     "id": "svbony-sv605mc-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 1,
+     "fullWell": 14000
+    }
+   ]
+  },
+  {
+   "id": "svbony-sv705c",
+   "model": "Svbony SV705C",
+   "vendor": "Svbony",
+   "sensor": "Sony IMX585",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 90,
+   "bitDepth": 12,
+   "resolutionX": 3856,
+   "resolutionY": 2180,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "svbony-sv705c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 4.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "svbony-sv705c-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.75,
+     "fullWell": 1500
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr183c",
+   "model": "ToupTek ATR183C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX183",
+   "mono": false,
+   "pixelSize": 2.4,
+   "qe": 78,
+   "bitDepth": 12,
+   "resolutionX": 5440,
+   "resolutionY": 3648,
+   "maxCooling": 40,
+   "darkRef": 0.004,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr183c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3,
+     "fullWell": 15000
+    },
+    {
+     "id": "touptek-atr183c-hgc",
+     "label": "Unity Gain 111",
+     "gain": 111,
+     "readNoise": 2.2,
+     "fullWell": 4100
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr183m",
+   "model": "ToupTek ATR183M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX183",
+   "mono": true,
+   "pixelSize": 2.4,
+   "qe": 84,
+   "bitDepth": 12,
+   "resolutionX": 5440,
+   "resolutionY": 3648,
+   "maxCooling": 40,
+   "darkRef": 0.004,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr183m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3,
+     "fullWell": 15000
+    },
+    {
+     "id": "touptek-atr183m-hgc",
+     "label": "Unity Gain 111",
+     "gain": 111,
+     "readNoise": 2.2,
+     "fullWell": 4100
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr2400c",
+   "model": "ToupTek ATR2400C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX410",
+   "mono": false,
+   "pixelSize": 5.94,
+   "qe": 80,
+   "bitDepth": 14,
+   "resolutionX": 6064,
+   "resolutionY": 4040,
+   "maxCooling": 35,
+   "darkRef": 0.001,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr2400c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.4,
+     "fullWell": 100000
+    },
+    {
+     "id": "touptek-atr2400c-hgc",
+     "label": "Gain 140 HGC",
+     "gain": 140,
+     "readNoise": 1.1,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr2600c",
+   "model": "ToupTek ATR2600C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX571",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 16,
+   "resolutionX": 6224,
+   "resolutionY": 4168,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr2600c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.6,
+     "fullWell": 51000
+    },
+    {
+     "id": "touptek-atr2600c-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1.15,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr2600m",
+   "model": "ToupTek ATR2600M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX571",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 16,
+   "resolutionX": 6224,
+   "resolutionY": 4168,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr2600m-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.6,
+     "fullWell": 51000
+    },
+    {
+     "id": "touptek-atr2600m-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1.15,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr294c",
+   "model": "ToupTek ATR294C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX294",
+   "mono": false,
+   "pixelSize": 4.63,
+   "qe": 75,
+   "bitDepth": 14,
+   "resolutionX": 4144,
+   "resolutionY": 2822,
+   "maxCooling": 35,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr294c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 6.8,
+     "fullWell": 63700
+    },
+    {
+     "id": "touptek-atr294c-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 1.2,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr294m",
+   "model": "ToupTek ATR294M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX492",
+   "mono": true,
+   "pixelSize": 4.63,
+   "qe": 90,
+   "bitDepth": 14,
+   "resolutionX": 4144,
+   "resolutionY": 2822,
+   "maxCooling": 35,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr294m-lcg",
+     "label": "Bin2 Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 6.8,
+     "fullWell": 66380
+    },
+    {
+     "id": "touptek-atr294m-hgc",
+     "label": "Bin2 Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 1.2,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr533c",
+   "model": "ToupTek ATR533C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX533",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 14,
+   "resolutionX": 3008,
+   "resolutionY": 3008,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr533c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.3,
+     "fullWell": 50000
+    },
+    {
+     "id": "touptek-atr533c-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1,
+     "fullWell": 14000
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr533m",
+   "model": "ToupTek ATR533M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX533",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 14,
+   "resolutionX": 3008,
+   "resolutionY": 3008,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr533m-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.3,
+     "fullWell": 50000
+    },
+    {
+     "id": "touptek-atr533m-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1,
+     "fullWell": 14000
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr585c",
+   "model": "ToupTek ATR585C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX585",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 91,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": 35,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr585c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "touptek-atr585c-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.75,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr585m",
+   "model": "ToupTek ATR585M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX585",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 93,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": 35,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr585m-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "touptek-atr585m-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.75,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr6200c",
+   "model": "ToupTek ATR6200C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX455",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 16,
+   "resolutionX": 9568,
+   "resolutionY": 6380,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr6200c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 51400
+    },
+    {
+     "id": "touptek-atr6200c-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1.15,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "touptek-atr6200m",
+   "model": "ToupTek ATR6200M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX455",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 16,
+   "resolutionX": 9568,
+   "resolutionY": 6380,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-atr6200m-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 51400
+    },
+    {
+     "id": "touptek-atr6200m-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1.15,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m178c",
+   "model": "ToupTek G3M178C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX178",
+   "mono": false,
+   "pixelSize": 2.4,
+   "qe": 76,
+   "bitDepth": 14,
+   "resolutionX": 3072,
+   "resolutionY": 2048,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m178c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 15000
+    },
+    {
+     "id": "touptek-g3m178c-hgc",
+     "label": "Gain 200",
+     "gain": 200,
+     "readNoise": 1.4,
+     "fullWell": 1500
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m178m",
+   "model": "ToupTek G3M178M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX178",
+   "mono": true,
+   "pixelSize": 2.4,
+   "qe": 81,
+   "bitDepth": 14,
+   "resolutionX": 3072,
+   "resolutionY": 2048,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m178m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 15000
+    },
+    {
+     "id": "touptek-g3m178m-hgc",
+     "label": "Gain 200",
+     "gain": 200,
+     "readNoise": 1.4,
+     "fullWell": 1500
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m290c",
+   "model": "ToupTek G3M290C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX290",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 75,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m290c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.2,
+     "fullWell": 14600
+    },
+    {
+     "id": "touptek-g3m290c-hgc",
+     "label": "Gain 110 HGC",
+     "gain": 110,
+     "readNoise": 1,
+     "fullWell": 4100
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m290m",
+   "model": "ToupTek G3M290M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX290",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m290m-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 3.2,
+     "fullWell": 14600
+    },
+    {
+     "id": "touptek-g3m290m-hgc",
+     "label": "Gain 110 HGC",
+     "gain": 110,
+     "readNoise": 1,
+     "fullWell": 4100
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m462c",
+   "model": "ToupTek G3M462C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX462",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m462c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.5,
+     "fullWell": 11200
+    },
+    {
+     "id": "touptek-g3m462c-hgc",
+     "label": "Gain 80 HGC",
+     "gain": 80,
+     "readNoise": 0.5,
+     "fullWell": 4400
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m662c",
+   "model": "ToupTek G3M662C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX662",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 91,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.012,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m662c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "touptek-g3m662c-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.7,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m678c",
+   "model": "ToupTek G3M678C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX678",
+   "mono": false,
+   "pixelSize": 2,
+   "qe": 83,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m678c-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.7,
+     "fullWell": 11270
+    },
+    {
+     "id": "touptek-g3m678c-hgc",
+     "label": "Gain 182 HGC",
+     "gain": 182,
+     "readNoise": 0.6,
+     "fullWell": 1400
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m678m",
+   "model": "ToupTek G3M678M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX678",
+   "mono": true,
+   "pixelSize": 2,
+   "qe": 85,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m678m-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.7,
+     "fullWell": 11270
+    },
+    {
+     "id": "touptek-g3m678m-hgc",
+     "label": "Gain 182 HGC",
+     "gain": 182,
+     "readNoise": 0.6,
+     "fullWell": 1400
+    }
+   ]
+  },
+  {
+   "id": "touptek-g3m715c",
+   "model": "ToupTek G3M715C",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX715",
+   "mono": false,
+   "pixelSize": 1.45,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-g3m715c-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.2,
+     "fullWell": 6030
+    },
+    {
+     "id": "touptek-g3m715c-hgc",
+     "label": "Gain 180",
+     "gain": 180,
+     "readNoise": 0.85,
+     "fullWell": 800
+    }
+   ]
+  },
+  {
+   "id": "touptek-gpm130m",
+   "model": "ToupTek GPM130M",
+   "vendor": "ToupTek",
+   "sensor": "ONSemi AR0130CS",
+   "mono": true,
+   "pixelSize": 3.75,
+   "qe": 78,
+   "bitDepth": 12,
+   "resolutionX": 1280,
+   "resolutionY": 960,
+   "maxCooling": null,
+   "darkRef": 0.03,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-gpm130m-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6,
+     "fullWell": 14500
+    },
+    {
+     "id": "touptek-gpm130m-hgc",
+     "label": "Unity Gain 29",
+     "gain": 29,
+     "readNoise": 4,
+     "fullWell": 6500
+    }
+   ]
+  },
+  {
+   "id": "touptek-gpm2210m",
+   "model": "ToupTek GPM2210M",
+   "vendor": "ToupTek",
+   "sensor": "SmartSens SC2210",
+   "mono": true,
+   "pixelSize": 4,
+   "qe": 92,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.02,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-gpm2210m-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 8780
+    },
+    {
+     "id": "touptek-gpm2210m-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 0.6,
+     "fullWell": 3100
+    }
+   ]
+  },
+  {
+   "id": "touptek-gpm462m",
+   "model": "ToupTek GPM462M",
+   "vendor": "ToupTek",
+   "sensor": "Sony IMX462",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 89,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "touptek-gpm462m-lcg",
+     "label": "Gain 0 LCG",
+     "gain": 0,
+     "readNoise": 2.5,
+     "fullWell": 11200
+    },
+    {
+     "id": "touptek-gpm462m-hgc",
+     "label": "Gain 80 HGC",
+     "gain": 80,
+     "readNoise": 0.5,
+     "fullWell": 4400
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi120mc-s",
+   "model": "ZWO ASI120MC-S",
+   "vendor": "ZWO",
+   "sensor": "ONSemi AR0130CS",
+   "mono": false,
+   "pixelSize": 3.75,
+   "qe": 72,
+   "bitDepth": 12,
+   "resolutionX": 1280,
+   "resolutionY": 960,
+   "maxCooling": null,
+   "darkRef": 0.03,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi120mc-s",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 4,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi120mm-mini-s",
+   "model": "ZWO ASI120MM Mini / S",
+   "vendor": "ZWO",
+   "sensor": "ONSemi AR0130CS",
+   "mono": true,
+   "pixelSize": 3.75,
+   "qe": 75,
+   "bitDepth": 12,
+   "resolutionX": 1280,
+   "resolutionY": 960,
+   "maxCooling": null,
+   "darkRef": 0.03,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi120mm-mini",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 4,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi1600mc-pro",
+   "model": "ZWO ASI1600MC Pro",
+   "vendor": "ZWO",
+   "sensor": "Panasonic MN34230",
+   "mono": false,
+   "pixelSize": 3.8,
+   "qe": 55,
+   "bitDepth": 12,
+   "resolutionX": 4656,
+   "resolutionY": 3520,
+   "maxCooling": 40,
+   "darkRef": 0.006,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi1600mc-pro",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi1600mm-pro",
+   "model": "ZWO ASI1600MM Pro",
+   "vendor": "ZWO",
+   "sensor": "Panasonic MN34230",
+   "mono": true,
+   "pixelSize": 3.8,
+   "qe": 60,
+   "bitDepth": 12,
+   "resolutionX": 4656,
+   "resolutionY": 3520,
+   "maxCooling": 40,
+   "darkRef": 0.006,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi1600mm-pro",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi174mc",
+   "model": "ZWO ASI174MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX174",
+   "mono": false,
+   "pixelSize": 5.86,
+   "qe": 70,
+   "bitDepth": 12,
+   "resolutionX": 1936,
+   "resolutionY": 1216,
+   "maxCooling": null,
+   "darkRef": 0.05,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi174mc",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 5.8,
+     "fullWell": 32000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi174mm-mini",
+   "model": "ZWO ASI174MM / Mini",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX174",
+   "mono": true,
+   "pixelSize": 5.86,
+   "qe": 78,
+   "bitDepth": 12,
+   "resolutionX": 1936,
+   "resolutionY": 1216,
+   "maxCooling": null,
+   "darkRef": 0.05,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi174mm",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 5.8,
+     "fullWell": 32000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi178mc",
+   "model": "ZWO ASI178MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX178",
+   "mono": false,
+   "pixelSize": 2.4,
+   "qe": 76,
+   "bitDepth": 14,
+   "resolutionX": 3096,
+   "resolutionY": 2080,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi178mc",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi178mm",
+   "model": "ZWO ASI178MM",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX178",
+   "mono": true,
+   "pixelSize": 2.4,
+   "qe": 81,
+   "bitDepth": 14,
+   "resolutionX": 3096,
+   "resolutionY": 2080,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi178mm",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi183mc-pro",
+   "model": "ZWO ASI183MC Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX183",
+   "mono": false,
+   "pixelSize": 2.4,
+   "qe": 78,
+   "bitDepth": 12,
+   "resolutionX": 5496,
+   "resolutionY": 3672,
+   "maxCooling": 40,
+   "darkRef": 0.004,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi183mc-pro",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi183mm-pro",
+   "model": "ZWO ASI183MM Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX183",
+   "mono": true,
+   "pixelSize": 2.4,
+   "qe": 84,
+   "bitDepth": 12,
+   "resolutionX": 5496,
+   "resolutionY": 3672,
+   "maxCooling": 40,
+   "darkRef": 0.004,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi183mm-pro",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi220mm-mini",
+   "model": "ZWO ASI220MM Mini",
+   "vendor": "ZWO",
+   "sensor": "SmartSens SC2210",
+   "mono": true,
+   "pixelSize": 4,
+   "qe": 92,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.02,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi220mm-mini-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.4,
+     "fullWell": 8780
+    },
+    {
+     "id": "zwo-asi220mm-mini-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 0.6,
+     "fullWell": 3100
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi2400mc-pro",
+   "model": "ZWO ASI2400MC Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX410",
+   "mono": false,
+   "pixelSize": 5.94,
+   "qe": 80,
+   "bitDepth": 14,
+   "resolutionX": 6072,
+   "resolutionY": 4042,
+   "maxCooling": 35,
+   "darkRef": 0.001,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi2400mc-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.4,
+     "fullWell": 100000
+    },
+    {
+     "id": "zwo-asi2400mc-pro-hgc",
+     "label": "Gain 140 HGC",
+     "gain": 140,
+     "readNoise": 1.1,
+     "fullWell": 20000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi2600mc-pro",
+   "model": "ZWO ASI2600MC Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX571",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 16,
+   "resolutionX": 6248,
+   "resolutionY": 4176,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi2600mc-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.6,
+     "fullWell": 51000
+    },
+    {
+     "id": "zwo-asi2600mc-pro-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1.15,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi2600mm-pro",
+   "model": "ZWO ASI2600MM Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX571",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 16,
+   "resolutionX": 6248,
+   "resolutionY": 4176,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi2600mm-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.6,
+     "fullWell": 51000
+    },
+    {
+     "id": "zwo-asi2600mm-pro-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1.15,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi290mc",
+   "model": "ZWO ASI290MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX290",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 75,
+   "bitDepth": 12,
+   "resolutionX": 1936,
+   "resolutionY": 1096,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi290mc-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.2,
+     "fullWell": 14600
+    },
+    {
+     "id": "zwo-asi290mc-hgc",
+     "label": "Gain 110 HGC",
+     "gain": 110,
+     "readNoise": 1,
+     "fullWell": 4100
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi290mm-mini",
+   "model": "ZWO ASI290MM / Mini",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX290",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 1936,
+   "resolutionY": 1096,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi290mm-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.2,
+     "fullWell": 14600
+    },
+    {
+     "id": "zwo-asi290mm-hgc",
+     "label": "Gain 110 HGC",
+     "gain": 110,
+     "readNoise": 1,
+     "fullWell": 4100
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi294mc-pro",
+   "model": "ZWO ASI294MC Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX294",
+   "mono": false,
+   "pixelSize": 4.63,
+   "qe": 75,
+   "bitDepth": 14,
+   "resolutionX": 4144,
+   "resolutionY": 2822,
+   "maxCooling": 35,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi294mc-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.8,
+     "fullWell": 63700
+    },
+    {
+     "id": "zwo-asi294mc-pro-hgc",
+     "label": "Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 1.2,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi294mm-pro",
+   "model": "ZWO ASI294MM Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX492",
+   "mono": true,
+   "pixelSize": 4.63,
+   "qe": 90,
+   "bitDepth": 14,
+   "resolutionX": 4144,
+   "resolutionY": 2822,
+   "maxCooling": 35,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi294mm-pro-lcg",
+     "label": "Bin2 Gain 0",
+     "gain": 0,
+     "readNoise": 6.8,
+     "fullWell": 66380
+    },
+    {
+     "id": "zwo-asi294mm-pro-hgc",
+     "label": "Bin2 Gain 120 HGC",
+     "gain": 120,
+     "readNoise": 1.2,
+     "fullWell": 14500
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi462mc",
+   "model": "ZWO ASI462MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX462",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 1936,
+   "resolutionY": 1096,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi462mc-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.5,
+     "fullWell": 11200
+    },
+    {
+     "id": "zwo-asi462mc-hgc",
+     "label": "Gain 80 HGC",
+     "gain": 80,
+     "readNoise": 0.5,
+     "fullWell": 4400
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi462mm",
+   "model": "ZWO ASI462MM",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX462",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 89,
+   "bitDepth": 12,
+   "resolutionX": 1936,
+   "resolutionY": 1096,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi462mm-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.5,
+     "fullWell": 11200
+    },
+    {
+     "id": "zwo-asi462mm-hgc",
+     "label": "Gain 80 HGC",
+     "gain": 80,
+     "readNoise": 0.5,
+     "fullWell": 4400
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi533mc-pro",
+   "model": "ZWO ASI533MC Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX533",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 14,
+   "resolutionX": 3008,
+   "resolutionY": 3008,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi533mc-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.3,
+     "fullWell": 50000
+    },
+    {
+     "id": "zwo-asi533mc-pro-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1,
+     "fullWell": 14000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi533mm-pro",
+   "model": "ZWO ASI533MM Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX533",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 14,
+   "resolutionX": 3008,
+   "resolutionY": 3008,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi533mm-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.3,
+     "fullWell": 50000
+    },
+    {
+     "id": "zwo-asi533mm-pro-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1,
+     "fullWell": 14000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi585mc",
+   "model": "ZWO ASI585MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX585",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 91,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi585mc-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "zwo-asi585mc-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.75,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi585mc-pro",
+   "model": "ZWO ASI585MC Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX585",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 91,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": 35,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi585mc-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "zwo-asi585mc-pro-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.75,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi585mm",
+   "model": "ZWO ASI585MM",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX585",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 93,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi585mm-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "zwo-asi585mm-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.75,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi585mm-pro",
+   "model": "ZWO ASI585MM Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX585",
+   "mono": true,
+   "pixelSize": 2.9,
+   "qe": 93,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": 35,
+   "darkRef": 0.015,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi585mm-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "zwo-asi585mm-pro-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.75,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi6200mc-pro",
+   "model": "ZWO ASI6200MC Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX455",
+   "mono": false,
+   "pixelSize": 3.76,
+   "qe": 80,
+   "bitDepth": 16,
+   "resolutionX": 9576,
+   "resolutionY": 6388,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi6200mc-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 51400
+    },
+    {
+     "id": "zwo-asi6200mc-pro-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1.15,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi6200mm-pro",
+   "model": "ZWO ASI6200MM Pro",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX455",
+   "mono": true,
+   "pixelSize": 3.76,
+   "qe": 91,
+   "bitDepth": 16,
+   "resolutionX": 9576,
+   "resolutionY": 6388,
+   "maxCooling": 35,
+   "darkRef": 0.0005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi6200mm-pro-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 3.5,
+     "fullWell": 51400
+    },
+    {
+     "id": "zwo-asi6200mm-pro-hgc",
+     "label": "Gain 100 HGC",
+     "gain": 100,
+     "readNoise": 1.15,
+     "fullWell": 15000
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi662mc",
+   "model": "ZWO ASI662MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX662",
+   "mono": false,
+   "pixelSize": 2.9,
+   "qe": 91,
+   "bitDepth": 12,
+   "resolutionX": 1920,
+   "resolutionY": 1080,
+   "maxCooling": null,
+   "darkRef": 0.012,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi662mc-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 6.5,
+     "fullWell": 38000
+    },
+    {
+     "id": "zwo-asi662mc-hgc",
+     "label": "Gain 252 HGC",
+     "gain": 252,
+     "readNoise": 0.7,
+     "fullWell": 2100
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi676mc",
+   "model": "ZWO ASI676MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX676",
+   "mono": false,
+   "pixelSize": 2,
+   "qe": 83,
+   "bitDepth": 12,
+   "resolutionX": 3552,
+   "resolutionY": 3552,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi676mc-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.5,
+     "fullWell": 10500
+    },
+    {
+     "id": "zwo-asi676mc-hgc",
+     "label": "Gain 180 HGC",
+     "gain": 180,
+     "readNoise": 0.56,
+     "fullWell": 1300
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi678mc",
+   "model": "ZWO ASI678MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX678",
+   "mono": false,
+   "pixelSize": 2,
+   "qe": 83,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi678mc-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.7,
+     "fullWell": 11270
+    },
+    {
+     "id": "zwo-asi678mc-hgc",
+     "label": "Gain 182 HGC",
+     "gain": 182,
+     "readNoise": 0.6,
+     "fullWell": 1400
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi678mm",
+   "model": "ZWO ASI678MM",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX678",
+   "mono": true,
+   "pixelSize": 2,
+   "qe": 85,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.008,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi678mm-lcg",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.7,
+     "fullWell": 11270
+    },
+    {
+     "id": "zwo-asi678mm-hgc",
+     "label": "Gain 182 HGC",
+     "gain": 182,
+     "readNoise": 0.6,
+     "fullWell": 1400
+    }
+   ]
+  },
+  {
+   "id": "zwo-asi715mc",
+   "model": "ZWO ASI715MC",
+   "vendor": "ZWO",
+   "sensor": "Sony IMX715",
+   "mono": false,
+   "pixelSize": 1.45,
+   "qe": 80,
+   "bitDepth": 12,
+   "resolutionX": 3840,
+   "resolutionY": 2160,
+   "maxCooling": null,
+   "darkRef": 0.005,
+   "darkRefTemp": 0,
+   "darkDoubling": 6,
+   "modes": [
+    {
+     "id": "zwo-asi715mc",
+     "label": "Gain 0",
+     "gain": 0,
+     "readNoise": 2.2,
+     "fullWell": 6030
+    }
+   ]
+  }
+ ]
+}
