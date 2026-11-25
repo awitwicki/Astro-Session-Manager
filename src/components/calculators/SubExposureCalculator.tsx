@@ -182,9 +182,20 @@ export function SubExposureCalculator() {
   }, [calcState.cameraId, calcState.modeId])
 
   // With nothing saved, start from the camera the user has the most subs on.
+  // A saved unmatched camera ('user:<instrume>') that the catalog now
+  // matches (a newer catalog, or better matching) moves to the catalog entry
+  // instead of staying a blank custom sensor.
   useEffect(() => {
     if (!restored || autoSelectedRef.current) return
-    if (calcState.cameraId !== null) { autoSelectedRef.current = true; return }
+    const savedId = calcState.cameraId
+    if (savedId !== null) {
+      if (!savedId.startsWith('user:')) { autoSelectedRef.current = true; return }
+      const uc = userCameras.find((u) => `user:${u.instrume}` === savedId)
+      if (!uc) return // library not loaded yet
+      autoSelectedRef.current = true
+      if (uc.camera) selectCamera(uc.camera.id)
+      return
+    }
     if (userCameras.length === 0) return
     autoSelectedRef.current = true
     const top = userCameras[0]
@@ -196,11 +207,10 @@ export function SubExposureCalculator() {
   function selectCamera(cameraId: string) {
     setCalcState((prev) => {
       const sel = resolveSelection(cameraId, catalog, userCameras)
-      // Until the user types one for this camera, the field stays empty —
-      // never a silently carried-over value from whatever camera was
-      // selected before.
+      // The telescope doesn't change with the camera: a ratio typed for this
+      // camera wins, then the one its subs record, else the current one stays.
       const recordedFocalRatio = (v: number | null) =>
-        prev.focalRatioByCamera[cameraId] ?? (v !== null ? String(v) : '')
+        prev.focalRatioByCamera[cameraId] ?? (v !== null ? String(v) : prev.focalRatio)
 
       let sensorTemp: string
       let focalRatio: string
@@ -349,6 +359,11 @@ export function SubExposureCalculator() {
     : null
 
   const sensorFieldsOpen = selection?.kind !== 'catalog' ? true : editingSensorManual
+  // A recorded CCD-TEMP means the subs came from a regulated sensor, even when
+  // the camera itself isn't in the catalog.
+  const sensorCooled = selection?.kind === 'catalog'
+    ? selection.camera.maxCooling !== null
+    : selection?.kind === 'user' && selection.userCamera.sensorTemp !== null
   const hasOverrides = Object.keys(currentOverrides).length > 0
 
   return (
@@ -381,7 +396,7 @@ export function SubExposureCalculator() {
             </Field>
           )}
 
-          <Field id="se-sensor-temp" label={selection?.kind === 'catalog' && selection.camera.maxCooling !== null ? 'Sensor' : 'Air temperature'} unit="°C">
+          <Field id="se-sensor-temp" label={sensorCooled ? 'Sensor' : 'Air temperature'} unit="°C">
             <input id="se-sensor-temp" className="calc-input" type="number" step="any"
               value={calcState.sensorTemp}
               onChange={(e) => setCalcState((prev) => ({ ...prev, sensorTemp: e.target.value }))} />
@@ -449,13 +464,24 @@ export function SubExposureCalculator() {
 
         <div className="calc-panel fc-card">
           <h3 className="fc-card-title">Conditions</h3>
-          <div className="calc-field">
-            <span className="calc-field-label">Sky</span>
-            <div className="calc-seg" role="group" aria-label="Sky input mode">
-              <button type="button" className={`calc-seg-btn ${calcState.skyMode === 'bortle' ? 'active' : ''}`}
-                onClick={() => setCalcState((prev) => ({ ...prev, skyMode: 'bortle' }))}>Bortle</button>
-              <button type="button" className={`calc-seg-btn ${calcState.skyMode === 'sqm' ? 'active' : ''}`}
-                onClick={() => setCalcState((prev) => ({ ...prev, skyMode: 'sqm' }))}>SQM</button>
+          <div className="se-switch-row">
+            <div className="calc-field">
+              <span className="calc-field-label">Sky</span>
+              <div className="calc-seg" role="group" aria-label="Sky input mode">
+                <button type="button" className={`calc-seg-btn ${calcState.skyMode === 'bortle' ? 'active' : ''}`}
+                  onClick={() => setCalcState((prev) => ({ ...prev, skyMode: 'bortle' }))}>Bortle</button>
+                <button type="button" className={`calc-seg-btn ${calcState.skyMode === 'sqm' ? 'active' : ''}`}
+                  onClick={() => setCalcState((prev) => ({ ...prev, skyMode: 'sqm' }))}>SQM</button>
+              </div>
+            </div>
+            <div className="calc-field">
+              <span className="calc-field-label">Accepted extra noise</span>
+              <div className="calc-seg" role="group" aria-label="Accepted extra noise">
+                {NOISE_OPTIONS.map((n) => (
+                  <button key={n} type="button" className={`calc-seg-btn ${calcState.extraNoise === n ? 'active' : ''}`}
+                    onClick={() => setCalcState((prev) => ({ ...prev, extraNoise: n }))}>{trim(n * 100, 0)} %</button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -464,7 +490,7 @@ export function SubExposureCalculator() {
               <select id="se-bortle" className="calc-select" value={String(calcState.bortle)}
                 onChange={(e) => setCalcState((prev) => ({ ...prev, bortle: Number(e.target.value) }))}>
                 {BORTLE_ROWS.map((row) => (
-                  <option key={row.bortle} value={row.bortle}>{row.bortle} · {trim(row.sqm, 1)} mag/arcsec²</option>
+                  <option key={row.bortle} value={row.bortle}>{row.bortle} · {row.sqm.toFixed(1)} mag/arcsec²</option>
                 ))}
               </select>
             </Field>
@@ -504,16 +530,6 @@ export function SubExposureCalculator() {
             ))}
           </div>
           {focalLengthHint && <p className="calc-hint">{focalLengthHint}</p>}
-
-          <div className="calc-field">
-            <span className="calc-field-label">Accepted extra noise</span>
-            <div className="calc-seg" role="group" aria-label="Accepted extra noise">
-              {NOISE_OPTIONS.map((n) => (
-                <button key={n} type="button" className={`calc-seg-btn ${calcState.extraNoise === n ? 'active' : ''}`}
-                  onClick={() => setCalcState((prev) => ({ ...prev, extraNoise: n }))}>{trim(n * 100, 0)} %</button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 

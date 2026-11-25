@@ -34,10 +34,21 @@ test('matchInstrume never strips a vendor name that is not a separate word', () 
   // None of these are a QHY camera, but without a required separator after
   // the vendor name, "QHY600M" / "QHY183M" / "QHY533M" strip down to a bare
   // "600m" / "183m" / "533m" that then false-matches as a substring here.
-  assert.equal(matchInstrume(cameras, 'ZWO ASI1600MM Cool'), null)
-  assert.equal(matchInstrume(cameras, 'ZWO ASI2600MM Duo'), null)
-  assert.equal(matchInstrume(cameras, 'ZWO ASI183MM'), null)
-  assert.equal(matchInstrume(cameras, 'ZWO ASI533MM'), null)
+  for (const s of ['ZWO ASI1600MM Cool', 'ZWO ASI2600MM Duo', 'ZWO ASI183MM', 'ZWO ASI533MM'])
+    assert.notEqual(matchInstrume(cameras, s)?.vendor, 'QHY', s)
+})
+
+// A variant the catalog doesn't list (Duo = the Pro plus a guide sensor,
+// Cool = the older name) shares the model token, so it gets the same sensor.
+test('matchInstrume falls back to the model token for unlisted variants', () => {
+  assert.equal(matchInstrume(cameras, 'ZWO ASI2600MC Duo')?.model, 'ZWO ASI2600MC Pro')
+  assert.equal(matchInstrume(cameras, 'ZWO ASI2600MM Duo')?.model, 'ZWO ASI2600MM Pro')
+  assert.equal(matchInstrume(cameras, 'ZWO ASI1600MM Cool')?.model, 'ZWO ASI1600MM Pro')
+  assert.equal(matchInstrume(cameras, 'ZWO ASI183MM')?.model, 'ZWO ASI183MM Pro')
+  assert.equal(matchInstrume(cameras, 'ZWO ASI2600MC Duo')?.mono, false)
+  assert.equal(matchInstrume(cameras, 'Mystery 2600'), null)
+  // "Atik 460EX Color" and "Atik 460EX Mono": guessing one would be a coin flip.
+  assert.equal(matchInstrume(cameras, 'Atik 460EX'), null)
 })
 
 test('nearestMode picks the closest gain and tolerates a missing one', () => {

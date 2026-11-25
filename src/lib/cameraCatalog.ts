@@ -98,7 +98,30 @@ export function matchInstrume(cameras: Camera[], instrume: string): Camera | nul
       }
     }
   }
-  return best
+  return best ?? matchModelToken(cameras, instrume)
+}
+
+/** The first word of a model name that carries a digit — "asi2600mc" in
+ *  "ZWO ASI2600MC Pro". Short ones ("6d") are too generic to match on. */
+function modelToken(model: string): string | null {
+  const word = model.toLowerCase().split(/[^a-z0-9]+/).find((w) => /\d/.test(w))
+  return word && word.length >= 4 ? word : null
+}
+
+/** Fallback for variants the catalog doesn't list ("ASI2600MC Duo",
+ *  "ASI1600MM Cool"): a camera whose model token appears as a whole word in
+ *  the header. Several catalog entries can share a token ("ASI585MC" and
+ *  "ASI585MC Pro", same sensor); the shortest name is the base model. When
+ *  they disagree on mono/colour ("Atik 460EX Color" / "Mono") any pick would
+ *  be a guess, so there is no match. */
+function matchModelToken(cameras: Camera[], instrume: string): Camera | null {
+  const words = new Set(instrume.toLowerCase().split(/[^a-z0-9]+/))
+  const candidates = cameras.filter((c) => {
+    const token = modelToken(c.model)
+    return token !== null && words.has(token)
+  })
+  if (candidates.length === 0 || candidates.some((c) => c.mono !== candidates[0].mono)) return null
+  return candidates.reduce((a, b) => (b.model.length < a.model.length ? b : a))
 }
 
 /** The mode closest to the given gain; with no gain, the one with the

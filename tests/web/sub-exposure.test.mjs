@@ -124,3 +124,16 @@ test('every tick lies within the plot rectangle', () => {
     assert.ok(tick.y >= chart.plot.y - 1e-6 && tick.y <= chart.plot.y + chart.plot.h + 1e-6)
   }
 })
+
+// ─── Website copy (docs/subcalc) ───────────────────────────────────────────
+
+test('website copies of the modules and catalog are in sync (yarn sync:subcalc)', async () => {
+  const { readFileSync } = await import('node:fs')
+  const sync = await import('../../scripts/sync-subcalc.mjs')
+  for (const name of sync.MODULES) {
+    assert.equal(readFileSync(sync.outputPath(name), 'utf8'), sync.transpile(name), `${name}.js is stale`)
+  }
+  assert.equal(readFileSync(sync.catalogOutput, 'utf8'), readFileSync(sync.catalogSource, 'utf8'), 'cameras.json is stale')
+  const web = await import('../../docs/subcalc/js/subExposure.js')
+  assert.deepEqual(web.subExposure(s, c), subExposure(s, c))
+})

@@ -144,3 +144,18 @@ test('overridesByCamera is kept per camera id, malformed entries dropped', () =>
     'zwo-asi2600mc-pro': { readNoise: 1.2 },
   })
 })
+
+// FITS writers often store floats as float32: -20.1 arrives as -20.1000003814697.
+test('recorded header values are rounded to readable precision', () => {
+  const proj = project('P', [filterGroup([
+    session('2026-01-01', [light('ZWO ASI2600MC Pro', {
+      gain: 100, ccdTemp: -20.1000003814697,
+      raw: { FOCRATIO: 5.599999904632568, FOCALLEN: '399.9999847', XPIXSZ: '3.7599999904632568' },
+    })]),
+  ])])
+  const [cam] = collectUserCameras([proj], catalog)
+  assert.equal(cam.sensorTemp, -20.1)
+  assert.equal(cam.focalRatio, 5.6)
+  assert.equal(cam.focalLength, 400)
+  assert.equal(cam.pixelSize, 3.76)
+})

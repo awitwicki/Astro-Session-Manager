@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test:web": "node --import tsx --test tests/web/*.test.mjs",
     "sync:filtercalc": "node scripts/sync-filtercalc.mjs",
+    "sync:subcalc": "node scripts/sync-subcalc.mjs",
     "generate:cameras": "node scripts/generate-camera-catalog.mjs"
   },
   "dependencies": {

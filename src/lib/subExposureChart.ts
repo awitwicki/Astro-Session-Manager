@@ -18,8 +18,11 @@ export interface SubChart {
   series: SubChartSeries[]
 }
 
-const DEFAULT_SIZE = { width: 460, height: 220 }
-const MARGIN = { left: 50, top: 12, right: 14, bottom: 32 }
+// Drawn at the width of a full calculator card (like fbscCharts' band chart)
+// so the 10 px SVG text isn't scaled up; `top` leaves room for a series label
+// above a line that runs along the top of the plot.
+const DEFAULT_SIZE = { width: 720, height: 260 }
+const MARGIN = { left: 50, top: 24, right: 14, bottom: 32 }
 
 const N_MIN = 2
 const N_MAX = 12

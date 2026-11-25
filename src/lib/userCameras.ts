@@ -23,6 +23,12 @@ function parsePositive(v: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
+/** FITS writers often store floats as float32, so -20.1 arrives as
+ *  -20.1000003814697; `digits` decimals is all these values ever carry. */
+function round(n: number | null, digits: number): number | null {
+  return n === null ? null : Number(n.toFixed(digits))
+}
+
 interface Accum {
   subs: number
   latestDate: string | null
@@ -64,11 +70,11 @@ export function collectUserCameras(projects: Project[], catalog: Camera[]): User
         if (acc.latestDate === null || session.date > acc.latestDate) {
           acc.latestDate = session.date
           acc.gain = typeof header.gain === 'number' && Number.isFinite(header.gain) ? header.gain : null
-          acc.sensorTemp = typeof header.ccdTemp === 'number' && Number.isFinite(header.ccdTemp) ? header.ccdTemp : null
+          acc.sensorTemp = typeof header.ccdTemp === 'number' && Number.isFinite(header.ccdTemp) ? round(header.ccdTemp, 1) : null
           acc.filter = typeof header.filter === 'string' && header.filter.trim() !== '' ? header.filter : null
-          acc.focalRatio = parsePositive(header.raw?.FOCRATIO)
-          acc.focalLength = parsePositive(header.raw?.FOCALLEN)
-          acc.pixelSize = parsePositive(header.raw?.XPIXSZ)
+          acc.focalRatio = round(parsePositive(header.raw?.FOCRATIO), 2)
+          acc.focalLength = round(parsePositive(header.raw?.FOCALLEN), 0)
+          acc.pixelSize = round(parsePositive(header.raw?.XPIXSZ), 2)
         }
       }
     }

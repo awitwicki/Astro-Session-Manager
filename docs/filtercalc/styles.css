@@ -212,35 +212,48 @@ select {
 /* ─── Mode switch (Bortle / SQM) ─────────────────────────────────────────── */
 .calc-seg {
   display: inline-flex;
+  /* Hug the options instead of stretching across a column panel. */
+  align-self: flex-start;
+  width: max-content;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-bg-primary);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  border-radius: var(--radius-md);
 }
 
 .calc-seg-btn {
   box-sizing: border-box;
-  height: calc(var(--calc-control-h) - 2px);
-  padding: 0 16px;
-  background: var(--color-bg-primary);
+  /* 3 px track padding + 1 px border on each side keep the control at the
+     height of the inputs next to it. */
+  height: calc(var(--calc-control-h) - 8px);
+  padding: 0 14px;
+  background: transparent;
   border: none;
+  border-radius: calc(var(--radius-md) - 3px);
   color: var(--color-text-secondary);
   font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.calc-seg-btn + .calc-seg-btn {
-  border-left: 1px solid var(--color-border);
-}
-
-.calc-seg-btn:hover {
+.calc-seg-btn:hover:not(.active) {
   background: var(--color-bg-hover);
+  color: var(--color-text-primary);
 }
 
 .calc-seg-btn.active {
   background: var(--color-accent-muted);
   color: var(--color-accent);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent), var(--shadow-sm);
+}
+
+.calc-seg-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 .calc-hint {
