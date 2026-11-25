@@ -25,7 +25,11 @@ works but makes a screen busier is not finished.
    `Result<T, String>`. Frontend-only settings need no Rust field: any key
    persists through `set_setting` (`AppSettings.extra`).
 5. **Interface last**, from the existing vocabulary below.
-6. **Close out**: `yarn tsc -b` (never `tsc --noEmit`), `yarn lint`,
+6. **Calculators also go on the website.** Every new calculator, and every
+   change to an existing one, ships on GitHub Pages in the same commit — see
+   "Website copies of calculators" below. The spec and plan include it from
+   the start; it is not a later extra.
+7. **Close out**: `yarn tsc -b` (never `tsc --noEmit`), `yarn lint`,
    `yarn test:web`, `cargo test --lib` if Rust changed; look at the result in
    the running app in both themes (the `run` skill; stop the dev server
    afterwards); bump `package.json` (minor for a feature, patch for a fix);
@@ -56,9 +60,16 @@ structure, not just its colours.
   `components/ui/Checkbox.tsx` only for tri-state.
 - **Charts**: plain SVG drawn from a pixel-space model built in `src/lib`
   (`fbscCharts.ts` + `FilterCharts.tsx` is the pattern). No chart library.
+  Size the viewBox to the width it renders at (about 720 for a full-width
+  calculator card): a narrow viewBox stretched across a wide card scales the
+  10 px chart text up to 16-17 px.
 - **Icons**: `lucide-react`, one size per row, never as decoration.
 - **New CSS** goes in the page's existing stylesheet under `src/styles/` with
   a short feature prefix (`fc-`, `se-`).
+- **Numbers from files** (FITS headers, catalogs) are rounded to the
+  precision they really carry before they reach a field or a label:
+  float32 headers turn -20.1 into -20.1000003814697. Round in the pure
+  module, and test it.
 - **Text**: English, sentence case, plain words, units on every number.
   Empty or invalid input shows "—" in the result, not an error banner.
 - **Long work** reports through the status bar operations
@@ -91,9 +102,34 @@ When a feature builds on someone's method, data or tool, name them in a
 README. Take the function and the data they allowed; never their code,
 markup, styling or wording.
 
+## Website copies of calculators
+
+The calculators also run on the project's GitHub Pages site (`docs/`),
+outside the app. A new calculator gets a page there; a change to an existing
+calculator (math, inputs, text, layout) goes into its page in the same commit.
+
+- One folder per calculator: `docs/<name>/` with `index.html`, `styles.css`,
+  `icon.png` and `js/app.js` (see `docs/filtercalc/` and `docs/subcalc/`).
+- The pure `src/lib` modules are not rewritten for the page: a
+  `scripts/sync-<name>.mjs` transpiles them into `docs/<name>/js/` (and
+  copies any data file the page loads), exposed as `yarn sync:<name>`.
+  A test in the calculator's `tests/web` file fails when the committed
+  copies are stale. Re-run the sync after every change to those modules.
+- Only the page around them is written twice: `docs/<name>/js/app.js`
+  (plain DOM, no framework) and `docs/<name>/styles.css` (dark theme, the
+  app's tokens and component classes ported, only the ones the page uses).
+  Text and layout changes in the React component go into `app.js` too.
+- Fetch data with relative paths (`cameras.json`, not `/catalogs/…`):
+  Pages serves the site under `/<repo>/`. Persist page state in
+  `localStorage`; there is no Tauri and no image library on the web, so
+  library-driven defaults fall back to a stated, visible default.
+- Link the page from `docs/index.html` (nav, the Calculators section,
+  footer) and credit any data source in the footer's Data line.
+- Check it in a browser served as static files
+  (`python3 -m http.server --directory docs`), at desktop and phone width.
+
 ## Mirrors
 
-Some code exists twice and must change together: weather logic
-(`src/lib/weather.ts` and `docs/astroweather/js/weather.js`), and the filter
-calculator's website copy (`yarn sync:filtercalc`). Check `CLAUDE.md` for the
-current list before touching either.
+Other code that exists twice and must change together: weather logic
+(`src/lib/weather.ts` and `docs/astroweather/js/weather.js`). Check
+`CLAUDE.md` for the current list before touching it.
