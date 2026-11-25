@@ -19,6 +19,7 @@
 - **Project scaffolding** — quickly create new project folders with the unified directory structure
 - **FITS/XISF header parsing** — reads CCD temperature, exposure time, gain, resolution, and more directly from your files
 - **Image previews** — generates and caches thumbnails for quick visual browsing
+- **Calculators** — Bortle/SQM integration-time conversion, a filter bandpass shift calculator, and a sub-exposure calculator that recommends the longest sub that still makes sense for your camera, sky and filter
 - **Cross-platform** — runs on macOS, Windows, and Linux
 
 ## Folder Structure
@@ -94,6 +95,7 @@ Builds for the current platform. Cross-platform builds are handled via GitHub Ac
 - Deep-sky catalog (`public/catalogs/dso.json`) is generated from [OpenNGC](https://github.com/mattiaverga/OpenNGC), CC BY-SA 4.0 — `node scripts/generate-dso-catalog.mjs`.
 - Star catalog (`public/catalogs/stars.json`, Hipparcos / Henry Draper / Yale numbers, Bayer, Flamsteed, variable and IAU names) is generated from the [HYG Database](https://github.com/astronexus/HYG-Database) v4.1 by David Nash, CC BY-SA 4.0 — `node scripts/generate-star-catalog.mjs`.
 - Sky Map chart data comes from [d3-celestial](https://github.com/ofrohn/d3-celestial).
+- The sub-exposure calculator's camera database and its underlying idea come from [AstroSubCalc](https://astrodes.com/misc/astrosubcalc/) by astrodes.com, used with the author's permission — `node scripts/generate-camera-catalog.mjs`.
 
 ## License
 

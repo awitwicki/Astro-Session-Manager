@@ -1,7 +1,7 @@
 {
   "name": "astro-session-manager",
   "private": true,
-  "version": "1.32.0",
+  "version": "1.33.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:web": "node --import tsx --test tests/web/*.test.mjs",
-    "sync:filtercalc": "node scripts/sync-filtercalc.mjs"
+    "sync:filtercalc": "node scripts/sync-filtercalc.mjs",
+    "sync:subcalc": "node scripts/sync-subcalc.mjs",
+    "generate:cameras": "node scripts/generate-camera-catalog.mjs"
   },
   "dependencies": {
     "@photostructure/tz-lookup": "^11.6.1",
