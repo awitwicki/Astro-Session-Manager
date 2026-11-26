@@ -101,6 +101,43 @@
     transition: color 150ms ease;
   }
   nav a:hover { color: var(--text-1); }
+  nav li, .brand { white-space: nowrap; }
+  @media (max-width: 1000px) {
+    nav ul { gap: 18px; }
+    .brand-name { display: none; }
+  }
+  .nav-menu { position: relative; }
+  .nav-menu-toggle {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font: inherit; font-size: 14px; color: var(--text-2);
+    transition: color 150ms ease;
+  }
+  .nav-menu-toggle::after {
+    content: ''; width: 5px; height: 5px; margin-top: -3px;
+    border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+  }
+  .nav-menu:hover .nav-menu-toggle,
+  .nav-menu:focus-within .nav-menu-toggle { color: var(--text-1); }
+  nav ul.nav-submenu {
+    display: none; flex-direction: column; gap: 0;
+    position: absolute; top: 100%; left: -14px;
+    margin-top: 12px; padding: 6px;
+    background: var(--bg-2);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+  }
+  /* invisible bridge so the pointer can travel from the toggle to the menu */
+  .nav-submenu::before {
+    content: ''; position: absolute; left: 0; right: 0; top: -13px; height: 13px;
+  }
+  .nav-menu:hover .nav-submenu,
+  .nav-menu:focus-within .nav-submenu { display: flex; }
+  .nav-submenu a {
+    display: block; padding: 7px 10px; border-radius: var(--radius-sm);
+  }
+  .nav-submenu a:hover { background: var(--bg-hover); }
 
   /* ── Buttons ────────────────────────────────────────────────────── */
   .btn {
@@ -445,9 +482,9 @@
 
 <nav>
   <div class="container">
-    <a href="#" class="brand">
+    <a href="#" class="brand" aria-label="Astro Session Manager">
       <img class="brand-mark" src="assets/icon.png" alt="">
-      Astro Session Manager
+      <span class="brand-name">Astro Session Manager</span>
     </a>
     <ul>
       <li><a href="#features">Features</a></li>
@@ -456,8 +493,13 @@
       <li><a href="#weather">Weather</a></li>
       <li><a href="#files">Your files</a></li>
       <li><a href="astroweather/">AstroWeather</a></li>
-      <li><a href="filtercalc/">Filter calculator</a></li>
-      <li><a href="subcalc/">Sub-exposure calculator</a></li>
+      <li class="nav-menu">
+        <button type="button" class="nav-menu-toggle" aria-haspopup="true">Calculators</button>
+        <ul class="nav-submenu">
+          <li><a href="filtercalc/">Filter calculator</a></li>
+          <li><a href="subcalc/">Sub-exposure calculator</a></li>
+        </ul>
+      </li>
       <li><a href="https://github.com/awitwicki/Astro-Session-Manager" target="_blank" rel="noopener">GitHub</a></li>
     </ul>
   </div>
